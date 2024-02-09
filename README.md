@@ -45,9 +45,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 ```
 
-#### 1
-
-Create an Index from web content
+#### 1. Create an Index from web content
 
 ```python
 from ragdoll.index import RagdollIndex
@@ -67,6 +65,15 @@ split_docs = index.get_split_documents(documents)
 retriever = index.get_retriever(split_docs)
 
 ```
+
+Or, in one line as follows:
+
+```python
+retriever = index.run_index_pipeline(question)
+```
+
+#### 2. Retrieval 
+
 And that's pretty much it. here's a quick test of retrieval:
 
 ```python
@@ -78,6 +85,7 @@ print(f"The retriever had found {len(docs)} relevant documents")
 print("-" * 100, "\n\n")
 print(pretty_print_docs(docs, for_llm=False))
 ```
+
 
 ## 📚 References
 
