@@ -1,0 +1,11 @@
+openai
+python-dotenv
+pyarrow
+pandas
+colored
+langchain
+langchain_openai
+google-api-python-client>=2.100.0
+lxml
+PyMuPDF
+faiss-cpu
