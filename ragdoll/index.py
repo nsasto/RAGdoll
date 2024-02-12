@@ -8,19 +8,11 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 
-from langchain_openai import OpenAIEmbeddings
+#from langchain_openai import OpenAIEmbeddings
 
-
-##peer load
 from .scraper import Scraper
 from .helpers import remove_set_duplicates
-from .config import ragdoll_config
-
-
-##peer load
-from ragdoll.scraper import Scraper
-from ragdoll.helpers import remove_set_duplicates
-from ragdoll.config import ragdoll_config
+from .config import Config
 
 class RagdollIndex:
     def __init__(self, config = {}):
@@ -30,7 +22,7 @@ class RagdollIndex:
         Args:
             config (dict): Configuration options for the RagdollIndex. Default is an empty dictionary.
         """
-        self.set_config(config)
+        self.cfg = Config()
 
         self.raw_documents = []
         self.document_chunks = []
@@ -38,39 +30,12 @@ class RagdollIndex:
         self.search_terms = []
         self.search_results = []
         self.url_list = []
-        self.retriever = None
 
-    def set_config(self, config={}):
-        """
-        Set the configuration for the Ragdoll object.
-
-        Parameters:
-        - config (dict): A dictionary containing the configuration options.
-
-        Returns:
-        - None
-        """
-
-        cfg = ragdoll_config.copy()  # Copy the default config
-        cfg.update(config)  # Merge user config into default config
-
-        self.alternative_query_term_count = cfg.get('alternative_query_term_count')
-        self.max_search_results_per_query = cfg.get('max_search_results_per_query')
-        self.max_workers = cfg.get('max_workers')
-        
-        enable_logging = cfg.get('enable_logging', False)
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG if enable_logging else logging.INFO)
-        
-        if cfg.get('vector_store').lower() == "faiss":
-            from langchain_community.vectorstores import FAISS
+        self.logger.setLevel(logging.DEBUG if self.cfg.enable_logging else logging.INFO)
 
-        if cfg.get('embeddings').lower() == "openaiembeddings":
-            self.embeddings = OpenAIEmbeddings()
-
-        self.text_splitter = self.get_text_splitter()
-
-        self.cfg = cfg
+        #initialize text splitter
+        self.get_text_splitter()
 
     def get_config(self):
         return self.cfg
@@ -152,20 +117,21 @@ class RagdollIndex:
         self.raw_documents = [documents[i]["raw_content"] for i in range(len(documents))]
         return self.raw_documents
     
-    def get_suggested_search_terms(self, query: str):
+    def get_suggested_search_terms(self, query: str, n=None):
         """Get appropriate web search terms for a query.
 
         Args:
             query (str): The query for which to retrieve suggested search terms.
-
+            n (int): number of alternative queries to return
         Returns:
             list: A list of suggested search terms.
         """
+        n = self.cfg.alternative_query_term_count if n is None else n
         self.logger.debug('Fetching suggested search terms for the query')
-        self.search_terms = self._get_sub_queries(query, self.alternative_query_term_count)
+        self.search_terms = self._get_sub_queries(query, n)
         return self.search_terms
 
-    def get_search_results(self, query_list):
+    def get_search_results(self, query_list, n_results=None):
         """
         Performs Google searches for each query in the query_list in parallel.
 
@@ -180,7 +146,7 @@ class RagdollIndex:
             - results: A list of search results in the same format as returned by
                         `_google_search`.
         """
-        n_results = self.max_search_results_per_query
+        n_results = self.cfg.max_search_results_per_query if n_results is None else n_results
 
         if isinstance(query_list, list):
             pass  # No processing needed for list
@@ -189,7 +155,7 @@ class RagdollIndex:
         else:
             raise TypeError("Query must be a string or a list.")
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=self.cfg.max_workers) as executor:
             futures = [executor.submit(self._google_search, query, n_results) for query in query_list]
 
         # Wait for all tasks to finish and collect the results
@@ -265,30 +231,8 @@ class RagdollIndex:
         
         self.document_chunks = self.text_splitter.split_documents(documents)
         return self.document_chunks
-
-    def get_retriever(self, documents):
-        """
-        Returns a retriever object based on the specified vector store.
-
-        Args:
-            documents (list): List of documents to be used for creating the retriever.
-
-        Returns:
-            retriever: The retriever object based on the specified vector store.
-
-        Raises:
-            TypeError: If the vector store is not specified in the config dictionary.
-        """
-        if (self.cfg.get('vector_store').lower() == "faiss"):
-            from langchain_community.vectorstores import FAISS  
-            retriever = FAISS.from_documents(documents, OpenAIEmbeddings()).as_retriever()
-        else:
-            raise TypeError("Vector store not specified. Set this in the config dictionary")
-
-        self.retriever = retriever
-        return retriever
     
-    def run_index_pipeline(self, query: str):
+    def run_index_pipeline(self, query: str, **kwargs):
         """Run the entire process, taking a query as input.
 
         Args:
@@ -304,11 +248,9 @@ class RagdollIndex:
         documents = self.get_scraped_content()
         #split docs
         split_docs = self.get_split_documents(documents)
-        #create an in memory retriever
-        retriever = self.get_retriever(split_docs)
-        return retriever
 
+        return split_docs
 
 
 if (__name__=='main'):
-    print('RAGdoll Index is running...')
+    print('RAGdoll Index...')
