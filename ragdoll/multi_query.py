@@ -122,7 +122,7 @@ class MultiQueryRetriever(BaseRetriever):
             inputs={"question": question}, callbacks=run_manager.get_child()
         )
         lines = response.get(self.parser_key, [])
-        if self.verbose:
+        if (self.verbose | logger.getEffectiveLevel() == logging.INFO):
             logger.info(f"Generated queries: {lines}")
         return lines
 
@@ -184,7 +184,7 @@ class MultiQueryRetriever(BaseRetriever):
         #lines = text value from the response dictionary
         
         lines = response.get(self.parser_key, [])
-        if self.verbose:
+        if (self.verbose | logger.getEffectiveLevel() == logging.INFO):
             logger.info(f"Generated queries: {lines}")
         return lines
 
