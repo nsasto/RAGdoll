@@ -22,7 +22,7 @@ class RagdollIndex:
         Args:
             config (dict): Configuration options for the RagdollIndex. Default is an empty dictionary.
         """
-        self.cfg = Config()
+        self.cfg = Config(config)
 
         self.raw_documents = []
         self.document_chunks = []
