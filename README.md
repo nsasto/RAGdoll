@@ -61,22 +61,24 @@ results=index.get_search_results(search_queries)
 documents = index.get_scraped_content()
 #split docs
 split_docs = index.get_split_documents(documents)
-#create an in memory retriever
-retriever = index.get_retriever(split_docs)
 
 ```
 
 Or, in one line as follows:
 
 ```python
-retriever = index.run_index_pipeline(question)
+split_docs = index.run_index_pipeline(question)
 ```
 
 #### 2. Retrieval 
 
-And that's pretty much it. here's a quick test of retrieval:
+And that's pretty much it to load up our documents. To retrieve them using a langchain retriever is just as simple.
 
 ```python
+from ragdoll.retriever import RagdollRetriever
+
+ragdoll = RagdollRetriever(config={'enable_logging':True})
+retriever = ragdoll.get_retriever(documents=split_docs) 
 docs = retriever.get_relevant_documents('how does langchain work')
 
 from ragdoll.helpers import pretty_print_docs
