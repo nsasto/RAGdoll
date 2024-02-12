@@ -1,5 +1,6 @@
 class Config:
-    """Config class for GPT Researcher."""
+    """Config class for Ragdoll."""
+    
     _RETRIEVERS = ['BASE','MULTIQUERY']
     _LLM_PROVIDERS = ['OpenAI']
     _EMBEDDINGS_MODELS = ['OpenAIEmbeddings']
@@ -15,6 +16,7 @@ class Config:
         self.max_search_results_per_query = 3
         self.alternative_query_term_count = 2
         self.max_workers = 3
+        self.llm = 'OpenAI'
         self.embeddings = "OpenAIEmbeddings"
         self.enable_logging = False
         self.load_config(config_settings)
