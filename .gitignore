@@ -4,6 +4,7 @@
 #     https://www.atlassian.com/git/tutorials/saving-changes/gitignore
 
 addCertsZscaler.ps1
+test.py
 
 # Node artifact files
 node_modules/
