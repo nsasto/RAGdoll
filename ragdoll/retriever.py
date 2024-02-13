@@ -5,6 +5,10 @@ from langchain.retrievers.document_compressors import EmbeddingsFilter
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
+from operator import itemgetter
+#from langchain_core.runnables import RunnablePassthrough, RunnableParallel, RunnableLambda
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 import numpy as np
 
@@ -13,6 +17,8 @@ import logging
 from .config import Config
 from .multi_query import MultiQueryRetriever
 from .helpers import dotDict
+from .helpers import pretty_print_docs
+from .prompts import generate_RAG_template
 
 class RagdollRetriever:
     def __init__(self, config={}):
@@ -228,6 +234,37 @@ class RagdollRetriever:
         )
         
         return compression_retriever
+    
+    def answer_me_this(self, question, retriever, report_format="apa", min_words=1000):
+        """
+        Answers the given question using the RAG chain.
+
+        Args:
+            question (str): The question to be answered.
+            retriever: The retriever object used for retrieving relevant documents.
+            report_format (str, optional): The format of the generated report. Defaults to "apa".
+            min_words (int, optional): The minimum number of words required in the generated report. Defaults to 1000.
+
+        Returns:
+            str: The answer to the question.
+        """
+        self.logger.info('Running RAG chain')
+        research_prompt = PromptTemplate.from_template(template=generate_RAG_template(report_format, min_words))
+        llm = self.get_llm()
+        retrieval_chain = (
+            {
+                "context": itemgetter("question") | retriever | pretty_print_docs,
+                "question": itemgetter('question')
+            }
+            | research_prompt
+            | llm
+            | StrOutputParser()
+        )
+
+        return retrieval_chain.invoke({"question": question})
+
+        # rag_chain = (retrieval_chain | llm | StrOutputParser())
+
 
 if __name__ == "main":
     print("RAGdoll Retriever")
