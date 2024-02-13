@@ -13,6 +13,7 @@ from langchain.docstore.document import Document
 from .scraper import Scraper
 from .helpers import remove_set_duplicates
 from .config import Config
+from .prompts import generate_search_queries_prompt
 
 class RagdollIndex:
     def __init__(self, config = {}):
@@ -52,11 +53,8 @@ class RagdollIndex:
         """
         import ast
 
-        prompt =(
-            f'Write exactly {query_count} unique google search queries to search online that form an objective opinion from the following: "{query}"'
-            f'Use the current date if needed: {datetime.now().strftime("%B %d, %Y")}.\n'
-            f'You must respond with a list of strings in the following format: ["query 1", "query 2", "query 3", etc].'
-        )
+        prompt = generate_search_queries_prompt(query, query_count)
+
         self.logger.info(f'👨‍💻 Generating potential search queries with prompt:\n {query}')
         # define the LLM
         llm = ChatOpenAI(model_name='gpt-3.5-turbo', temperature=0, max_tokens=2056)
