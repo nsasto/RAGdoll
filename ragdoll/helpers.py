@@ -1,4 +1,13 @@
-import sys
+class dotDict(dict):
+    """
+    A dictionary subclass that allows attribute-style access to its elements.
+    Usage:
+    d = dotDict({'key': 'value'})
+    print(d.key)  # prints 'value'
+    """
+    __getattr__= dict.get
+    __setattr__= dict.__setitem__
+    __delattr__= dict.__delitem__
 
 def is_notebook(print_output=False):
     """Checks if the code is running in a Jupyter Notebook environment.
