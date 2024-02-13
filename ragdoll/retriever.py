@@ -25,15 +25,14 @@ class RagdollRetriever:
         self.cfg = Config(config)
 
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG if self.cfg.enable_logging else logging.INFO)
-        self.logger.propagate = True
+        self.logger.setLevel(self.cfg.log_level)
 
         # Initialize
         self.db = None
         self.llm = self.get_llm()
 
     def get_llm(self, model=None, streaming=False, temperature=0):
-        self.logger.debug("retrieving LLM model")
+        self.logger.info("retrieving LLM model")
 
         model = self.cfg.llm if model is None else model
         if model == "OpenAI":
@@ -51,7 +50,7 @@ class RagdollRetriever:
         return self.llm
 
     def get_embeddings(self, model=None):
-        self.logger.debug("retrieving embeddings")
+        self.logger.info("retrieving embeddings")
         model = self.cfg.embeddings = "OpenAIEmbeddings" if model is None else model
 
         if model == "OpenAIEmbeddings":
@@ -79,7 +78,7 @@ class RagdollRetriever:
             ValueError: If documents is None and db does not yet exists
             TypeError: If vector store is not specified in the config dictionary.
         """
-        self.logger.debug("retrieving vector database")
+        self.logger.info("retrieving vector database")
         if self.db is not None:
             return self.db
         if documents is None:
@@ -123,14 +122,14 @@ class RagdollRetriever:
         Raises:
             TypeError: If the vector store is not specified in the config dictionary.
         """
-        self.logger.debug("retrieving multi query document retriever")
+        self.logger.info("retrieving multi query document retriever")
         if db == None:
             vector_db = self.get_db(documents)
         else:
             vector_db = db
 
         retriever = vector_db.as_retriever()
-        self.logger.debug("Remember that the multi query retriever will incur additional calls to your LLM")
+        self.logger.info("Remember that the multi query retriever will incur additional calls to your LLM")
         return MultiQueryRetriever.from_llm(retriever=retriever, llm=self.llm)
 
 
@@ -150,7 +149,7 @@ class RagdollRetriever:
         Raises:
             TypeError: If the vector store is not specified in the config dictionary.
         """
-        self.logger.debug("retrieving document retriever")
+        self.logger.info("retrieving document retriever")
         if db == None:
             vector_db = self.get_db(documents)
         else:
@@ -174,6 +173,19 @@ class RagdollRetriever:
         }
 
     def get_compression_retriever(self, base_retriever, compressor_config={}):
+        """
+        Returns a compression retriever object based on the provided base retriever and compressor configuration.
+
+        Args:
+            base_retriever: The base retriever object.
+            compressor_config: A dictionary containing the compressor configuration parameters.
+
+        Returns:
+            compression_retriever: The compression retriever object.
+
+        Raises:
+            ValueError: If no compression objects were selected.
+        """
         crcfg=self._default_compressor_config()
         for key, value in compressor_config.items():
             crcfg.__dict__[key] = value
@@ -204,7 +216,7 @@ class RagdollRetriever:
         compression_objects_log = ['embeddings_filter', 'splitter', 'redundant_filter', 'relevant_filter']
 
         log = [obj for flag, obj in zip(config_switches, compression_objects_log) if flag]
-        self.logger.debug(f"Compression object pipeline: {' ➤ '.join(log)}")
+        self.logger.info(f"Compression object pipeline: {' ➤ '.join(log)}")
 
         pipeline = [obj for flag, obj in zip(config_switches, compression_objects) if flag]
         

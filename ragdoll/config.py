@@ -14,7 +14,7 @@ class Config:
         "max_workers" : 3,
         "llm": "OpenAI",
         "embeddings": "OpenAIEmbeddings",
-        "enable_logging": False
+        "log_level": 30, #logging.WARN
     }
 
     def __init__(self, config_settings=None):

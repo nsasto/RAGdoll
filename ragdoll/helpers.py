@@ -1,3 +1,6 @@
+import colorlog
+import logging
+
 class dotDict(dict):
     """
     A dictionary subclass that allows attribute-style access to its elements.
@@ -8,6 +11,23 @@ class dotDict(dict):
     __getattr__= dict.get
     __setattr__= dict.__setitem__
     __delattr__= dict.__delitem__
+
+def set_logger(loglevel=logging.WARN, include_time_stamp=False):
+    msg_format = '%(log_color)s[%(module)s] %(asctime)s: %(message)s' if include_time_stamp else '%(log_color)s[%(module)s] %(message)s'
+    handler = colorlog.StreamHandler()
+    handler.setFormatter(colorlog.ColoredFormatter(
+        msg_format,
+        log_colors={
+            'DEBUG':    'cyan',
+            'INFO':     'green',
+            'WARNING':  'yellow',
+            'ERROR':    'red',
+            'CRITICAL': 'red',
+        }
+    ))
+
+    logging.basicConfig(level=loglevel, handlers=[handler])
+    return None
 
 def is_notebook(print_output=False):
     """Checks if the code is running in a Jupyter Notebook environment.
