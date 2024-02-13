@@ -94,6 +94,22 @@ The Ragdoll MultiQuery class is a custom langchain retriever to resolve the nati
 retriever = ragdoll.get_mq_retriever(documents=split_docs) 
 ```
 
+To use the Contextual Compression Retriever, you’ll need a base retriever (either the standard or multi query) - and then select the pipeline options which are all set to True by default but can be amended in the config params. The Contextual Compressor by default this refinement process:
+embeddings_filter > splitter > redundant_filter > relevance_filter 
+
+```python
+cc_retriever = ragdoll.get_compression_retriever(retriever)
+```
+
+#### 3. Q&A 
+
+Basic Q&A is pretty straight forward. Simply pass your question to the `answer_me_this` method:
+
+```python
+response = ragdoll.answer_me_this(question, cc_retriever)
+print(response)
+```
+
 ## 📚 References
 
 The following resources were used in the development of this project:
