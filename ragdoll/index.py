@@ -32,7 +32,7 @@ class RagdollIndex:
         self.url_list = []
 
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG if self.cfg.enable_logging else logging.INFO)
+        self.logger.setLevel(self.cfg.log_level)
 
         #initialize text splitter
         self.get_text_splitter()
@@ -57,7 +57,7 @@ class RagdollIndex:
             f'Use the current date if needed: {datetime.now().strftime("%B %d, %Y")}.\n'
             f'You must respond with a list of strings in the following format: ["query 1", "query 2", "query 3", etc].'
         )
-        self.logger.debug(f'👨‍💻 Generating potential search queries with prompt:\n {query}')
+        self.logger.info(f'👨‍💻 Generating potential search queries with prompt:\n {query}')
         # define the LLM
         llm = ChatOpenAI(model_name='gpt-3.5-turbo', temperature=0, max_tokens=2056)
         result = llm.invoke(prompt)
@@ -75,7 +75,7 @@ class RagdollIndex:
         Returns:
             list: A list of search results.
         """
-        self.logger.debug(f"  🌐 Searching with query {query}...")
+        self.logger.info(f"  🌐 Searching with query {query}...")
 
         googleSearch = GoogleSearchAPIWrapper()
         results = googleSearch.results(query, n)
@@ -106,7 +106,7 @@ class RagdollIndex:
         Returns:
             str: a list of langchain documents.
         """
-        self.logger.debug('Fetching content URLs')
+        self.logger.info('Fetching content URLs')
         urls = self.url_list if urls is None else urls
         documents = []
         try:
@@ -127,7 +127,7 @@ class RagdollIndex:
             list: A list of suggested search terms.
         """
         n = self.cfg.alternative_query_term_count if n is None else n
-        self.logger.debug('Fetching suggested search terms for the query')
+        self.logger.info('Fetching suggested search terms for the query')
         self.search_terms = self._get_sub_queries(query, n)
         return self.search_terms
 
@@ -186,7 +186,7 @@ class RagdollIndex:
         Returns:
             str: The summarized document.
         """
-        self.logger.debug('Summarizing document')
+        self.logger.info('Summarizing document')
         pass
 
     
@@ -227,7 +227,7 @@ class RagdollIndex:
 
         if self.text_splitter is None:
             self.get_text_splitter()
-        self.logger.debug('Chunking document')
+        self.logger.info('Chunking document')
         
         self.document_chunks = self.text_splitter.split_documents(documents)
         return self.document_chunks
@@ -238,7 +238,7 @@ class RagdollIndex:
         Args:
             query (str): The query to run the index pipeline on.
         """
-        self.logger.debug('Running index pipeline')
+        self.logger.info('Running index pipeline')
         #get appropriate search queries for the question 
         search_queries = self.get_suggested_search_terms(query)
         #get google search results
