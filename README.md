@@ -44,12 +44,36 @@ Assumes you have the appropriate API keys for Google search and OpenAI in your e
 from dotenv import load_dotenv
 load_dotenv(override=True)
 ```
+The super rapid version. 5 lines to build research and response generation:
+
+```python
+from ragdoll.index import RagdollIndex
+from ragdoll.retriever import RagdollRetriever
+
+index= RagdollIndex()
+ragdoll = RagdollRetriever()
+
+#ok, let's go
+question = "tell me more about langchain"
+split_docs = index.run_index_pipeline(question)
+retriever = ragdoll.get_compression_retriever(retriever)
+response = ragdoll.answer_me_this(question, cc_retriever)
+print(response)
+```
+
+generates the following structured response (snippet included here only) :
+
+```
+LangChain is an artificial intelligence framework designed for programmers to develop applications using large language models. It offers several key features that make it versatile and useful for developers.
+
+One of the main features of LangChain is its context-awareness capability. It allows applications to establish connections between a language model and various context sources. This means that developers can create applications that are aware of the context in which they are being used, making them more intelligent and responsive....
+```
 
 #### 1. Create an Index from web content
 
 ```python
 from ragdoll.index import RagdollIndex
-index= RagdollIndex({'enable_logging':True})
+index= RagdollIndex()
 
 question = "tell me more about langchain"
 #get appropriate search queries for the question 
@@ -77,7 +101,7 @@ And that's pretty much it to load up our documents. To retrieve them using a lan
 ```python
 from ragdoll.retriever import RagdollRetriever
 
-ragdoll = RagdollRetriever(config={'enable_logging':True})
+ragdoll = RagdollRetriever()
 retriever = ragdoll.get_retriever(documents=split_docs) 
 docs = retriever.get_relevant_documents('how does langchain work')
 
