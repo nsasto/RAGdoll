@@ -72,7 +72,7 @@ split_docs = index.run_index_pipeline(question)
 
 #### 2. Retrieval 
 
-And that's pretty much it to load up our documents. To retrieve them using a langchain retriever is just as simple.
+And that's pretty much it to load up our documents. To retrieve them using a langchain retriever is just as simple. 
 
 ```python
 from ragdoll.retriever import RagdollRetriever
@@ -87,7 +87,12 @@ print(f"The retriever had found {len(docs)} relevant documents")
 print("-" * 100, "\n\n")
 print(pretty_print_docs(docs, for_llm=False))
 ```
+To use multi-query retrieval, use `get_mq_retriever`. Note that multi query will incur additional calls to your LLM. 
+The Ragdoll MultiQuery class is a custom langchain retriever to resolve the native langchain bug as at version '0.1.6'. 
 
+```python
+retriever = ragdoll.get_mq_retriever(documents=split_docs) 
+```
 
 ## 📚 References
 
