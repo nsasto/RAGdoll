@@ -57,7 +57,7 @@ class RagdollLLM:
                 'text2text-generation',
                 model=model,
                 tokenizer=tokenizer,
-                max_length=3000
+                max_length=500
             )
             result_llm = HuggingFacePipeline(pipeline=pipe)
 
