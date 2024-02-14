@@ -14,6 +14,7 @@ from .scraper import Scraper
 from .helpers import remove_set_duplicates
 from .config import Config
 from .prompts import generate_search_queries_prompt
+from .models import RagdollLLM
 
 class RagdollIndex:
     def __init__(self, config = {}):
@@ -57,10 +58,16 @@ class RagdollIndex:
 
         self.logger.info(f'🧠 Generating potential search queries with prompt:\n {query}')
         # define the LLM
-        llm = ChatOpenAI(model_name='gpt-3.5-turbo', temperature=0, max_tokens=2056)
+        llm = RagdollLLM(llm=self.cfg.llm, 
+                          streaming=False, 
+                          temperature=0, 
+                          log_level=self.cfg.log_level
+                          ).llm
+
         result = llm.invoke(prompt)
-        self.logger.info(f'🧠 Generated potential search queries: {result.content}')
-        return ast.literal_eval(result.content)
+        values = result.content if hasattr(result, 'content') else result
+        self.logger.info(f'🧠 Generated potential search queries: {values}')
+        return ast.literal_eval(values)
     
 
     def _google_search(self, query, n)->list:
