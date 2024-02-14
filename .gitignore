@@ -3,6 +3,7 @@
 # Learn more about .gitignore:
 #     https://www.atlassian.com/git/tutorials/saving-changes/gitignore
 
+ragdoll_db
 addCertsZscaler.ps1
 test.py
 
