@@ -55,11 +55,11 @@ class RagdollIndex:
 
         prompt = generate_search_queries_prompt(query, query_count)
 
-        self.logger.info(f'👨‍💻 Generating potential search queries with prompt:\n {query}')
+        self.logger.info(f'🧠 Generating potential search queries with prompt:\n {query}')
         # define the LLM
         llm = ChatOpenAI(model_name='gpt-3.5-turbo', temperature=0, max_tokens=2056)
         result = llm.invoke(prompt)
-        self.logger.info(f'👨‍💻 Generated potential search queries: {result.content}')
+        self.logger.info(f'🧠 Generated potential search queries: {result.content}')
         return ast.literal_eval(result.content)
     
 
@@ -104,11 +104,11 @@ class RagdollIndex:
         Returns:
             str: a list of langchain documents.
         """
-        self.logger.info('Fetching content URLs')
+        self.logger.info('🌐 Fetching raw source content')
         urls = self.url_list if urls is None else urls
         documents = []
         try:
-            documents = Scraper(urls).run()
+            documents = Scraper(urls, user_agent=self.cfg.user_agent).run()
         except Exception as e:
             self.logger.error(f"{Fore.RED}Error in get_scraped_content: {e}{Style.reset}")
         
@@ -225,7 +225,7 @@ class RagdollIndex:
 
         if self.text_splitter is None:
             self.get_text_splitter()
-        self.logger.info('Chunking document')
+        self.logger.info('📰 Chunking document')
         
         self.document_chunks = self.text_splitter.split_documents(documents)
         return self.document_chunks
