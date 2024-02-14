@@ -1,11 +1,10 @@
 class Config:
     """Config class for Ragdoll Class."""
 
-    _RETRIEVERS = ['SINGLE_QUERY','MULTI_QUERY']
-    _LLM_PROVIDERS = ['OpenAI','LMStudio']
-    _EMBEDDINGS_MODELS = ['OpenAIEmbeddings','intfloat/e5-large-v2','multi-qa-MiniLM-L6-cos-v1']
-    _VECTOR_DB = ['FAISS','Chroma']
-    _DEFAULT_CONFIG = {
+    LLM_PROVIDERS = ['OpenAI','LMStudio','google/flan-t5-large']
+    EMBEDDING_MODELS = ['OpenAIEmbeddings','intfloat/e5-large-v2','multi-qa-MiniLM-L6-cos-v1']
+    VECTOR_DB = ['FAISS','Chroma']
+    DEFAULT_CONFIG = {
         "vector_db":"FAISS",
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
         "max_search_results_per_query" : 3,
@@ -24,10 +23,10 @@ class Config:
     def load_config(self, config_settings=None) -> None:
         """Load the config file."""
  
-        for key, value in self._DEFAULT_CONFIG.items():
+        for key, value in self.DEFAULT_CONFIG.items():
             self.__dict__[key] = value
 
-        if config_settings is None:
+        if not bool(config_settings):
             return None
         
         for key, value in config_settings.items():
