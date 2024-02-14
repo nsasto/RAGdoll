@@ -1,4 +1,4 @@
-from langchain_openai import OpenAIEmbeddings
+
 from langchain_openai import ChatOpenAI
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import EmbeddingsFilter
@@ -35,12 +35,12 @@ class RagdollRetriever:
 
         # Initialize
         self.db = None
-        self.llm = self.get_llm()
 
-    def get_llm(self, model=None, streaming=False, temperature=0):
-        self.logger.info("retrieving LLM model")
+    def get_llm(self, model=None, streaming=False, temperature=0, log_msg=''):
+        self.logger.info(f"🤖 retrieving LLM model {log_msg}")
 
         model = self.cfg.llm if model is None else model
+        
         if model == "OpenAI":
             self.llm = ChatOpenAI(
                 model="gpt-3.5-turbo-16k",
@@ -48,6 +48,18 @@ class RagdollRetriever:
                 streaming=streaming,
                 temperature=temperature,
             )
+        elif model=="LMStudio":
+            if self.cfg.base_url is None:
+                raise ValueError("Local LLM model base url not set")
+            
+            self.llm = ChatOpenAI(
+                base_url=self.cfg.base_url,
+                api_key="not_need",
+                streaming=streaming,
+                temperature=temperature,
+            )
+            
+        
         else:
             raise TypeError(
                 "LLM model not specified. Set this in the config dictionary"
@@ -56,11 +68,20 @@ class RagdollRetriever:
         return self.llm
 
     def get_embeddings(self, model=None):
-        self.logger.info("retrieving embeddings")
-        model = self.cfg.embeddings = "OpenAIEmbeddings" if model is None else model
+        model = self.cfg.embeddings if model is None else model
+        self.logger.info(f"💬 retrieving embeddings for model {model}")
 
         if model == "OpenAIEmbeddings":
+            from langchain_openai import OpenAIEmbeddings
             embeddings = OpenAIEmbeddings()
+        elif model == 'intfloat/e5-large-v2':
+            #from sentence_transformers import SentenceTransformer
+            from langchain_community.embeddings import HuggingFaceEmbeddings
+            embeddings = HuggingFaceEmbeddings(model_name='intfloat/e5-large-v2')
+        elif model == 'multi-qa-MiniLM-L6-cos-v1':
+            #from sentence_transformers import SentenceTransformer
+            from langchain_community.embeddings import HuggingFaceEmbeddings
+            embeddings = HuggingFaceEmbeddings(model_name='multi-qa-MiniLM-L6-cos-v1')
         else:
             raise TypeError(
                 "Embeddings model not specified. Set this in the config dictionary"
@@ -68,13 +89,12 @@ class RagdollRetriever:
 
         return embeddings
 
-    def get_db(self, documents=None, vector_store=None, embeddings=None):
+    def get_db(self, documents=None, embeddings=None):
         """
         Retrieves the vector database.
 
         Args:
             documents (list, optional): List of documents to create a new vector store. Defaults to None.
-            vector_store (str, optional): Type of vector store. Defaults to None.
             embeddings (numpy.ndarray, optional): Pre-computed embeddings. Defaults to None.
 
         Returns:
@@ -84,23 +104,25 @@ class RagdollRetriever:
             ValueError: If documents is None and db does not yet exists
             TypeError: If vector store is not specified in the config dictionary.
         """
-        self.logger.info("retrieving vector database")
-        if self.db is not None:
-            return self.db
-        if documents is None:
+        
+        if (documents is None) & (self.db is None):
             raise ValueError(
-                "The argument documents is required to create a new vector store"
+                "The argument documents is required to create a new vector store unless one already exists."
             )
+        elif (documents is None) & (self.db is not None):
+            return self.db
 
-        vector_store = self.cfg.vector_db if vector_store is None else vector_store
+        vector_store = self.cfg.vector_db 
         # get embeddings
         embeddings = self.get_embeddings() if embeddings is None else embeddings
 
         vectordb = None
         if vector_store.lower() == "faiss":
+            self.logger.info("🗃️  retrieving vector database (FAISS)...")
             from langchain_community.vectorstores import FAISS
             vectordb = FAISS.from_documents(documents=documents, embedding=embeddings)
         elif vector_store.lower() == "chroma":
+            self.logger.info("🗃️  retrieving vector database (ChromaDb)...")
             from langchain_community.vectorstores import Chroma
 
             vectordb = Chroma.from_documents(documents=documents, embedding=embeddings)
@@ -111,6 +133,61 @@ class RagdollRetriever:
 
         self.db = vectordb
         return vectordb
+
+    def save_db(self, path='ragdoll_db', db=None):
+        """
+        Saves the vector database to a specified path. TODO: Add support for Chroma (autoamtically saves when created...)
+
+        Args:
+            db: The vector database to be saved.
+            path: The path where the vector database will be saved.
+        """
+        db = self.db if db is None else db
+        vector_store = self.cfg.vector_db 
+        
+        if vector_store.lower() == "faiss":
+            self.logger.info("💾 saving vector database (FAISS)...")
+            from langchain_community.vectorstores import FAISS
+            db.save_local(path)
+        elif vector_store.lower() == "chroma":
+            self.logger.error("🗃️ ChromaDb does not offer explicit save. Set persist dir on create ...")
+        else:
+            raise TypeError(
+                "Vector store not specified. Set this in the config dictionary"
+            )
+
+        return 
+
+
+    def load_db(self, path='ragdoll_db', embeddings=None):
+        """
+        loads the vector database from a specified path. 
+
+        Args:
+            path: The path where the vector database will be saved.
+            embeddings (numpy.ndarray, optional): Pre-computed embeddings. Defaults to None.
+        """
+   
+        vector_store = self.cfg.vector_db 
+        # get embeddings
+        embeddings = self.get_embeddings() if embeddings is None else embeddings
+
+        if vector_store.lower() == "faiss":
+            self.logger.info("📂 loading vector database (FAISS)...")
+            from langchain_community.vectorstores import FAISS
+            db=FAISS.load_local(path, embeddings)
+        elif vector_store.lower() == "chroma":
+            self.logger.info("🗃️ loading vector database (ChromaDb)...")
+            from langchain_community.vectorstores import Chroma
+            db = Chroma(persist_directory=path, embedding_function=embeddings)
+        else:
+            raise TypeError(
+                "Vector store not specified. Set this in the config dictionary"
+            )
+
+        self.db=db
+        return db
+    
 
     def get_mq_retriever(self, documents=None, db=None):
         """
@@ -128,15 +205,16 @@ class RagdollRetriever:
         Raises:
             TypeError: If the vector store is not specified in the config dictionary.
         """
-        self.logger.info("retrieving multi query document retriever")
+        self.logger.info("📋 getting multi query retriever")
         if db == None:
             vector_db = self.get_db(documents)
         else:
             vector_db = db
 
         retriever = vector_db.as_retriever()
-        self.logger.info("Remember that the multi query retriever will incur additional calls to your LLM")
-        return MultiQueryRetriever.from_llm(retriever=retriever, llm=self.llm)
+        self.logger.info("💭 Remember that the multi query retriever will incur additional calls to your LLM")
+        llm = self.get_llm(log_msg='for multi query retriever')
+        return MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
 
 
     def get_retriever(self, documents=None, db=None):
@@ -155,7 +233,7 @@ class RagdollRetriever:
         Raises:
             TypeError: If the vector store is not specified in the config dictionary.
         """
-        self.logger.info("retrieving document retriever")
+        self.logger.info("📋 getting retriever")
         if db == None:
             vector_db = self.get_db(documents)
         else:
@@ -216,16 +294,16 @@ class RagdollRetriever:
         # list of objects
         compression_objects = [embeddings_filter, splitter, redundant_filter, relevant_filter]
         
-        if len(compression_objects) == 0:
-            raise ValueError("No compression objects were selected")
-        
         compression_objects_log = ['embeddings_filter', 'splitter', 'redundant_filter', 'relevant_filter']
 
         log = [obj for flag, obj in zip(config_switches, compression_objects_log) if flag]
-        self.logger.info(f"Compression object pipeline: {' ➤ '.join(log)}")
+        self.logger.info(f"🗜️ Compression object pipeline: {' ➤ '.join(log)}")
 
         pipeline = [obj for flag, obj in zip(config_switches, compression_objects) if flag]
         
+        if len(pipeline) == 0:
+            raise ValueError("No compression objects were selected")
+                
         pipeline_compressor = DocumentCompressorPipeline(
             transformers=pipeline
         )
@@ -248,9 +326,10 @@ class RagdollRetriever:
         Returns:
             str: The answer to the question.
         """
-        self.logger.info('Running RAG chain')
+        self.logger.info('🔗 Running RAG chain')
         research_prompt = PromptTemplate.from_template(template=generate_RAG_template(report_format, min_words))
-        llm = self.get_llm()
+        
+        llm = self.get_llm(log_msg='for RAG chain')
         retrieval_chain = (
             {
                 "context": itemgetter("question") | retriever | pretty_print_docs,
@@ -262,8 +341,6 @@ class RagdollRetriever:
         )
 
         return retrieval_chain.invoke({"question": question})
-
-        # rag_chain = (retrieval_chain | llm | StrOutputParser())
 
 
 if __name__ == "main":

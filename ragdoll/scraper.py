@@ -7,14 +7,12 @@ from bs4 import BeautifulSoup
 
 from langchain.docstore.document import Document
 
-DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
-
 class Scraper:
     """
     Scraper class to extract the content from the links
     """
   
-    def __init__(self, urls, user_agent=DEFAULT_USER_AGENT):
+    def __init__(self, urls, user_agent):
         """
         Initialize the Scraper class.
         Args:
