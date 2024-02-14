@@ -2,17 +2,17 @@ class Config:
     """Config class for Ragdoll Class."""
 
     _RETRIEVERS = ['SINGLE_QUERY','MULTI_QUERY']
-    _LLM_PROVIDERS = ['OpenAI']
-    _EMBEDDINGS_MODELS = ['OpenAIEmbeddings']
+    _LLM_PROVIDERS = ['OpenAI','LMStudio']
+    _EMBEDDINGS_MODELS = ['OpenAIEmbeddings','intfloat/e5-large-v2','multi-qa-MiniLM-L6-cos-v1']
     _VECTOR_DB = ['FAISS','Chroma']
     _DEFAULT_CONFIG = {
         "vector_db":"FAISS",
-        "base_retriever": "SINGLE_QUERY",
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
         "max_search_results_per_query" : 3,
         "alternative_query_term_count" : 2,
         "max_workers" : 3,
         "llm": "OpenAI",
+        "base_url":"http://localhost:1234/v1",
         "embeddings": "OpenAIEmbeddings",
         "log_level": 30, #logging.WARN
     }
