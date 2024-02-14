@@ -256,6 +256,22 @@ class RagdollIndex:
 
         return split_docs
 
+    def run_document_pipeline(self, document_list: list, **kwargs):
+        """Run the entire process, taking a list of pdf as input.
+
+        Args:
+            document_list (list): The list of pdfs to run the index pipeline on.
+        """
+        self.logger.info('Running document index pipeline')
+
+        # scrape the pdf and return langchain documents. 
+        # results contains a little more metadata, the list of urls can be accessed via index.url_list which is used by default in the next call
+        documents = self.get_scraped_content(document_list)
+        #split docs
+        split_docs = self.get_split_documents(documents)
+
+        return split_docs
+
 
 if (__name__=='main'):
     print('RAGdoll Index...')
