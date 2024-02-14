@@ -272,7 +272,7 @@ class RagdollRetriever:
         """
         crcfg=self._default_compressor_config()
         for key, value in compressor_config.items():
-            crcfg.__dict__[key] = value
+            crcfg[key] = value
         
         crcfg = dotDict(crcfg)
 
