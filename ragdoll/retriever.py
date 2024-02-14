@@ -1,5 +1,5 @@
 
-from langchain_openai import ChatOpenAI
+#from langchain_openai import ChatOpenAI
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import EmbeddingsFilter
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline
@@ -19,6 +19,8 @@ from .multi_query import MultiQueryRetriever
 from .helpers import dotDict
 from .helpers import pretty_print_docs
 from .prompts import generate_RAG_template
+from .models import RagdollLLM
+from .models import RagdollEmbeddings
 
 class RagdollRetriever:
     def __init__(self, config={}):
@@ -37,57 +39,16 @@ class RagdollRetriever:
         self.db = None
 
     def get_llm(self, model=None, streaming=False, temperature=0, log_msg=''):
-        self.logger.info(f"🤖 retrieving LLM model {log_msg}")
-
-        model = self.cfg.llm if model is None else model
-        
-        if model == "OpenAI":
-            self.llm = ChatOpenAI(
-                model="gpt-3.5-turbo-16k",
-                # model="gpt-4",
-                streaming=streaming,
-                temperature=temperature,
-            )
-        elif model=="LMStudio":
-            if self.cfg.base_url is None:
-                raise ValueError("Local LLM model base url not set")
-            
-            self.llm = ChatOpenAI(
-                base_url=self.cfg.base_url,
-                api_key="not_need",
-                streaming=streaming,
-                temperature=temperature,
-            )
-            
-        
-        else:
-            raise TypeError(
-                "LLM model not specified. Set this in the config dictionary"
-            )
-
-        return self.llm
+        return RagdollLLM(llm=model, 
+                          streaming=streaming, 
+                          temperature=temperature, 
+                          log_msg=log_msg, 
+                          log_level=self.cfg.log_level
+                          ).llm
 
     def get_embeddings(self, model=None):
         model = self.cfg.embeddings if model is None else model
-        self.logger.info(f"💬 retrieving embeddings for model {model}")
-
-        if model == "OpenAIEmbeddings":
-            from langchain_openai import OpenAIEmbeddings
-            embeddings = OpenAIEmbeddings()
-        elif model == 'intfloat/e5-large-v2':
-            #from sentence_transformers import SentenceTransformer
-            from langchain_community.embeddings import HuggingFaceEmbeddings
-            embeddings = HuggingFaceEmbeddings(model_name='intfloat/e5-large-v2')
-        elif model == 'multi-qa-MiniLM-L6-cos-v1':
-            #from sentence_transformers import SentenceTransformer
-            from langchain_community.embeddings import HuggingFaceEmbeddings
-            embeddings = HuggingFaceEmbeddings(model_name='multi-qa-MiniLM-L6-cos-v1')
-        else:
-            raise TypeError(
-                "Embeddings model not specified. Set this in the config dictionary"
-            )
-
-        return embeddings
+        return RagdollEmbeddings(model=model).embeddings
 
     def get_db(self, documents=None, embeddings=None):
         """
@@ -213,7 +174,7 @@ class RagdollRetriever:
 
         retriever = vector_db.as_retriever()
         self.logger.info("💭 Remember that the multi query retriever will incur additional calls to your LLM")
-        llm = self.get_llm(log_msg='for multi query retriever')
+        llm = self.get_llm(self.cfg.llm, log_msg='for multi query retriever')
         return MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
 
 
@@ -329,7 +290,7 @@ class RagdollRetriever:
         self.logger.info('🔗 Running RAG chain')
         research_prompt = PromptTemplate.from_template(template=generate_RAG_template(report_format, min_words))
         
-        llm = self.get_llm(log_msg='for RAG chain')
+        llm = self.get_llm(self.cfg.llm, log_msg='for RAG chain')
         retrieval_chain = (
             {
                 "context": itemgetter("question") | retriever | pretty_print_docs,
