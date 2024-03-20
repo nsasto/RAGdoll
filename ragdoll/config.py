@@ -14,6 +14,7 @@ class Config:
         "base_url":"http://localhost:1234/v1",
         "embeddings": "OpenAIEmbeddings",
         "log_level": 30, #logging.WARN
+        "temperature": 0,
     }
 
     def __init__(self, config_settings=None):
@@ -35,3 +36,14 @@ class Config:
     def get_config(self):
         """Get the current configuration."""
         return self.__dict__
+
+
+    def set_config(self, config_settings=None) -> None:
+        """Load the config file."""
+ 
+        if not bool(config_settings):
+            return None
+        
+        for key, value in config_settings.items():
+            self.__dict__[key] = value
+            
