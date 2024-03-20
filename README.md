@@ -20,6 +20,10 @@ To set up the project on your local machine, follow these steps:
 2. Clone the repository to your local machine.
 3. Install the required dependencies using `pip install -r requirements.txt`.
 
+alternatively, install with pip:
+
+`pip install git+https://github.com/nsasto/RAGdoll.git`
+
 ## 📦 Project Structure
 
 The project is structured as follows:
