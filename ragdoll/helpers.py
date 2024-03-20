@@ -74,6 +74,16 @@ def pretty_print_docs(docs, top_n=None, for_llm=True):
                         f"Content: {d.page_content}\n"
                         for i, d in enumerate(docs) if i < top_n)
 
+def pretty_print_dict(dictionary, indent=''):
+    result = ''
+    for key, value in dictionary.items():
+        if isinstance(value, dict):
+            result += f'{indent}{key}:\n'
+            result += pretty_print_dict(value, indent + '  ')
+        else:
+            result += f'{indent}{key}: {value}\n'
+    return result
+
 def remove_set_duplicates(results, key='link', log=False):
     """
     Removes duplicate links from a list of dictionaries.
