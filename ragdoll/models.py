@@ -3,32 +3,38 @@ import logging
 from .config import Config
 
 class RagdollLLM:
-    def __init__(self, llm, streaming=False, temperature=0, log_msg='', log_level=30):
+    def __init__(self, config = {}, log_msg=''):
         """
         Initializes a Ragdoll LLM object.
 
         Args:
             config (dict): Configuration options for the RagdollIndex. Default is an empty dictionary.
         """
-
+        self.cfg = Config(config)
+        
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(log_level)
+        self.logger.setLevel(self.cfg.log_level)
 
         # Initialize
-        self.llm = self.get_llm(llm, streaming=streaming, temperature=temperature, log_msg=log_msg )
+        self.llm = self.get_llm(self.cfg, log_msg=log_msg )
     
-    def get_llm(self, llm:str, streaming, temperature, log_msg):
+    def get_llm(self, cfg, log_msg):
+        llm = cfg.llm
+        streaming = cfg.streaming
+        temperature = cfg.temperature
+        base_url = cfg.base_url
+
         #if llm not in Config.LLM_PROVIDERS then return error
         if llm not in Config.LLM_PROVIDERS:
             raise ValueError(f"Specified LLM provider {llm} not found in {Config.LLM_PROVIDERS}")
         
         self.logger.info(f"🤖 retrieving {llm} model {log_msg}")  
-        if llm == "OpenAI":
+        if (llm == "OpenAI") or (llm == "gpt-3.5-turbo-16k") or (llm == "gpt-4"):
             from langchain_openai import ChatOpenAI
-            
+            model = "gpt-3.5-turbo-16k" if llm == "OpenAI" else llm
+
             result_llm = ChatOpenAI(
-                model="gpt-3.5-turbo-16k",
-                # model="gpt-4",
+                model=model,
                 streaming=streaming,
                 temperature=temperature,
             )
@@ -36,11 +42,11 @@ class RagdollLLM:
         elif llm=="LMStudio":
             from langchain_openai import ChatOpenAI
 
-            if self.cfg.base_url is None:
+            if base_url is None:
                 raise ValueError("Local LLM model base url not set")
             
             result_llm = ChatOpenAI(
-                base_url=self.cfg.base_url,
+                base_url=base_url,
                 api_key="not_need",
                 streaming=streaming,
                 temperature=temperature,

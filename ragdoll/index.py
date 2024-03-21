@@ -58,11 +58,7 @@ class RagdollIndex:
 
         self.logger.info(f'🧠 Generating potential search queries with prompt:\n {query}')
         # define the LLM
-        llm = RagdollLLM(llm=self.cfg.llm, 
-                          streaming=False, 
-                          temperature=0, 
-                          log_level=self.cfg.log_level
-                          ).llm
+        llm = RagdollLLM(self.cfg).llm
 
         result = llm.invoke(prompt)
         values = result.content if hasattr(result, 'content') else result
