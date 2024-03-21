@@ -186,7 +186,7 @@ class RagdollRetriever:
         retriever = vector_db.as_retriever()
         self.logger.info("💭 Remember that the multi query retriever will incur additional calls to your LLM")
          
-        llm = RagdollLLM(self.cfg.llm, log_msg='for multi query retriever').llm
+        llm = RagdollLLM(self.cfg, log_msg='for multi query retriever').llm
         return MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
 
 
@@ -302,7 +302,7 @@ class RagdollRetriever:
         self.logger.info('🔗 Running RAG chain')
         research_prompt = PromptTemplate.from_template(template=generate_RAG_template(report_format, min_words))
         
-        llm = RagdollLLM(self.cfg.llm, log_msg='for RAG chain').llm 
+        llm = RagdollLLM(self.cfg, log_msg='for RAG chain').llm 
         retrieval_chain = (
             {
                 "context": itemgetter("question") | retriever | pretty_print_docs,
