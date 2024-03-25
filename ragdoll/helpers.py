@@ -1,5 +1,6 @@
 import colorlog
 import logging
+import re
 
 class dotDict(dict):
     """
@@ -104,6 +105,61 @@ def remove_set_duplicates(results, key='link', log=False):
     if (log):
         print(f"Removed {len(results) - len(output)} duplicate links from {len(output)}")
     return output
+
+
+def parse_response_ByTag(response, tag='output'):
+    """
+    Parses the response string and extracts the content within the specified tag.
+
+    Args:
+        response (str): The response string to parse.
+        tag (str, optional): The tag to search for within the response string. Defaults to 'output'.
+
+    Returns:
+        str: The content within the specified tag, or None if the tag is not found.
+    """
+    # Regular expression patterns to match thinking and section_content tags
+    tag_pattern = f'<{tag}>(.*?)</{tag}>'
+    # Find the thinking and section_content blocks
+    tag_match = re.search(tag_pattern, response, re.DOTALL)
+    # Extract the content 
+    output = tag_match.group(1).strip() if tag_match else None
+    return output
+
+
+def parse_response(response, thinking_tag='thinking', output_tag='output', additional_props={}):
+    """
+    Parses the response string and extracts the thinking and output content.
+
+    Args:
+        response (str): The response string to parse.
+        thinking_tag (str, optional): The tag used to identify the thinking content. Defaults to 'thinking'.
+        output_tag (str, optional): The tag used to identify the output content. Defaults to 'output'.
+        additional_props (dict, optional): Additional properties to include in the parsed data. Defaults to {}.
+
+    Returns:
+        dict: A dictionary containing the parsed data, including the thinking and output content.
+    """
+    # Regular expression patterns to match thinking and output tags
+    thinking_pattern = f'<{thinking_tag}>(.*?)</{thinking_tag}>'
+    topic_content_pattern = f'<{output_tag}>(.*?)</{output_tag}>'
+    
+    # Find the thinking and output blocks
+    thinking_match = re.search(thinking_pattern, response, re.DOTALL)
+    topic_content_match = re.search(topic_content_pattern, response, re.DOTALL)
+    
+    # Extract the thinking and output 
+    thinking = thinking_match.group(1).strip() if thinking_match else None
+    output_content = topic_content_match.group(1).strip() if topic_content_match else None
+    
+    # Create a dictionary to store the extracted data
+    parsed_data = {
+        "thinking": thinking,
+        "output": output_content
+    }
+    
+    result = {**parsed_data, **additional_props} if bool(additional_props) else parsed_data
+    return result
 
 if __name__=='__main__':
     check_notebook = is_notebook(print_output=True)
