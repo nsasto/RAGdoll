@@ -1,6 +1,11 @@
 import colorlog
 import logging
 import re
+import pickle
+import os
+import pyperclip
+import importlib
+import sys
 
 class dotDict(dict):
     """
@@ -153,13 +158,130 @@ def parse_response(response, thinking_tag='thinking', output_tag='output', addit
     output_content = topic_content_match.group(1).strip() if topic_content_match else None
     
     # Create a dictionary to store the extracted data
-    parsed_data = {
-        "thinking": thinking,
-        "output": output_content
-    }
+    parsed_data = {}
+    parsed_data[thinking_tag] = thinking
+    parsed_data[output_tag] = output_content
+    
     
     result = {**parsed_data, **additional_props} if bool(additional_props) else parsed_data
     return result
+
+def has_extension(filename):
+    """
+    Check if a filename has an extension.
+
+    Args:
+        filename (str): The filename to check.
+
+    Returns:
+        bool: True if the filename has an extension, False otherwise.
+    """
+    _, file_extension = os.path.splitext(filename)
+    return bool(file_extension)
+
+def save_dict_to_pickle(filename, data, default_extension='article'):
+    """
+    Save a dictionary to a file using pickle serialization.
+
+    Args:
+        filename (str): The filename to save the dictionary to.
+        data (dict): The dictionary to save.
+        default_extension (str, optional): The default extension to use if the filename doesn't have one. Defaults to 'article'.
+
+    Raises:
+        Exception: If an error occurs during file saving.
+    """
+    if not has_extension(filename):
+        filename = f'{filename}.{default_extension}'
+    try:
+        with open(filename, 'wb') as pickle_file:
+            pickle.dump(data, pickle_file)
+    except Exception as e:
+        print(f"Error occurred while saving file '{filename}': {e}")
+
+def load_dict_from_pickle(filename, default_extension='article'):
+    """
+    Load a dictionary from a file using pickle deserialization.
+
+    Args:
+        filename (str): The filename to load the dictionary from.
+        default_extension (str, optional): The default extension to use if the filename doesn't have one. Defaults to 'article'.
+
+    Returns:
+        dict: The loaded dictionary.
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+    """
+    if not os.path.exists(filename):
+        filename = f'{filename}.{default_extension}' if not has_extension(filename) else filename
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"The file '{filename}' does not exist.")
+        
+    with open(filename, 'rb') as pickle_file:
+        return pickle.load(pickle_file)
+
+def dictionary_from_keys(original_dict, keys_to_retrieve):
+    """
+    Create a new dictionary containing only the specified keys from the original dictionary.
+
+    Args:
+        original_dict (dict): The original dictionary.
+        keys_to_retrieve (list): A list of keys to retrieve from the original dictionary.
+
+    Returns:
+        dict: A new dictionary containing only the specified keys and their corresponding values from the original dictionary.
+    """
+    new_dict = {}
+    for key in keys_to_retrieve:
+        if key in original_dict:
+            new_dict[key] = original_dict[key]
+    return new_dict
+
+def dictionary_except_keys(original_dict, keys_to_exlude):
+    """
+    Create a new dictionary containing only the specified keys from the original dictionary that arent in the keys_to_exlude.
+
+    Args:
+        original_dict (dict): The original dictionary.
+        keys_to_exlude (list): A list of keys to exclude from the original dictionary.
+
+    Returns:
+        dict: A new dictionary containing only the specified keys and their corresponding values from the original dictionary.
+    """
+    new_dict = {}
+    for key in original_dict.keys():
+        if key not in keys_to_exlude:
+            new_dict[key] = original_dict[key]
+    return new_dict
+
+
+def reload_module(module):
+    """
+    Function that reloads a python module. Useful in development when changes 
+    are made to a module and those changes need to be reloaded in the interpreter.
+
+    Parameters:
+    module (module): The module that needs to be reloaded.
+
+    Returns: 
+    None
+    """
+    # Check if the string contains a period
+    importlib.reload(module)
+
+
+def to_clipboard(object):
+    """
+    Function that copies an object to the system clipboard. 
+
+    Parameters:
+    object (str): The string that needs to be copied to the clipboard.
+    
+    Returns: 
+    None
+    """
+    pyperclip.copy(object)
 
 if __name__=='__main__':
     check_notebook = is_notebook(print_output=True)
