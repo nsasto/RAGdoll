@@ -5,7 +5,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='RAGdoll',
-    version='1.0.3',
+    version='1.0.4',
     description='A set of helper classes that abstract some of the more common tasks of a typical RAG process including document loading/web scraping.',
     author='Nathan Sasto',
     packages=find_packages(),

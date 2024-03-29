@@ -10,7 +10,7 @@ class Config:
         "max_search_results_per_query" : 3,
         "alternative_query_term_count" : 2,
         "max_workers" : 3,
-        "llm": "OpenAI",
+        "llm": "gpt-3.5-turbo-16k",
         "base_url":"http://localhost:1234/v1",
         "embeddings": "OpenAIEmbeddings",
         "log_level": 30, #logging.WARN

@@ -6,6 +6,8 @@ import os
 import pyperclip
 import importlib
 import sys
+from contextlib import contextmanager
+import warnings
 
 class dotDict(dict):
     """
@@ -84,10 +86,10 @@ def pretty_print_dict(dictionary, indent=''):
     result = ''
     for key, value in dictionary.items():
         if isinstance(value, dict):
-            result += f'{indent}{key}:\n'
+            result += f'\033[1m{indent}{key}\033[0m :\n'
             result += pretty_print_dict(value, indent + '  ')
         else:
-            result += f'{indent}{key}: {value}\n'
+            result += f'\033[1m{indent}{key}\033[0m : {value}\n'
     return result
 
 def remove_set_duplicates(results, key='link', log=False):
@@ -282,6 +284,65 @@ def to_clipboard(object):
     None
     """
     pyperclip.copy(object)
+
+def remove_numbering(string):
+    """
+    Removes numbering from the beginning of a string.
+
+    Args:
+        string (str): The input string with numbering.
+
+    Returns:
+        str: The string with numbering removed.
+
+    Example:
+        >>> remove_numbering("1. Hello World")
+        "Hello World"
+    """
+    return re.sub("^\d+\.\s+", "", string)
+
+
+@contextmanager
+def suppress_print():
+    """Context manager to temporarily suppress print statements.
+    # Example usage:
+    def function_with_print():
+        print("This is some output from function_with_print")
+
+    # Turning off print
+    with suppress_print():
+        function_with_print()  # This print statement will be suppressed
+
+    function_with_print()  # This print statement will not be suppressed
+    """
+    original_stdout = sys.stdout
+    sys.stdout = open("/dev/null", "w")
+    try:
+        yield
+    finally:
+        sys.stdout.close()
+        sys.stdout = original_stdout
+
+@contextmanager
+def suppress_warnings():
+    """Context manager to temporarily suppress warnings.
+    
+    # Example usage:
+    def function_with_warning():
+        warnings.warn("This is a warning from function_with_warning")
+
+    # Turning off warnings
+    with suppress_warnings():
+        function_with_warning()  # This warning will be suppressed
+
+    function_with_warning()  # This warning will not be suppressed
+    """
+    original_filters = warnings.filters[:]
+    warnings.simplefilter("ignore")
+    try:
+        yield
+    finally:
+        warnings.filters = original_filters
 
 if __name__=='__main__':
     check_notebook = is_notebook(print_output=True)
