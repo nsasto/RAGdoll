@@ -20,8 +20,9 @@ class Config:
 
     def __init__(self, config_settings=None):
         """Initialize the config class. config_settings can be either a dictionary of settings or a Config object."""
-        if not isinstance(config_settings, (Config, dict)):
-            raise TypeError("config_settings must be of type Config or a dictionary")
+        if config_settings is not None:
+            if not isinstance(config_settings, (Config, dict)):
+                raise TypeError("config_settings must be of type Config or a dictionary")
     
         self.load_config(config_settings)
 

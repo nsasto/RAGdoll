@@ -191,7 +191,7 @@ class RagdollIndex:
         pass
 
     
-    def get_text_splitter(self, chunk_size=1000, chunk_overlap=200, length_function=len, is_separator_regex=False):
+    def get_text_splitter(self, chunk_size=1000, chunk_overlap=200, length_function=len, is_separator_regex=False, add_start_index=True ):
         """
         Returns a RecursiveCharacterTextSplitter object with the specified parameters.
 
@@ -209,6 +209,8 @@ class RagdollIndex:
             chunk_overlap=chunk_overlap,
             length_function=length_function,
             is_separator_regex=is_separator_regex,
+            add_start_index=add_start_index 
+
         )
 
         return self.text_splitter

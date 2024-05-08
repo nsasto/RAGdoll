@@ -136,13 +136,14 @@ class RagdollRetriever:
         else:
             raise TypeError("Vector store not specified. Set this in the config dictionary")
 
-    def load_db(self, path='ragdoll_db', embeddings=None):
+    def load_db(self, path='ragdoll_db', embeddings=None, allow_dangerous_deserialization=False):
         """
         Loads the vector database from a specified path.
 
         Args:
             path: The path where the vector database will be saved.
             embeddings (numpy.ndarray, optional): Pre-computed embeddings. Defaults to None.
+            allow_dangerous_deserialization: set to true for local loads you trust
         """
         vector_store = self.cfg.vector_db 
         embeddings = RagdollEmbeddings(self.cfg.embeddings).embeddings if embeddings is None else embeddings
@@ -150,7 +151,7 @@ class RagdollRetriever:
         if vector_store.lower() == "faiss":
             self.logger.info("📂 loading vector database (FAISS)...")
             from langchain_community.vectorstores import FAISS
-            db = FAISS.load_local(path, embeddings)
+            db = FAISS.load_local(path, embeddings, allow_dangerous_deserialization=allow_dangerous_deserialization)
         elif vector_store.lower() == "chroma":
             self.logger.info("🗃️ loading vector database (ChromaDb)...")
             from langchain_community.vectorstores import Chroma

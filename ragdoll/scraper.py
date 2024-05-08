@@ -12,12 +12,13 @@ class Scraper:
     Scraper class to extract the content from the links
     """
   
-    def __init__(self, urls, user_agent):
+    def __init__(self, urls, user_agent=None):
         """
         Initialize the Scraper class.
         Args:
             urls:
         """
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0" if user_agent is None else user_agent
         self.urls = urls
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": user_agent})
@@ -127,7 +128,7 @@ class Scraper:
             str: The text from the soup
         """
         text = ""
-        tags = ["p", "h1", "h2", "h3", "h4", "h5"]
+        tags = ["p", "h1", "h2", "h3", "h4", "h5", "div"]
         for element in soup.find_all(tags):  # Find all the <p> elements
             text += element.text + "\n"
         return text

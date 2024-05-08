@@ -1,4 +1,6 @@
 from datetime import datetime
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
 
 def generate_search_queries_prompt(query, query_count=3):
     """ Generates the search queries prompt for the given question.
@@ -35,3 +37,41 @@ def generate_RAG_template(report_format="apa", min_words=1000):
             "Helpful Answer:"
 
     return template
+
+
+def generate_standalone_history_prompt(prompt=None):
+      ### Contextualize question ###
+      contextualize_q_system_prompt = """Given a chat history and the latest user question \
+      which might reference context in the chat history, formulate a standalone question \
+      which can be understood without the chat history. Do NOT answer the question, \
+      just reformulate it if needed and otherwise return it as is.""" if prompt is None else prompt
+      
+      contextualize_q_prompt = ChatPromptTemplate.from_messages(
+      [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+      ]
+      )
+
+      return contextualize_q_prompt
+
+def generate_context_chat_prompt(prompt=None):
+     ### Answer question ###
+      qa_system_prompt = """You are an assistant for question-answering tasks. \
+      Use the following pieces of retrieved context to answer the question. \
+      If you don't know the answer, just say that you don't have enough research to respond accurately, but give a high level description of what you can answer being \
+      clear that this information is from your general knowledge. \
+      Use the minimum number of sentences to give a complete answer while keeping the answer concise.\
+
+      {context}""" if prompt is None else prompt
+
+      qa_prompt = ChatPromptTemplate.from_messages(
+      [
+            ("system", qa_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+      ]
+      )
+
+      return qa_prompt
