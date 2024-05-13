@@ -1,12 +1,12 @@
-
-#from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import EmbeddingsFilter
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
 from operator import itemgetter
-#from langchain_core.runnables import RunnablePassthrough, RunnableParallel, RunnableLambda
+
+# from langchain_core.runnables import RunnablePassthrough, RunnableParallel, RunnableLambda
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
@@ -23,6 +23,7 @@ from .models import RagdollLLM
 from .models import RagdollEmbeddings
 import os
 
+
 class RagdollRetriever:
     def __init__(self, config={}):
         """
@@ -34,7 +35,7 @@ class RagdollRetriever:
         self.cfg = Config(config)
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(self.cfg.log_level)
-        self.db_path = 'ragdoll_db'
+        self.db_path = "ragdoll_db"
         self.db = None
 
     def get_db(self, documents=None, embeddings=None, overwrite=False):
@@ -58,12 +59,14 @@ class RagdollRetriever:
             return self.db
 
         if documents is None:
-            raise ValueError("The argument documents is required to create a new vector store unless one already exists.")
+            raise ValueError(
+                "The argument documents is required to create a new vector store unless one already exists."
+            )
 
         # Create a new database
         return self.create_db(documents, embeddings)
 
-    def create_db(self, documents, embeddings=None):
+    def create_db(self, documents=None, embeddings=None):
         """
         Creates a new vector database.
 
@@ -74,19 +77,47 @@ class RagdollRetriever:
         Returns:
             vectordb: The created vector database.
         """
-        vector_store = self.cfg.vector_db 
-        embeddings = RagdollEmbeddings(self.cfg.embeddings).embeddings if embeddings is None else embeddings
+        vector_store = self.cfg.vector_db
+        embeddings = (
+            RagdollEmbeddings(self.cfg.embeddings).embeddings
+            if embeddings is None
+            else embeddings
+        )
 
         if vector_store.lower() == "faiss":
             self.logger.info("🗃️  creating vector database (FAISS)...")
             from langchain_community.vectorstores import FAISS
-            vectordb = FAISS.from_documents(documents=documents, embedding=embeddings)
+
+            if documents is not None:
+                vectordb = FAISS.from_documents(
+                    documents=documents, embedding=embeddings
+                )
+            else:
+                from langchain_community.docstore.in_memory import InMemoryDocstore
+                from faiss import IndexFlatL2
+                self.logger.info("🗃️  no documents provided, creating empty FAISS database.")
+                dimensions = len(embeddings.embed_query("dummy"))
+                vectordb = FAISS(
+                    embedding_function=embeddings,
+                    index=IndexFlatL2(dimensions),
+                    docstore=InMemoryDocstore(),
+                    index_to_docstore_id={},
+                    normalize_L2=False,
+                )
+
         elif vector_store.lower() == "chroma":
             self.logger.info("🗃️  creating vector database (ChromaDb)...")
             from langchain_community.vectorstores import Chroma
-            vectordb = Chroma.from_documents(documents=documents, embedding=embeddings)
+            if documents is not None:
+                vectordb = Chroma.from_documents(documents=documents, embedding=embeddings)
+            else:
+                raise TypeError(
+                    "Document store not specified. empty database creation ont implemented for empty Chroma db"
+                )  
         else:
-            raise TypeError("Vector store not specified. Set this in the config dictionary")
+            raise TypeError(
+                "Vector store not specified. Set this in the config dictionary"
+            )
 
         self.db = vectordb
         return vectordb
@@ -104,19 +135,10 @@ class RagdollRetriever:
         elif db is None:
             db = self.db
 
-        vector_store = self.cfg.vector_db 
-        embeddings = RagdollEmbeddings(self.cfg.embeddings).embeddings
-
-        if vector_store.lower() == "faiss":
-            self.logger.info("🗃️  adding documents to vector database (FAISS)...")
-            db.add_documents(documents, embeddings)
-        elif vector_store.lower() == "chroma":
-            self.logger.info("🗃️  adding documents to vector database (ChromaDb)...")
-            db.add_documents(documents, embeddings)
-        else:
-            raise TypeError("Vector store not specified. Set this in the config dictionary")
-
-    def save_db(self, path='ragdoll_db', db=None):
+        self.logger.info(f"🗃️  adding {len(documents)} documents to vector database ...")
+        db.add_documents(documents)
+       
+    def save_db(self, path="ragdoll_db", db=None):
         """
         Saves the vector database to a specified path.
 
@@ -125,18 +147,25 @@ class RagdollRetriever:
             path: The path where the vector database will be saved.
         """
         db = self.db if db is None else db
-        vector_store = self.cfg.vector_db 
-        
+        vector_store = self.cfg.vector_db
+
         if vector_store.lower() == "faiss":
             self.logger.info("💾 saving vector database (FAISS)...")
             from langchain_community.vectorstores import FAISS
+
             db.save_local(path)
         elif vector_store.lower() == "chroma":
-            self.logger.error("🗃️ ChromaDb does not offer explicit save. Set persist dir on create ...")
+            self.logger.error(
+                "🗃️ ChromaDb does not offer explicit save. Set persist dir on create ..."
+            )
         else:
-            raise TypeError("Vector store not specified. Set this in the config dictionary")
+            raise TypeError(
+                "Vector store not specified. Set this in the config dictionary"
+            )
 
-    def load_db(self, path='ragdoll_db', embeddings=None, allow_dangerous_deserialization=False):
+    def load_db(
+        self, path="ragdoll_db", embeddings=None, allow_dangerous_deserialization=False
+    ):
         """
         Loads the vector database from a specified path.
 
@@ -145,19 +174,31 @@ class RagdollRetriever:
             embeddings (numpy.ndarray, optional): Pre-computed embeddings. Defaults to None.
             allow_dangerous_deserialization: set to true for local loads you trust
         """
-        vector_store = self.cfg.vector_db 
-        embeddings = RagdollEmbeddings(self.cfg.embeddings).embeddings if embeddings is None else embeddings
+        vector_store = self.cfg.vector_db
+        embeddings = (
+            RagdollEmbeddings(self.cfg.embeddings).embeddings
+            if embeddings is None
+            else embeddings
+        )
 
         if vector_store.lower() == "faiss":
             self.logger.info("📂 loading vector database (FAISS)...")
             from langchain_community.vectorstores import FAISS
-            db = FAISS.load_local(path, embeddings, allow_dangerous_deserialization=allow_dangerous_deserialization)
+
+            db = FAISS.load_local(
+                path,
+                embeddings,
+                allow_dangerous_deserialization=allow_dangerous_deserialization,
+            )
         elif vector_store.lower() == "chroma":
             self.logger.info("🗃️ loading vector database (ChromaDb)...")
             from langchain_community.vectorstores import Chroma
+
             db = Chroma(persist_directory=path, embedding_function=embeddings)
         else:
-            raise TypeError("Vector store not specified. Set this in the config dictionary")
+            raise TypeError(
+                "Vector store not specified. Set this in the config dictionary"
+            )
 
         self.db = db
         return db
@@ -185,11 +226,12 @@ class RagdollRetriever:
             vector_db = db
 
         retriever = vector_db.as_retriever()
-        self.logger.info("💭 Remember that the multi query retriever will incur additional calls to your LLM")
-         
-        llm = RagdollLLM(self.cfg, log_msg='for multi query retriever').llm
-        return MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
+        self.logger.info(
+            "💭 Remember that the multi query retriever will incur additional calls to your LLM"
+        )
 
+        llm = RagdollLLM(self.cfg, log_msg="for multi query retriever").llm
+        return MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
 
     def get_retriever(self, documents=None, db=None):
         """
@@ -214,20 +256,20 @@ class RagdollRetriever:
             vector_db = db
 
         retriever = vector_db.as_retriever()
-        
+
         return retriever
 
     def _default_compressor_config(self):
         return {
-            "use_embeddings_filter":True, 
-            "use_splitter":True, 
-            "use_redundant_filter":True, 
-            "use_relevant_filter":True,
-            "embeddings":None,
-            "similarity_threshold":0.76, #embeddings filter settings
-            "chunk_size":500,   #text filter settings
-            "chunk_overlap":0, 
-            "separator":". ",
+            "use_embeddings_filter": True,
+            "use_splitter": True,
+            "use_redundant_filter": True,
+            "use_relevant_filter": True,
+            "embeddings": None,
+            "similarity_threshold": 0.76,  # embeddings filter settings
+            "chunk_size": 500,  # text filter settings
+            "chunk_overlap": 0,
+            "separator": ". ",
         }
 
     def get_compression_retriever(self, base_retriever, compressor_config={}):
@@ -244,49 +286,80 @@ class RagdollRetriever:
         Raises:
             ValueError: If no compression objects were selected.
         """
-        crcfg=self._default_compressor_config()
+        crcfg = self._default_compressor_config()
         for key, value in compressor_config.items():
             crcfg[key] = value
-        
+
         crcfg = dotDict(crcfg)
 
-        #embeddings filter
-        embeddings = RagdollEmbeddings(self.cfg.embeddings).embeddings if crcfg.embeddings is None else crcfg.embeddings
-        embeddings_filter = EmbeddingsFilter(embeddings=embeddings, similarity_threshold=crcfg.similarity_threshold)
+        # embeddings filter
+        embeddings = (
+            RagdollEmbeddings(self.cfg.embeddings).embeddings
+            if crcfg.embeddings is None
+            else crcfg.embeddings
+        )
+        embeddings_filter = EmbeddingsFilter(
+            embeddings=embeddings, similarity_threshold=crcfg.similarity_threshold
+        )
         # Split documents into chunks of half size, 500 characters, with no characters overlap.
-        splitter = CharacterTextSplitter(chunk_size=crcfg.chunk_size, chunk_overlap=crcfg.chunk_overlap, separator=crcfg.separator)
+        splitter = CharacterTextSplitter(
+            chunk_size=crcfg.chunk_size,
+            chunk_overlap=crcfg.chunk_overlap,
+            separator=crcfg.separator,
+        )
 
         # Remove redundant chunks, based on cosine similarity of embeddings.
         redundant_filter = EmbeddingsRedundantFilter(embeddings=embeddings)
 
         # Remove irrelevant chunks, based on cosine similarity of embeddings.
-        relevant_filter = EmbeddingsFilter(embeddings=embeddings, similarity_threshold=crcfg.similarity_threshold)
+        relevant_filter = EmbeddingsFilter(
+            embeddings=embeddings, similarity_threshold=crcfg.similarity_threshold
+        )
 
-        # boolean vector 
-        config_switches = np.array([crcfg.use_embeddings_filter, crcfg.use_splitter, crcfg.use_redundant_filter, crcfg.use_relevant_filter])
+        # boolean vector
+        config_switches = np.array(
+            [
+                crcfg.use_embeddings_filter,
+                crcfg.use_splitter,
+                crcfg.use_redundant_filter,
+                crcfg.use_relevant_filter,
+            ]
+        )
 
         # list of objects
-        compression_objects = [embeddings_filter, splitter, redundant_filter, relevant_filter]
-        
-        compression_objects_log = ['embeddings_filter', 'splitter', 'redundant_filter', 'relevant_filter']
+        compression_objects = [
+            embeddings_filter,
+            splitter,
+            redundant_filter,
+            relevant_filter,
+        ]
 
-        log = [obj for flag, obj in zip(config_switches, compression_objects_log) if flag]
+        compression_objects_log = [
+            "embeddings_filter",
+            "splitter",
+            "redundant_filter",
+            "relevant_filter",
+        ]
+
+        log = [
+            obj for flag, obj in zip(config_switches, compression_objects_log) if flag
+        ]
         self.logger.info(f"🗜️ Compression object pipeline: {' ➤ '.join(log)}")
 
-        pipeline = [obj for flag, obj in zip(config_switches, compression_objects) if flag]
-        
+        pipeline = [
+            obj for flag, obj in zip(config_switches, compression_objects) if flag
+        ]
+
         if len(pipeline) == 0:
             raise ValueError("No compression objects were selected")
-                
-        pipeline_compressor = DocumentCompressorPipeline(
-            transformers=pipeline
-        )
+
+        pipeline_compressor = DocumentCompressorPipeline(transformers=pipeline)
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=pipeline_compressor, base_retriever=base_retriever
         )
-        
+
         return compression_retriever
-    
+
     def answer_me_this(self, question, retriever, report_format="apa", min_words=1000):
         """
         Answers the given question using the RAG chain.
@@ -300,14 +373,16 @@ class RagdollRetriever:
         Returns:
             str: The answer to the question.
         """
-        self.logger.info('🔗 Running RAG chain')
-        research_prompt = PromptTemplate.from_template(template=generate_RAG_template(report_format, min_words))
-        
-        llm = RagdollLLM(self.cfg, log_msg='for RAG chain').llm 
+        self.logger.info("🔗 Running RAG chain")
+        research_prompt = PromptTemplate.from_template(
+            template=generate_RAG_template(report_format, min_words)
+        )
+
+        llm = RagdollLLM(self.cfg, log_msg="for RAG chain").llm
         retrieval_chain = (
             {
                 "context": itemgetter("question") | retriever | pretty_print_docs,
-                "question": itemgetter('question')
+                "question": itemgetter("question"),
             }
             | research_prompt
             | llm
