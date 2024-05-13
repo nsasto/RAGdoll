@@ -12,3 +12,4 @@ PyMuPDF
 faiss-cpu
 colorlog
 sentence_transformers 
+pyperclip
