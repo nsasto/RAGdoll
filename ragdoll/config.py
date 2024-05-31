@@ -1,7 +1,7 @@
 class Config:
     """Config class for Ragdoll Class."""
 
-    LLM_PROVIDERS = ['OpenAI','LMStudio','google/flan-t5-large', 'gpt-3.5-turbo-16k','gpt-4']
+    LLM_PROVIDERS = ['OpenAI','LMStudio','google/flan-t5-large', 'gpt-3.5-turbo-16k','gpt-4', 'gpt-4o']
     EMBEDDING_MODELS = ['OpenAIEmbeddings','intfloat/e5-large-v2','multi-qa-MiniLM-L6-cos-v1']
     VECTOR_DB = ['FAISS','Chroma']
     DEFAULT_CONFIG = {
