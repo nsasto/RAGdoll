@@ -6,6 +6,7 @@ colored
 langchain
 langchain_openai
 langchain_community
+langchain-google-community
 google-api-python-client>=2.100.0
 lxml
 PyMuPDF
