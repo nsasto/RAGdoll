@@ -2,7 +2,7 @@ from typing import Iterable
 from langchain_openai import ChatOpenAI
 import logging
 from datetime import datetime
-from langchain_community.utilities import GoogleSearchAPIWrapper
+from langchain_google_community import GoogleSearchAPIWrapper
 from colored import Fore, Style
 from concurrent.futures.thread import ThreadPoolExecutor
 from langchain.text_splitter import RecursiveCharacterTextSplitter
