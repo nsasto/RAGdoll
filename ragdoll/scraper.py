@@ -41,8 +41,17 @@ class Scraper:
         """
         partial_extract = partial(self.extract_data_from_link, session=self.session)
         with ThreadPoolExecutor(max_workers=20) as executor:
-            contents = executor.map(partial_extract, self.urls)
-        res = [content for content in contents if content["raw_content"] is not None]
+            futures = [executor.submit(partial_extract, url) for url in self.urls]
+        res = []
+        
+        for future in futures:
+            try:
+                content = future.result()
+                if content["raw_content"] is not None:
+                    res.append(content)
+            except Exception as e:
+                print(f"Error occurred: {e}")
+        
         return res
 
     def extract_data_from_link(self, link, session):
