@@ -78,18 +78,25 @@ class Scraper:
             return {"url": link, "raw_content": None}
 
     def scrape_text_with_bs(self, link, session):
-        response = session.get(link, timeout=4)
-        soup = BeautifulSoup(response.content, "lxml", from_encoding=response.encoding)
+        try:
+            response = session.get(link, timeout=4)
+            soup = BeautifulSoup(response.content, "lxml", from_encoding=response.encoding)
 
-        for script_or_style in soup(["script", "style"]):
-            script_or_style.extract()
+            for script_or_style in soup(["script", "style"]):
+                script_or_style.extract()
 
-        raw_content = self.get_content_from_url(soup)
-        lines = (line.strip() for line in raw_content.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        content = "\n".join(chunk for chunk in chunks if chunk)
-        metadata = self._build_metadata(soup, link)
-        return content, metadata
+            raw_content = self.get_content_from_url(soup)
+            lines = (line.strip() for line in raw_content.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            content = "\n".join(chunk for chunk in chunks if chunk)
+            metadata = self._build_metadata(soup, link)
+            return content, metadata
+        except requests.exceptions.Timeout:
+            print(f"Timeout error occurred for link: {link}")
+            return {"url": link, "raw_content": None}
+        except Exception as e:
+            print(f"Error occurred for link: {link}, {e}")
+            return {"url": link, "raw_content": None}
     
     def scrape_pdf_with_pymupdf(self, url) -> str:
         """Scrape a pdf with pymupdf
