@@ -4,6 +4,7 @@ from langchain.retrievers.document_compressors import EmbeddingsFilter
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
+from langchain.retrievers.multi_query import MultiQueryRetriever
 from operator import itemgetter
 
 # from langchain_core.runnables import RunnablePassthrough, RunnableParallel, RunnableLambda
@@ -15,7 +16,8 @@ import numpy as np
 import logging
 
 from .config import Config
-from .multi_query import MultiQueryRetriever
+#earlier bug resolved, can now use langchain version of MultiQueryRetriever
+#from .multi_query import MultiQueryRetriever
 from .helpers import dotDict
 from .helpers import pretty_print_docs
 from .prompts import generate_RAG_template
