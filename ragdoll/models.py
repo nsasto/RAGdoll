@@ -34,13 +34,13 @@ class RagdollLLM:
         self.logger.info(f"🤖 retrieving {llm} model {log_msg}")
         if (
             (llm == "OpenAI")
-            or (llm == "gpt-3.5-turbo-16k")
             or (llm == "gpt-4")
             or (llm == "gpt-4o")
+            or (llm == "gpt-4o-mini")
         ):
             from langchain_openai import ChatOpenAI
 
-            model = "gpt-3.5-turbo-16k" if llm == "OpenAI" else llm
+            model = "gpt-4o-mini" if llm == "OpenAI" else llm
 
             result_llm = ChatOpenAI(
                 model=model,
