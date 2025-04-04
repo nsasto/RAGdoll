@@ -2,13 +2,14 @@ import requests
 from bs4 import BeautifulSoup
 
 from ragdoll.loaders.base_loader import BaseLoader
+from langchain.docstore.document import Document
 
 class WebLoader(BaseLoader):    
-    def load(self, link: str) -> str:
+    def load(self, link: str) -> list[Document]:
         """
         Loads the content from a web URL.
         :param link: The url to load from.
-        :return: The web page content as a string.
+        :return: list[Document] The web page content as a list of Document.
         """
         try:
             session = requests.Session()
@@ -23,13 +24,14 @@ class WebLoader(BaseLoader):
             chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
             content = "\n".join(chunk for chunk in chunks if chunk)
 
-            return content
+            metadata = self._build_metadata(soup, link)
+            return [Document(page_content=content, metadata=metadata)]
         except requests.exceptions.Timeout:
             print(f"Timeout error occurred for link: {link}")
-            return ""
+            return []
         except Exception as e:
             print(f"Error occurred for link: {link}, {e}")
-            return ""
+            return []
 
     def get_content_from_url(self, soup):
         text = ""
