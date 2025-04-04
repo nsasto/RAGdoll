@@ -1,0 +1,1 @@
+open("my_new_file.txt", "w").close()
