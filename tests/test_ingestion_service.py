@@ -7,7 +7,7 @@ class TestIngestionService(unittest.TestCase):
         ingestion_service = IngestionService()
 
         test_sources = [
-            "https://www.example.com",
+            "https://www.langchain.com",
             "test_docs/dummy.txt",
             "test_docs/ukpga_20070003_en.pdf",
           ]
