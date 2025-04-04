@@ -1,6 +1,6 @@
 from typing import Optional, List
 from langchain.docstore.document import Document  # Assuming you're using LangChain's Document
-
+from ragdoll.ingestion.ingestion_service import IngestionService
 from ragdoll.loaders.base_loader import BaseLoader
 from ragdoll.chunkers.base_chunker import BaseChunker
 from ragdoll.embeddings.base_embeddings import BaseEmbeddings
@@ -55,11 +55,14 @@ class Ragdoll:
             from ragdoll.graph_stores.networkx_graph_store import MyNetworkxGraphStore
             self.graph_store = MyNetworkxGraphStore()
 
-    def run(self, prompt: str) -> str:
-        """Run the LLM with the given prompt."""
-        response = self.llm.call(prompt)
-        return response
+
+
+    def ingest_data(self, sources):
+        """Ingests data from a list of sources."""
+        service = IngestionService()
+        return service.ingest_documents(sources)
 
     def run(self, prompt: str) -> str:
+        """Run the LLM with the given prompt."""
         response = self.llm.call(prompt)
         return response
