@@ -1,0 +1,2 @@
+add pdf extraction:
+https://github.com/opendatalab/PDF-Extract-Kit
