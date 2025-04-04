@@ -3,10 +3,12 @@ python-dotenv
 pyarrow
 pandas
 colored
+unstructured[all-docs]
 langchain
 langchain_openai
 langchain_community
 langchain-google-community
+langchain-unstructured
 google-api-python-client>=2.100.0
 lxml
 PyMuPDF
@@ -14,3 +16,5 @@ faiss-cpu
 colorlog
 sentence_transformers 
 pyperclip
+requests
+bs4
