@@ -4,11 +4,12 @@ pyarrow
 pandas
 colored
 unstructured[all-docs]
+markitdown[all]
 langchain
 langchain_openai
 langchain_community
 langchain-google-community
-langchain-unstructured
+langchain-unstructured[local]
 google-api-python-client>=2.100.0
 lxml
 PyMuPDF
