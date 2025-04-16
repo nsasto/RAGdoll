@@ -17,6 +17,33 @@ def ingestion_service():
 def sample_documents():
     return [{"page_content": "Test content", "metadata": {"source": "test"}}]
 
+@pytest.fixture
+def clean_ingestion_service():
+    """Create an IngestionService with no caching for clean testing."""
+    with patch("ragdoll.ingestion.ingestion_service.ConfigManager") as mock_config:
+        config_instance = MagicMock()
+        config_instance.get_loader_mapping.return_value = {
+            ".txt": MagicMock(),
+            ".pdf": MagicMock()
+        }
+        config_instance.ingestion_config.max_threads = 2
+        config_instance.ingestion_config.batch_size = 5
+        mock_config.return_value = config_instance
+        
+        # Create mock for ArxivRetriever
+        arxiv_mock = MagicMock()
+        # Create mock for WebLoader
+        web_loader_mock = MagicMock()
+        
+        # Apply patches
+        with patch("ragdoll.ingestion.ingestion_service.ArxivRetriever", return_value=arxiv_mock):
+            with patch("ragdoll.ingestion.ingestion_service.WebLoader", return_value=web_loader_mock):
+                service = IngestionService(use_cache=False)
+                # Expose mocks for test usage
+                service._mock_arxiv_retriever = arxiv_mock
+                service._mock_web_loader = web_loader_mock
+                yield service
+
 # Test _build_sources method
 class TestBuildSources:
     def test_build_sources_file(self, ingestion_service, tmp_path):
@@ -86,35 +113,29 @@ class TestLoadSource:
         assert docs == sample_documents
         mock_loader_class.assert_called_once_with(file_path="test.txt")
     
-    @patch('ragdoll.ingestion.ingestion_service.ArxivRetriever')
-    def test_load_arxiv(self, mock_arxiv_retriever, ingestion_service, sample_documents):
-        # Mock the retriever
-        mock_retriever_instance = MagicMock()
-        mock_retriever_instance.get_relevant_documents.return_value = sample_documents
-        mock_arxiv_retriever.return_value = mock_retriever_instance
+    def test_load_arxiv(self, clean_ingestion_service, sample_documents):
+        # Set up the mock that was already injected
+        clean_ingestion_service._mock_arxiv_retriever.get_relevant_documents.return_value = sample_documents
         
         # Create a source
         source = Source(type=SourceType.ARXIV, identifier="1234.56789")
         
-        # Test loading
-        docs = ingestion_service._load_source(source)
+        # Test loading - using clean_ingestion_service which already has mocks
+        docs = clean_ingestion_service._load_source(source)
         assert docs == sample_documents
-        mock_retriever_instance.get_relevant_documents.assert_called_once_with(query="1234.56789")
+        clean_ingestion_service._mock_arxiv_retriever.get_relevant_documents.assert_called_once_with(query="1234.56789")
     
-    @patch('ragdoll.ingestion.ingestion_service.WebLoader')
-    def test_load_website(self, mock_web_loader, ingestion_service, sample_documents):
-        # Mock the web loader
-        mock_loader_instance = MagicMock()
-        mock_loader_instance.load.return_value = sample_documents
-        mock_web_loader.return_value = mock_loader_instance
+    def test_load_website(self, clean_ingestion_service, sample_documents):
+        # Set up the mock that was already injected
+        clean_ingestion_service._mock_web_loader.load.return_value = sample_documents
         
         # Create a source
         source = Source(type=SourceType.WEBSITE, identifier="https://example.com")
         
         # Test loading
-        docs = ingestion_service._load_source(source)
+        docs = clean_ingestion_service._load_source(source)
         assert docs == sample_documents
-        mock_loader_instance.load.assert_called_once_with("https://example.com")
+        clean_ingestion_service._mock_web_loader.load.assert_called_once_with("https://example.com")
     
     def test_load_unsupported(self, ingestion_service):
         source = Source(type=SourceType.FILE, identifier="test.unknown", extension=".unknown")

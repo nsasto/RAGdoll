@@ -1,5 +1,6 @@
 import os
 import yaml
+import logging
 from importlib import import_module
 from typing import Dict, Any, Type
 from pathlib import Path
@@ -8,6 +9,8 @@ from ragdoll.config.base_config import IngestionConfig
 
 class ConfigManager:
     """Manages configuration loading and validation"""
+    
+    logger = logging.getLogger(__name__)
     
     def __init__(self, config_path: str = None):
         """
@@ -53,12 +56,30 @@ class ConfigManager:
                 module = import_module(module_path)
                 
                 # Get the class
+                if not hasattr(module, class_name):
+                    self.logger.warning(
+                        f"Module {module_path} does not have attribute {class_name}"
+                        f" for extension {ext}. Skipping this loader."
+                    )
+                    continue
+                
                 loader_class = getattr(module, class_name)
                 
                 # Add to result
                 result[ext] = loader_class
-            except (ImportError, AttributeError, ValueError) as e:
-                # Log the error but continue with other loaders
-                print(f"Error loading loader for extension {ext}: {e}")
+                self.logger.debug(f"Loaded loader for extension {ext}: {class_path}")
+                
+            except ImportError:
+                # Handle module not found
+                self.logger.info(
+                    f"Module {module_path} for extension {ext} could not be imported."
+                    f" This extension will not be supported."
+                )
+            except (AttributeError, ValueError) as e:
+                # Handle other errors
+                self.logger.warning(
+                    f"Error loading loader for extension {ext}: {e}"
+                )
         
+        self.logger.info(f"Loaded {len(result)} file extension loaders")
         return result
