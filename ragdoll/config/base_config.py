@@ -26,12 +26,35 @@ class EmbeddingsConfig(BaseConfig):
 class VectorStoreConfig(BaseConfig):
     """Configuration for vector stores"""
     store_type: str = Field(default="chroma", description="Type of vector store")
-    path: str = Field(default="./vector_store", description="Path to store vector database")
-    collection_name: str = Field(default="documents", description="Name of the collection")
 
 class LLMConfig(BaseConfig):
     """Configuration for language models"""
-    model_name: str = Field(default="gpt-3.5-turbo", description="Name of the language model")
+    model_name: str = Field(default="gpt-3.5-turbo", description="Name of the language model to use")
     temperature: float = Field(default=0.7, description="Temperature for generation")
-    max_tokens: int = Field(default=512, description="Maximum tokens in generated responses")
+    max_tokens: int = Field(default=500, description="Maximum tokens for generation")
     api_key: Optional[str] = Field(default=None, description="API key for the LLM service")
+
+class LoaderMappingConfig(BaseConfig):
+    """Configuration for file extension to loader mappings"""
+    mappings: Dict[str, str] = Field(
+        default={
+            ".json": "langchain_community.document_loaders.JSONLoader",
+            ".jsonl": "langchain_community.document_loaders.JSONLoader",
+            ".yaml": "langchain_community.document_loaders.JSONLoader",
+            ".csv": "langchain_community.document_loaders.CSVLoader",
+            ".txt": "langchain_community.document_loaders.TextLoader",
+            ".md": "langchain_community.document_loaders.TextLoader",
+            ".pdf": "langchain_community.document_loaders.PyMuPDFLoader",
+        },
+        description="Mapping of file extensions to loader class paths"
+    )
+
+class IngestionConfig(BaseConfig):
+    """Configuration for ingestion service"""
+    max_threads: int = Field(default=10, description="Maximum threads for concurrent processing")
+    batch_size: int = Field(default=100, description="Number of documents to process in one batch")
+    retry_attempts: int = Field(default=3, description="Number of retry attempts for failed ingestion")
+    retry_delay: int = Field(default=1, description="Delay between retries in seconds")
+    retry_backoff: int = Field(default=2, description="Backoff multiplier for retries")
+    loader_mappings: LoaderMappingConfig = Field(default_factory=LoaderMappingConfig, 
+                                               description="Loader mappings configuration")

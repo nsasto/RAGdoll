@@ -7,47 +7,13 @@ from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 from retry import retry
-from langchain_community.document_loaders import (
-    CSVLoader,
-    ArxivLoader,
-    PyMuPDFLoader,
-    TextLoader,
-    JSONLoader,
-)
-from langchain_markitdown import (
-    DocxLoader,
-    PptxLoader,
-    ImageLoader,
-    EpubLoader,
-    XlsxLoader,
-    HtmlLoader,
-    RssLoader,
-)
+
+# Keep imports for loaders used directly in the code
 from langchain_community.retrievers import ArxivRetriever
 from ragdoll.loaders.web_loader import WebLoader
 from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
-
-# Default loader mappings
-LOADER_MAPPING = {
-    ".json": JSONLoader,
-    ".jsonl": JSONLoader,
-    ".yaml": JSONLoader,
-    ".csv": CSVLoader,
-    ".epub": EpubLoader,
-    ".xlsx": XlsxLoader,
-    ".html": HtmlLoader,
-    ".bmp": ImageLoader,
-    ".jpeg": ImageLoader,
-    ".jpg": ImageLoader,
-    ".png": ImageLoader,
-    ".tiff": ImageLoader,
-    ".md": TextLoader,
-    ".pdf": PyMuPDFLoader,
-    ".pptx": PptxLoader,
-    ".docx": DocxLoader,
-    ".xml": RssLoader,
-    ".txt": TextLoader,
-}
+from ragdoll.loaders.base_loader import BaseLoader, ensure_loader_compatibility
+from ragdoll.config.config_manager import ConfigManager
 
 class SourceType(Enum):
     """Enum for supported source types."""
@@ -69,25 +35,48 @@ class IngestionService(BaseIngestionService):
 
     def __init__(
         self,
+        config_path: Optional[str] = None,
         custom_loaders: Optional[Dict[str, Any]] = None,
-        max_threads: int = 10,
-        batch_size: int = 100,
+        max_threads: Optional[int] = None,
+        batch_size: Optional[int] = None,
     ):
         """
         Initialize the ingestion service.
 
         Args:
+            config_path: Optional path to configuration file.
             custom_loaders: Optional dictionary of custom file extension to loader mappings.
-            max_threads: Maximum number of threads for concurrent processing.
-            batch_size: Number of sources to process in a single batch.
+            max_threads: Maximum number of threads for concurrent processing. Overrides config if provided.
+            batch_size: Number of sources to process in a single batch. Overrides config if provided.
         """
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-        self.loaders = LOADER_MAPPING.copy()
+        
+        # Load configuration
+        config_manager = ConfigManager(config_path)
+        ingestion_config = config_manager.ingestion_config
+        
+        # Set parameters, prioritizing constructor arguments over config values
+        self.max_threads = max_threads if max_threads is not None else ingestion_config.max_threads
+        self.batch_size = batch_size if batch_size is not None else ingestion_config.batch_size
+        
+        # Get loader mappings from config
+        self.loaders = config_manager.get_loader_mapping()
+        
+        # Add custom loaders with validation
         if custom_loaders:
-            self.loaders.update(custom_loaders)
-        self.max_threads = max_threads
-        self.batch_size = batch_size
-        self.logger.info(f"Initialized with {len(self.loaders)} loaders, max_threads={max_threads}")
+            for ext, loader_class in custom_loaders.items():
+                try:
+                    # Check if the loader is compatible
+                    if not issubclass(loader_class, BaseLoader) and not hasattr(loader_class, 'load'):
+                        self.logger.warning(
+                            f"Custom loader for extension {ext} doesn't inherit from BaseLoader "
+                            f"and doesn't have a load method: {loader_class.__name__}"
+                        )
+                    self.loaders[ext] = loader_class
+                except TypeError as e:
+                    self.logger.error(f"Invalid custom loader for extension {ext}: {e}")
+        
+        self.logger.info(f"Initialized with {len(self.loaders)} loaders, max_threads={self.max_threads}")
 
     def _build_sources(self, inputs: List[str]) -> List[Source]:
         """
