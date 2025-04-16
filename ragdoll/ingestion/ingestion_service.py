@@ -15,6 +15,7 @@ from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
 from ragdoll.loaders.base_loader import BaseLoader, ensure_loader_compatibility
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.cache.cache_manager import CacheManager
+from ragdoll.metrics.metrics_manager import MetricsManager
 
 class SourceType(Enum):
     """Enum for supported source types."""
@@ -43,6 +44,8 @@ class IngestionService(BaseIngestionService):
         cache_dir: Optional[str] = None,
         cache_ttl: Optional[int] = None,
         use_cache: bool = True,
+        metrics_dir: Optional[str] = None,
+        collect_metrics: bool = True,
     ):
         """
         Initialize the ingestion service.
@@ -55,6 +58,8 @@ class IngestionService(BaseIngestionService):
             cache_dir: Directory for caching documents.
             cache_ttl: Time-to-live for cache entries in seconds.
             use_cache: Whether to use caching for network sources.
+            metrics_dir: Directory for storing metrics data.
+            collect_metrics: Whether to collect metrics during ingestion.
         """
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
         
@@ -93,7 +98,14 @@ class IngestionService(BaseIngestionService):
         else:
             self.cache_manager = None
         
-        self.logger.info(f"Initialized with {len(self.loaders)} loaders, max_threads={self.max_threads}, use_cache={use_cache}")
+        # Initialize metrics collection
+        self.collect_metrics = collect_metrics
+        if self.collect_metrics:
+            self.metrics_manager = MetricsManager(metrics_dir=metrics_dir)
+        else:
+            self.metrics_manager = None
+
+        self.logger.info(f"Initialized with {len(self.loaders)} loaders, max_threads={self.max_threads}, use_cache={use_cache}, collect_metrics={collect_metrics}")
 
     def _build_sources(self, inputs: List[str]) -> List[Source]:
         """
@@ -134,21 +146,28 @@ class IngestionService(BaseIngestionService):
         return sources
 
     @retry(tries=3, delay=1, backoff=2, exceptions=(ConnectionError, TimeoutError))
-    def _load_source(self, source: Source) -> List[Dict[str, Any]]:
+    def _load_source(self, source: Source, batch_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Load documents from a single source with retry logic for network sources.
 
         Args:
             source: Source object to load.
+            batch_id: Optional batch ID for metrics tracking.
 
         Returns:
             List of loaded document dictionaries.
-
-        Raises:
-            ValueError: If the source type or extension is unsupported.
-            Exception: For other loading errors, logged with details.
         """
         self.logger.debug(f"Loading source: {source}")
+        
+        # Start metrics tracking if enabled
+        metrics_info = None
+        source_size_bytes = 0
+        if self.collect_metrics and batch_id is not None and self.metrics_manager is not None:
+            metrics_info = self.metrics_manager.start_source(
+                batch_id=batch_id,
+                source_id=source.identifier,
+                source_type=source.type.value
+            )
         
         # Check cache for network sources
         if self.use_cache and source.type in [SourceType.ARXIV, SourceType.WEBSITE]:
@@ -158,10 +177,30 @@ class IngestionService(BaseIngestionService):
             )
             if cached_docs:
                 self.logger.info(f"Using cached version of {source.type.value}:{source.identifier}")
+                
+                # Update metrics if tracking
+                if self.collect_metrics and metrics_info and self.metrics_manager is not None:
+                    self.metrics_manager.end_source(
+                        batch_id=batch_id,
+                        source_id=source.identifier,
+                        success=True,
+                        document_count=len(cached_docs),
+                        bytes_count=source_size_bytes
+                    )
+                
                 return cached_docs
         
         try:
             docs = []
+            
+            # Try to get file size for local files
+            if source.type == SourceType.FILE and os.path.exists(source.identifier):
+                try:
+                    source_size_bytes = os.path.getsize(source.identifier)
+                except (OSError, IOError):
+                    source_size_bytes = 0
+            
+            # Load documents based on source type
             if source.type == SourceType.ARXIV:
                 loader = ArxivRetriever()
                 docs = loader.get_relevant_documents(query=source.identifier)
@@ -174,10 +213,12 @@ class IngestionService(BaseIngestionService):
                         documents=docs
                     )
                 
-                return docs
             elif source.type == SourceType.WEBSITE:
                 loader = WebLoader()
                 docs = loader.load(source.identifier)
+                
+                # Estimate size based on content length
+                source_size_bytes = sum(len(doc.get("page_content", "")) for doc in docs)
                 
                 # Cache the results
                 if self.use_cache:
@@ -187,15 +228,38 @@ class IngestionService(BaseIngestionService):
                         documents=docs
                     )
                 
-                return docs
             elif source.extension and source.extension in self.loaders:
                 loader_class = self.loaders[source.extension]
                 loader = loader_class(file_path=source.identifier)
-                return loader.load()
+                docs = loader.load()
             else:
                 raise ValueError(f"Unsupported source: type={source.type}, ext={source.extension}")
+            
+            # Update metrics if tracking
+            if self.collect_metrics and metrics_info and self.metrics_manager is not None:
+                self.metrics_manager.end_source(
+                    batch_id=batch_id,
+                    source_id=source.identifier,
+                    success=True,
+                    document_count=len(docs),
+                    bytes_count=source_size_bytes
+                )
+            
+            return docs
         except Exception as e:
             self.logger.error(f"Failed to load {source}: {str(e)}", exc_info=True)
+            
+            # Update metrics if tracking
+            if self.collect_metrics and metrics_info and self.metrics_manager is not None:
+                self.metrics_manager.end_source(
+                    batch_id=batch_id,
+                    source_id=source.identifier,
+                    success=False,
+                    document_count=0,
+                    bytes_count=0,
+                    error_message=str(e)
+                )
+            
             return []
 
     def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
@@ -212,6 +276,11 @@ class IngestionService(BaseIngestionService):
             ValueError: If no valid sources are provided.
         """
         self.logger.info(f"Starting ingestion of {len(inputs)} inputs")
+        
+        # Start metrics session if enabled
+        if self.collect_metrics and self.metrics_manager is not None:
+            self.metrics_manager.start_session()
+        
         sources = self._build_sources(inputs)
         if not sources:
             raise ValueError("No valid sources found")
@@ -222,10 +291,14 @@ class IngestionService(BaseIngestionService):
             batch = sources[i:i + self.batch_size]
             self.logger.info(f"Processing batch {i // self.batch_size + 1} with {len(batch)} sources")
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                batch_docs = executor.map(self._load_source, batch)
+                batch_docs = executor.map(lambda src: self._load_source(src, batch_id=i // self.batch_size + 1), batch)
                 for docs in batch_docs:
                     documents.extend(docs)
-
+        
+        # End metrics session if enabled
+        if self.collect_metrics and self.metrics_manager is not None:
+            self.metrics_manager.end_session(document_count=len(documents))
+        
         self.logger.info(f"Finished ingestion, loaded {len(documents)} documents")
         return documents
 
@@ -244,3 +317,25 @@ class IngestionService(BaseIngestionService):
             return 0
         
         return self.cache_manager.clear_cache(source_type, identifier)
+
+    def get_metrics(self, days: int = 30) -> Dict[str, Any]:
+        """
+        Get ingestion metrics.
+        
+        Args:
+            days: Number of days to include in metrics report
+            
+        Returns:
+            Dictionary of metrics data
+        """
+        if not self.collect_metrics or self.metrics_manager is None:
+            return {"enabled": False, "message": "Metrics collection is disabled"}
+        
+        recent = self.metrics_manager.get_recent_sessions(limit=5)
+        aggregate = self.metrics_manager.get_aggregate_metrics(days=days)
+        
+        return {
+            "enabled": True,
+            "recent_sessions": recent,
+            "aggregate": aggregate
+        }
