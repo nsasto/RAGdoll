@@ -14,6 +14,7 @@ from ragdoll.loaders.web_loader import WebLoader
 from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
 from ragdoll.loaders.base_loader import BaseLoader, ensure_loader_compatibility
 from ragdoll.config.config_manager import ConfigManager
+from ragdoll.cache.cache_manager import CacheManager
 
 class SourceType(Enum):
     """Enum for supported source types."""
@@ -39,6 +40,9 @@ class IngestionService(BaseIngestionService):
         custom_loaders: Optional[Dict[str, Any]] = None,
         max_threads: Optional[int] = None,
         batch_size: Optional[int] = None,
+        cache_dir: Optional[str] = None,
+        cache_ttl: Optional[int] = None,
+        use_cache: bool = True,
     ):
         """
         Initialize the ingestion service.
@@ -48,6 +52,9 @@ class IngestionService(BaseIngestionService):
             custom_loaders: Optional dictionary of custom file extension to loader mappings.
             max_threads: Maximum number of threads for concurrent processing. Overrides config if provided.
             batch_size: Number of sources to process in a single batch. Overrides config if provided.
+            cache_dir: Directory for caching documents.
+            cache_ttl: Time-to-live for cache entries in seconds.
+            use_cache: Whether to use caching for network sources.
         """
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
         
@@ -76,7 +83,17 @@ class IngestionService(BaseIngestionService):
                 except TypeError as e:
                     self.logger.error(f"Invalid custom loader for extension {ext}: {e}")
         
-        self.logger.info(f"Initialized with {len(self.loaders)} loaders, max_threads={self.max_threads}")
+        # Initialize cache if enabled
+        self.use_cache = use_cache
+        if self.use_cache:
+            self.cache_manager = CacheManager(
+                cache_dir=cache_dir,
+                ttl_seconds=cache_ttl or 86400  # Default 24 hours
+            )
+        else:
+            self.cache_manager = None
+        
+        self.logger.info(f"Initialized with {len(self.loaders)} loaders, max_threads={self.max_threads}, use_cache={use_cache}")
 
     def _build_sources(self, inputs: List[str]) -> List[Source]:
         """
@@ -132,13 +149,45 @@ class IngestionService(BaseIngestionService):
             Exception: For other loading errors, logged with details.
         """
         self.logger.debug(f"Loading source: {source}")
+        
+        # Check cache for network sources
+        if self.use_cache and source.type in [SourceType.ARXIV, SourceType.WEBSITE]:
+            cached_docs = self.cache_manager.get_from_cache(
+                source_type=source.type.value,
+                identifier=source.identifier
+            )
+            if cached_docs:
+                self.logger.info(f"Using cached version of {source.type.value}:{source.identifier}")
+                return cached_docs
+        
         try:
+            docs = []
             if source.type == SourceType.ARXIV:
                 loader = ArxivRetriever()
-                return loader.get_relevant_documents(query=source.identifier)
+                docs = loader.get_relevant_documents(query=source.identifier)
+                
+                # Cache the results
+                if self.use_cache:
+                    self.cache_manager.save_to_cache(
+                        source_type=source.type.value,
+                        identifier=source.identifier,
+                        documents=docs
+                    )
+                
+                return docs
             elif source.type == SourceType.WEBSITE:
                 loader = WebLoader()
-                return loader.load(source.identifier)
+                docs = loader.load(source.identifier)
+                
+                # Cache the results
+                if self.use_cache:
+                    self.cache_manager.save_to_cache(
+                        source_type=source.type.value,
+                        identifier=source.identifier,
+                        documents=docs
+                    )
+                
+                return docs
             elif source.extension and source.extension in self.loaders:
                 loader_class = self.loaders[source.extension]
                 loader = loader_class(file_path=source.identifier)
@@ -179,3 +228,19 @@ class IngestionService(BaseIngestionService):
 
         self.logger.info(f"Finished ingestion, loaded {len(documents)} documents")
         return documents
+
+    def clear_cache(self, source_type: Optional[str] = None, identifier: Optional[str] = None) -> int:
+        """
+        Clear the cache.
+        
+        Args:
+            source_type: Optional source type to clear
+            identifier: Optional identifier to clear
+            
+        Returns:
+            Number of cache entries cleared.
+        """
+        if not self.use_cache:
+            return 0
+        
+        return self.cache_manager.clear_cache(source_type, identifier)
