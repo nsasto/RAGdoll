@@ -54,6 +54,13 @@ LOADER_MAPPING = {
 class IngestionService(BaseIngestionService):
     logger = logging.getLogger(__name__)
 
+    def __init__(self, custom_loaders: Optional[Dict[str, Any]] = None):
+        logging.basicConfig(level=logging.INFO)
+        self.loaders = LOADER_MAPPING.copy()
+        if custom_loaders:
+            self.loaders.update(custom_loaders)
+        self.logger.info(f"Initialized with {len(self.loaders)} loaders")
+
     def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
         def _build_sources(inputs: List[str]) -> List[Dict[str, Any]]:
             sources = []
@@ -74,7 +81,7 @@ class IngestionService(BaseIngestionService):
                         self.logger.info(f"Processing file: {os.path.abspath(file_path)}")
                         file_extension = ""
                         file_extension = os.path.splitext(file_path)[1].lower()
-                        if file_extension in LOADER_MAPPING:
+                        if file_extension in self.loaders:
                             source_type = file_extension                          
                         else:
                             
@@ -120,21 +127,39 @@ class IngestionService(BaseIngestionService):
             elif source_type == "website":
                 loader = WebLoader()
                 return loader.load(identifier)
-            elif file_extension in LOADER_MAPPING:
-                loader_class = LOADER_MAPPING[file_extension]
+            elif file_extension in self.loaders:
+                loader_class = self.loaders[file_extension]
                 loader = loader_class(file_path=identifier)
                 return loader.load()
-            
             else:
                  raise ValueError(f"Unsupported source type or file extension: {source_type} {file_extension}")
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            documents_list = list(executor.map(_load_source, sources))
+            documents_list = list(executor.map(self._load_source, sources))
         
         documents = [item for sublist in documents_list for item in sublist]        
         self.logger.info(f"Finished ingestion")
         return documents
 
-    def __init__(self, custom_loader_overrides: Optional[Dict[str, Any]] = None):
-        logging.basicConfig(level=logging.INFO)
-        self.custom_loader_overrides = custom_loader_overrides or {}
+    def _load_source(self, source: Dict[str, Any]) -> List[Dict[str, Any]]:
+        self.logger.info(f"Loading source: {source}")
+        source_type = source.get("type")
+        identifier = source["identifier"]
+        file_extension = source.get("extension", "")
+        
+        self.logger.info(f"  Source dictionary: {source}")
+        self.logger.info(f"  Source type: {source_type}")
+        self.logger.info(f"  File extension: {file_extension}")
+
+        if source_type == "arxiv":
+            loader = ArxivRetriever()                
+            return loader.get_relevant_documents(query=identifier)                
+        elif source_type == "website":
+            loader = WebLoader()
+            return loader.load(identifier)
+        elif file_extension in self.loaders:
+            loader_class = self.loaders[file_extension]
+            loader = loader_class(file_path=identifier)
+            return loader.load()
+        else:
+             raise ValueError(f"Unsupported source type or file extension: {source_type} {file_extension}")
