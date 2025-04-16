@@ -4,56 +4,49 @@ import os
 from typing import List, Dict, Any, Optional
 import logging
 from langchain_community.document_loaders import (
-    UnstructuredCHMLoader,
-    UnstructuredCSVLoader,
-    UnstructuredEmailLoader,
-    UnstructuredEPubLoader,
-    UnstructuredExcelLoader,
-    UnstructuredHTMLLoader,
-    UnstructuredImageLoader,
-    UnstructuredMarkdownLoader,
-    UnstructuredODTLoader,
-    UnstructuredOrgModeLoader,
-    UnstructuredPDFLoader,  
-    UnstructuredPowerPointLoader,
-    UnstructuredRSTLoader,
-    UnstructuredRTFLoader,
-    UnstructuredTSVLoader,
-    UnstructuredWordDocumentLoader,
-    UnstructuredXMLLoader,
+    CSVLoader,
+    ArxivLoader,
     PyMuPDFLoader,
     TextLoader,
-    UnstructuredURLLoader
+    JSONLoader
+)
+from langchain_markitdown import (
+    DocxLoader,
+    PptxLoader,   
+    ImageLoader,
+    EpubLoader,
+    XlsxLoader,
+    HtmlLoader,
+    RssLoader
 )
 from langchain_community.retrievers import ArxivRetriever
 from ragdoll.loaders.web_loader import WebLoader
 from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
 
+#default loaders
 LOADER_MAPPING = {
-    ".chm": UnstructuredCHMLoader,
-    ".csv": UnstructuredCSVLoader,
-    ".eml": UnstructuredEmailLoader,
-    ".epub": UnstructuredEPubLoader,
-    ".xlsx": UnstructuredExcelLoader,
-    ".xls": UnstructuredExcelLoader,
-    ".html": UnstructuredHTMLLoader,
-    ".bmp": UnstructuredImageLoader,
-    ".jpeg": UnstructuredImageLoader,
-    ".jpg": UnstructuredImageLoader,
-    ".png": UnstructuredImageLoader,
-    ".tiff": UnstructuredImageLoader,
-    ".md": UnstructuredMarkdownLoader,
-    ".odt": UnstructuredODTLoader,
-    ".org": UnstructuredOrgModeLoader,
+    ".json": JSONLoader,
+    ".jsonl": JSONLoader,
+    ".yaml": JSONLoader,
+    ".csv": CSVLoader,
+    ".epub": EpubLoader,
+    ".xlsx": XlsxLoader,
+    #".xls": UnstructuredExcelLoader,
+    ".html": HtmlLoader,
+    ".bmp": ImageLoader,
+    ".jpeg": ImageLoader,
+    ".jpg": ImageLoader,
+    ".png": ImageLoader,
+    ".tiff": ImageLoader,
+    ".md": TextLoader, 
     ".pdf": PyMuPDFLoader,
-    ".pptx": UnstructuredPowerPointLoader,
-    ".ppt": UnstructuredPowerPointLoader,
-    ".rst": UnstructuredRSTLoader,
-    ".rtf": UnstructuredRTFLoader,
-    ".tsv": UnstructuredTSVLoader,
-    ".docx": UnstructuredWordDocumentLoader,
-    ".doc": UnstructuredWordDocumentLoader,
-    ".xml": UnstructuredXMLLoader,
+    ".pptx": PptxLoader,
+    #".ppt": UnstructuredPowerPointLoader,
+    #".rtf": RtfLoader, #todo
+    #".tsv": UnstructuredTSVLoader,
+    ".docx": DocxLoader,
+    #".doc": UnstructuredWordDocumentLoader,
+    ".xml": RssLoader,
     ".txt": TextLoader,
 }
 
@@ -129,8 +122,6 @@ class IngestionService(BaseIngestionService):
                 return loader.load(identifier)
             elif file_extension in LOADER_MAPPING:
                 loader_class = LOADER_MAPPING[file_extension]
-                #loader_class_name = LOADER_MAPPING[file_extension]
-                #loader_class = getattr(langchain_community.document_loaders, loader_class_name)
                 loader = loader_class(file_path=identifier)
                 return loader.load()
             
