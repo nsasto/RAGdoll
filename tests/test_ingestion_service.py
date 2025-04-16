@@ -11,7 +11,13 @@ TEST_DATA_DIR = TEST_DIR / "test_data"
 # Fixtures
 @pytest.fixture
 def ingestion_service():
-    return IngestionService(max_threads=2, batch_size=5)
+    """Create an ingestion service with mocked metrics manager."""
+    service = IngestionService(max_threads=2, batch_size=5)
+    # Mock the metrics manager methods to avoid errors
+    if hasattr(service, 'metrics_manager') and service.metrics_manager is not None:
+        service.metrics_manager.start_session = MagicMock(return_value={})
+        service.metrics_manager.end_session = MagicMock(return_value={})
+    return service
 
 @pytest.fixture
 def sample_documents():
@@ -173,6 +179,11 @@ class TestIngestDocuments:
     def test_ingest_documents_batching(self, mock_load_source, mock_build_sources, sample_documents):
         # Create service with small batch size
         service = IngestionService(batch_size=2, max_threads=1)
+        
+        # Mock metrics manager methods for this service instance too
+        if hasattr(service, 'metrics_manager') and service.metrics_manager is not None:
+            service.metrics_manager.start_session = MagicMock(return_value={})
+            service.metrics_manager.end_session = MagicMock(return_value={})
         
         # Setup mocks
         mock_build_sources.return_value = [
