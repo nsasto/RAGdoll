@@ -1,0 +1,33 @@
+Metadata-Version: 2.4
+Name: RAGdoll
+Version: 2.0.1
+Summary: A set of helper classes that abstract some of the more common tasks of a typical RAG process including document loading/web scraping.
+Author: Nathan Sasto
+License-File: LICENSE
+Requires-Dist: langchain
+Requires-Dist: langchain_openai
+Requires-Dist: langchain_community
+Requires-Dist: langchain-google-community
+Requires-Dist: langchain-markitdown
+Requires-Dist: openai
+Requires-Dist: python-dotenv
+Requires-Dist: pyarrow
+Requires-Dist: pandas
+Requires-Dist: colored
+Requires-Dist: pdfminer
+Requires-Dist: pdf2image
+Requires-Dist: Pillow
+Requires-Dist: pytesseract
+Requires-Dist: google-api-python-client>=2.100.0
+Requires-Dist: lxml
+Requires-Dist: PyMuPDF
+Requires-Dist: faiss-cpu
+Requires-Dist: colorlog
+Requires-Dist: sentence_transformers
+Requires-Dist: pyperclip
+Requires-Dist: requests
+Requires-Dist: bs4
+Dynamic: author
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary

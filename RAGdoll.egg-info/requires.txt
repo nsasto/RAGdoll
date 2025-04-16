@@ -9,7 +9,7 @@ pyarrow
 pandas
 colored
 pdfminer
-pdf2image 
+pdf2image
 Pillow
 pytesseract
 google-api-python-client>=2.100.0
@@ -17,7 +17,7 @@ lxml
 PyMuPDF
 faiss-cpu
 colorlog
-sentence_transformers 
+sentence_transformers
 pyperclip
 requests
 bs4
