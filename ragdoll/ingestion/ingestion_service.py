@@ -1,29 +1,33 @@
 import concurrent.futures
 import glob
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 import logging
+from pathlib import Path
+from dataclasses import dataclass
+from enum import Enum
+from retry import retry
 from langchain_community.document_loaders import (
     CSVLoader,
     ArxivLoader,
     PyMuPDFLoader,
     TextLoader,
-    JSONLoader
+    JSONLoader,
 )
 from langchain_markitdown import (
     DocxLoader,
-    PptxLoader,   
+    PptxLoader,
     ImageLoader,
     EpubLoader,
     XlsxLoader,
     HtmlLoader,
-    RssLoader
+    RssLoader,
 )
 from langchain_community.retrievers import ArxivRetriever
 from ragdoll.loaders.web_loader import WebLoader
 from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
 
-#default loaders
+# Default loader mappings
 LOADER_MAPPING = {
     ".json": JSONLoader,
     ".jsonl": JSONLoader,
@@ -31,135 +35,158 @@ LOADER_MAPPING = {
     ".csv": CSVLoader,
     ".epub": EpubLoader,
     ".xlsx": XlsxLoader,
-    #".xls": UnstructuredExcelLoader,
     ".html": HtmlLoader,
     ".bmp": ImageLoader,
     ".jpeg": ImageLoader,
     ".jpg": ImageLoader,
     ".png": ImageLoader,
     ".tiff": ImageLoader,
-    ".md": TextLoader, 
+    ".md": TextLoader,
     ".pdf": PyMuPDFLoader,
     ".pptx": PptxLoader,
-    #".ppt": UnstructuredPowerPointLoader,
-    #".rtf": RtfLoader, #todo
-    #".tsv": UnstructuredTSVLoader,
     ".docx": DocxLoader,
-    #".doc": UnstructuredWordDocumentLoader,
     ".xml": RssLoader,
     ".txt": TextLoader,
 }
 
+class SourceType(Enum):
+    """Enum for supported source types."""
+    ARXIV = "arxiv"
+    WEBSITE = "website"
+    FILE = "file"
+
+@dataclass
+class Source:
+    """Represents a document source."""
+    type: SourceType
+    identifier: str
+    extension: Optional[str] = None
 
 class IngestionService(BaseIngestionService):
+    """Service for ingesting documents from various sources concurrently."""
+    
     logger = logging.getLogger(__name__)
 
-    def __init__(self, custom_loaders: Optional[Dict[str, Any]] = None):
-        logging.basicConfig(level=logging.INFO)
+    def __init__(
+        self,
+        custom_loaders: Optional[Dict[str, Any]] = None,
+        max_threads: int = 10,
+        batch_size: int = 100,
+    ):
+        """
+        Initialize the ingestion service.
+
+        Args:
+            custom_loaders: Optional dictionary of custom file extension to loader mappings.
+            max_threads: Maximum number of threads for concurrent processing.
+            batch_size: Number of sources to process in a single batch.
+        """
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
         self.loaders = LOADER_MAPPING.copy()
         if custom_loaders:
             self.loaders.update(custom_loaders)
-        self.logger.info(f"Initialized with {len(self.loaders)} loaders")
+        self.max_threads = max_threads
+        self.batch_size = batch_size
+        self.logger.info(f"Initialized with {len(self.loaders)} loaders, max_threads={max_threads}")
 
-    def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
-        def _build_sources(inputs: List[str]) -> List[Dict[str, Any]]:
-            sources = []
-            for input_str in inputs:
-                if input_str.startswith("http://") or input_str.startswith("https://"):                    
-                    if "arxiv.org" in input_str:
-                        source_type = "arxiv"
-                        identifier = input_str.split("/")[-1]                        
-                    elif input_str.endswith(".pdf"):
-                        source_type = "pdf"
-                    else:                        
-                        source_type = "website"
-                    sources.append({"type": source_type, "identifier": input_str})
-                else:
-                    # Treat as file path or pattern
-                    expanded_files = glob.glob(input_str)
-                    for file_path in expanded_files:
-                        self.logger.info(f"Processing file: {os.path.abspath(file_path)}")
-                        file_extension = ""
-                        file_extension = os.path.splitext(file_path)[1].lower()
-                        if file_extension in self.loaders:
-                            source_type = file_extension                          
-                        else:
-                            
-                            source_type = "file"
-
-
-                        if source_type == "file" and file_extension == "":
-                            self.logger.warning(f"no extension found for file: {file_path}")
-
-                        extension = file_extension
-                        
-                        source = {"type": source_type.replace(".",""), "identifier": file_path}                        
-                        source["extension"] = extension
-                        sources.append(source)
-
-            return sources
-
-        self.logger.info(f"Starting ingestion of {len(inputs)} sources")
-
-        sources = _build_sources(inputs)
-
+    def _build_sources(self, inputs: List[str]) -> List[Source]:
         """
-        Ingests documents from various sources concurrently.
+        Build a list of Source objects from input strings.
 
         Args:
-            inputs: A list of strings, which can be file paths, URLs, or glob patterns.
+            inputs: List of file paths, URLs, or glob patterns.
 
+        Returns:
+            List of Source objects.
         """
+        sources = []
+        for input_str in inputs:
+            try:
+                if input_str.startswith(("http://", "https://")):
+                    if "arxiv.org" in input_str:
+                        sources.append(Source(type=SourceType.ARXIV, identifier=input_str.split("/")[-1]))
+                    elif input_str.endswith(".pdf"):
+                        sources.append(Source(type=SourceType.FILE, identifier=input_str, extension=".pdf"))
+                    else:
+                        sources.append(Source(type=SourceType.WEBSITE, identifier=input_str))
+                else:
+                    # Handle file paths or glob patterns
+                    for path in Path().glob(input_str) if "*" in input_str else [Path(input_str)]:
+                        if not path.is_file():
+                            self.logger.warning(f"Skipping non-file: {path}")
+                            continue
+                        ext = path.suffix.lower()
+                        source_type = SourceType.FILE if ext in self.loaders else SourceType.FILE
+                        sources.append(Source(
+                            type=source_type,
+                            identifier=str(path.absolute()),
+                            extension=ext or None,
+                        ))
+                        self.logger.debug(f"Added file source: {path} (ext={ext})")
+            except Exception as e:
+                self.logger.error(f"Error processing input {input_str}: {str(e)}", exc_info=True)
+        return sources
 
-        def _load_source(source: Dict[str, Any]) -> List[Dict[str, Any]]:
-            self.logger.info(f"Loading source: {source}")
-            source_type = source.get("type")
-            identifier = source["identifier"]
-            file_extension = source.get("extension", "")
-            
-            self.logger.info(f"  Source dictionary: {source}")
-            self.logger.info(f"  Source type: {source_type}")
-            self.logger.info(f"  File extension: {file_extension}")
+    @retry(tries=3, delay=1, backoff=2, exceptions=(ConnectionError, TimeoutError))
+    def _load_source(self, source: Source) -> List[Dict[str, Any]]:
+        """
+        Load documents from a single source with retry logic for network sources.
 
-            if source_type == "arxiv":
-                loader = ArxivRetriever()                
-                return loader.get_relevant_documents(query=identifier)                
-            elif source_type == "website":
+        Args:
+            source: Source object to load.
+
+        Returns:
+            List of loaded document dictionaries.
+
+        Raises:
+            ValueError: If the source type or extension is unsupported.
+            Exception: For other loading errors, logged with details.
+        """
+        self.logger.debug(f"Loading source: {source}")
+        try:
+            if source.type == SourceType.ARXIV:
+                loader = ArxivRetriever()
+                return loader.get_relevant_documents(query=source.identifier)
+            elif source.type == SourceType.WEBSITE:
                 loader = WebLoader()
-                return loader.load(identifier)
-            elif file_extension in self.loaders:
-                loader_class = self.loaders[file_extension]
-                loader = loader_class(file_path=identifier)
+                return loader.load(source.identifier)
+            elif source.extension and source.extension in self.loaders:
+                loader_class = self.loaders[source.extension]
+                loader = loader_class(file_path=source.identifier)
                 return loader.load()
             else:
-                 raise ValueError(f"Unsupported source type or file extension: {source_type} {file_extension}")
+                raise ValueError(f"Unsupported source: type={source.type}, ext={source.extension}")
+        except Exception as e:
+            self.logger.error(f"Failed to load {source}: {str(e)}", exc_info=True)
+            return []
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            documents_list = list(executor.map(self._load_source, sources))
-        
-        documents = [item for sublist in documents_list for item in sublist]        
-        self.logger.info(f"Finished ingestion")
+    def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
+        """
+        Ingest documents from various sources concurrently.
+
+        Args:
+            inputs: List of file paths, URLs, or glob patterns.
+
+        Returns:
+            List of document dictionaries.
+
+        Raises:
+            ValueError: If no valid sources are provided.
+        """
+        self.logger.info(f"Starting ingestion of {len(inputs)} inputs")
+        sources = self._build_sources(inputs)
+        if not sources:
+            raise ValueError("No valid sources found")
+
+        documents = []
+        # Process sources in batches to manage memory
+        for i in range(0, len(sources), self.batch_size):
+            batch = sources[i:i + self.batch_size]
+            self.logger.info(f"Processing batch {i // self.batch_size + 1} with {len(batch)} sources")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                batch_docs = executor.map(self._load_source, batch)
+                for docs in batch_docs:
+                    documents.extend(docs)
+
+        self.logger.info(f"Finished ingestion, loaded {len(documents)} documents")
         return documents
-
-    def _load_source(self, source: Dict[str, Any]) -> List[Dict[str, Any]]:
-        self.logger.info(f"Loading source: {source}")
-        source_type = source.get("type")
-        identifier = source["identifier"]
-        file_extension = source.get("extension", "")
-        
-        self.logger.info(f"  Source dictionary: {source}")
-        self.logger.info(f"  Source type: {source_type}")
-        self.logger.info(f"  File extension: {file_extension}")
-
-        if source_type == "arxiv":
-            loader = ArxivRetriever()                
-            return loader.get_relevant_documents(query=identifier)                
-        elif source_type == "website":
-            loader = WebLoader()
-            return loader.load(identifier)
-        elif file_extension in self.loaders:
-            loader_class = self.loaders[file_extension]
-            loader = loader_class(file_path=identifier)
-            return loader.load()
-        else:
-             raise ValueError(f"Unsupported source type or file extension: {source_type} {file_extension}")

@@ -14,10 +14,11 @@ Pillow
 pytesseract
 google-api-python-client>=2.100.0
 lxml
-PyMuPDF
+pymupdf
 faiss-cpu
 colorlog
 sentence_transformers 
 pyperclip
 requests
 bs4
+retry
