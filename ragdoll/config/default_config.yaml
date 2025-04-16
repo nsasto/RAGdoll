@@ -1,0 +1,27 @@
+ingestion:
+  max_threads: 10
+  batch_size: 100
+  retry_attempts: 3
+  retry_delay: 1
+  retry_backoff: 2
+  loader_mappings:
+    mappings:
+      .json: langchain_community.document_loaders.JSONLoader
+      .jsonl: langchain_community.document_loaders.JSONLoader
+      .yaml: langchain_community.document_loaders.JSONLoader
+      .csv: langchain_community.document_loaders.CSVLoader
+      .epub: langchain_markitdown.EpubLoader
+      .xlsx: langchain_markitdown.XlsxLoader
+      .html: langchain_markitdown.HtmlLoader
+      .bmp: langchain_markitdown.ImageLoader
+      .jpeg: langchain_markitdown.ImageLoader
+      .jpg: langchain_markitdown.ImageLoader
+      .png: langchain_markitdown.ImageLoader
+      .tiff: langchain_markitdown.ImageLoader
+      .md: langchain_community.document_loaders.TextLoader
+      .pdf: langchain_community.document_loaders.PyMuPDFLoader
+      .pptx: langchain_markitdown.PptxLoader
+      .docx: langchain_markitdown.DocxLoader
+      .xml: langchain_markitdown.RssLoader
+      .txt: langchain_community.document_loaders.TextLoader
+      .rtf: langchain_community.document_loaders.RtfLoader
