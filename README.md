@@ -1,14 +1,15 @@
+![Ragdoll](img/github-header-image.png)
+
 # RAGdoll: A Flexible and Extensible RAG Framework
 
-## Introduction
+# 🧭 Project Overview 
 
-RAGdoll is a versatile and highly extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. RAGdoll is designed to be flexible and adaptable, empowering you to create custom RAG pipelines tailored to your specific needs.
+RAGdoll is a highly extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. RAGdoll is designed to be flexible and adaptable, empowering you to create custom RAG pipelines tailored to your specific needs. It's also designed to accomodate a broad array of file types without any initial dependency on third party hosted services using [langchain-markitdown](https://github.com/nsasto/langchain-markitdown). The loaders can easily be swapped out with any compatible lanchain loader when ready for production.
 
 ## Quick Start Guide
 
 Here's a quick example of how to get started with RAGdoll:
-```
-python
+```python
 from ragdoll.ragdoll import Ragdoll
 from ragdoll.config import Config
 # Create a new configuration
@@ -46,7 +47,7 @@ RAGdoll's architecture is built around modular components and abstract base clas
 
 ### Modules
 
-*   **`loaders`:** Responsible for loading data from various sources (e.g., directories, JSON files, web pages).
+*   **`loaders`:** Responsible for loading data from various sources (e.g., directories, JSON files, web pages). 
 *   **`chunkers`:** Handles the splitting of large text documents into smaller chunks.
 *   **`embeddings`:** Provides an interface for embedding models, allowing you to generate vector representations of text.
 *   **`vector_stores`:** Manages the storage and retrieval of vector embeddings.
@@ -62,7 +63,7 @@ Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseEmbedd
 
 RAGdoll provides default implementations for most components, allowing you to quickly get started without having to write everything from scratch:
 
-*   **`DirectoryLoader`:** A default loader for directories.
+*   **`Lanchain-Markitdown`:** A default loader for most major file types.
 *   **`RecursiveCharacterTextSplitter`:** A default text splitter.
 *   **`OpenAIEmbeddings`:** Default embeddings that use OpenAI's API.
 *   **`MyChroma`:** A default Chroma vector store.
@@ -86,8 +87,7 @@ RAGdoll uses Pydantic to manage its configuration. This allows for:
 *   **Default Values:** Convenient default values for configuration options.
 
 You can create a `Config` object and pass it to the `Ragdoll` class.
-```
-python
+```python
 from ragdoll.ragdoll import Ragdoll
 from ragdoll.config import Config
 # Create a new configuration
