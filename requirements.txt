@@ -12,7 +12,6 @@ pdfminer
 pdf2image 
 Pillow
 pytesseract
-markitdown[all]
 google-api-python-client>=2.100.0
 lxml
 PyMuPDF
