@@ -28,6 +28,10 @@ class CacheManager:
         # Create cache directory if it doesn't exist
         os.makedirs(self.cache_dir, exist_ok=True)
         
+        # Add in-memory cache for frequently accessed documents
+        self.memory_cache = {}
+        self.max_memory_cache_items = 100  # Limit to avoid memory issues
+
         self.logger.info(f"Cache initialized at {self.cache_dir} with TTL={ttl_seconds}s")
     
     def _get_cache_key(self, source_type: str, identifier: str) -> str:
@@ -42,15 +46,15 @@ class CacheManager:
     
     def get_from_cache(self, source_type: str, identifier: str) -> Optional[List]:
         """
-        Retrieve documents from cache if available and not expired.
-        
-        Args:
-            source_type: Source type
-            identifier: Source identifier
-            
-        Returns:
-            List of cached documents or None if not found/expired
+        Retrieve documents from cache with optimized performance.
         """
+        cache_key = f"{source_type}:{identifier}"
+        
+        # Check memory cache first
+        if cache_key in self.memory_cache:
+            self.logger.debug(f"Retrieved {cache_key} from memory cache")
+            return self.memory_cache[cache_key]
+        
         try:
             cache_key = self._get_cache_key(source_type, identifier)
             cache_path = self.cache_dir / f"{cache_key}.json"
@@ -58,22 +62,38 @@ class CacheManager:
             if not cache_path.exists():
                 return None
             
-            # Check if cache is expired
+            # Quick check for cache expiry
             if self.ttl_seconds > 0:
                 mod_time = os.path.getmtime(cache_path)
-                age_seconds = time.time() - mod_time
-                if age_seconds > self.ttl_seconds:
+                if time.time() - mod_time > self.ttl_seconds:
                     self.logger.debug(f"Cache expired for {source_type}:{identifier}")
                     return None
             
-            # Load cache data
+            # Load and reconstruct document objects
             with open(cache_path, "r", encoding="utf-8") as f:
                 cache_data = json.load(f)
             
             documents = cache_data.get("documents", [])
-            self.logger.debug(f"Retrieved {len(documents)} documents from cache for {source_type}:{identifier}")
             
-            return documents
+            # Convert dictionaries back to Document objects if needed
+            from langchain.schema import Document
+            result_docs = []
+            for doc_dict in documents:
+                if isinstance(doc_dict, dict) and 'page_content' in doc_dict:
+                    result_docs.append(Document(
+                        page_content=doc_dict['page_content'],
+                        metadata=doc_dict.get('metadata', {})
+                    ))
+                else:
+                    result_docs.append(doc_dict)
+                    
+            self.logger.debug(f"Retrieved {len(result_docs)} documents from cache for {source_type}:{identifier}")
+            
+            # Store in memory cache for next time
+            if result_docs and len(self.memory_cache) < self.max_memory_cache_items:
+                self.memory_cache[cache_key] = result_docs
+            
+            return result_docs
         
         except Exception as e:
             self.logger.error(f"Error retrieving from cache {source_type}:{identifier}: {str(e)}")
@@ -81,35 +101,29 @@ class CacheManager:
     
     def save_to_cache(self, source_type: str, identifier: str, documents: List) -> None:
         """
-        Save documents to cache.
-        
-        Args:
-            source_type: Source type
-            identifier: Source identifier
-            documents: List of documents to cache
+        Save documents to cache with optimized serialization.
         """
         try:
-            # Convert documents to a serializable format if needed
+            # Convert documents to a serializable format
             serializable_docs = []
             for doc in documents:
                 if hasattr(doc, 'page_content') and hasattr(doc, 'metadata'):
-                    # Convert Document object to dict
+                    # Convert Document object to dict without deep copying
                     serializable_docs.append({
                         'page_content': doc.page_content,
-                        'metadata': dict(doc.metadata)  # Convert metadata to a regular dict
+                        'metadata': dict(doc.metadata)
                     })
                 elif isinstance(doc, dict) and 'page_content' in doc:
-                    # Already a dictionary
+                    # Already serializable
                     serializable_docs.append(doc)
                 else:
-                    # Unknown format - create minimal representation
                     self.logger.warning(f"Unknown document format for cache: {type(doc)}")
                     serializable_docs.append({
                         'page_content': str(doc),
                         'metadata': {'source_type': source_type, 'source': identifier}
                     })
             
-            # Store cache data
+            # Store cache data with minimal indentation
             cache_data = {
                 "source_type": source_type,
                 "identifier": identifier,
@@ -121,9 +135,9 @@ class CacheManager:
             cache_key = self._get_cache_key(source_type, identifier)
             cache_path = self.cache_dir / f"{cache_key}.json"
             
-            # Write to cache file
+            # Write to cache file with minimal formatting
             with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+                json.dump(cache_data, f, ensure_ascii=False, indent=None)
                 
             self.logger.debug(f"Cached {len(documents)} documents for {source_type}:{identifier}")
             
