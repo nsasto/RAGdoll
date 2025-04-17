@@ -3,7 +3,7 @@ import json
 import time
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -251,9 +251,10 @@ class MetricsManager:
         Returns:
             Aggregate metrics
         """
+        # Fix: Use timedelta for proper date calculation
         cutoff_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        cutoff_date = cutoff_date.replace(day=cutoff_date.day - days)
-        
+        cutoff_date = cutoff_date - timedelta(days=days)  # Use timedelta instead of day replacement
+
         aggregate = {
             "total_sessions": 0,
             "total_documents": 0,

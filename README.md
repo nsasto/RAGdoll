@@ -4,7 +4,9 @@
 
 # 🧭 Project Overview 
 
-RAGdoll is a highly extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. RAGdoll is designed to be flexible and adaptable, empowering you to create custom RAG pipelines tailored to your specific needs. It's also designed to accomodate a broad array of file types without any initial dependency on third party hosted services using [langchain-markitdown](https://github.com/nsasto/langchain-markitdown). The loaders can easily be swapped out with any compatible lanchain loader when ready for production.
+RAGdoll 2 is a highly extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. RAGdoll is designed to be flexible and adaptable, empowering you to create custom RAG pipelines tailored to your specific needs. It's also designed to accomodate a broad array of file types without any initial dependency on third party hosted services using [langchain-markitdown](https://github.com/nsasto/langchain-markitdown). The loaders can easily be swapped out with any compatible lanchain loader when ready for production.
+
+Note that RAGdoll 2 is a complete overhaul of the initial RAGdoll project and is not backwards compatible in any respect. 
 
 ## Quick Start Guide
 
