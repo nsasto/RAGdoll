@@ -40,69 +40,95 @@ class CacheManager:
         key = self._get_cache_key(source_type, identifier)
         return self.cache_dir / f"{key}.json"
     
-    def get_from_cache(self, source_type: str, identifier: str) -> Optional[List[Dict[str, Any]]]:
+    def get_from_cache(self, source_type: str, identifier: str) -> Optional[List]:
         """
-        Try to get documents from cache.
+        Retrieve documents from cache if available and not expired.
         
         Args:
-            source_type: Type of the source (arxiv, website, etc.)
-            identifier: Unique identifier for the source (URL, ID, etc.)
+            source_type: Source type
+            identifier: Source identifier
             
         Returns:
-            Cached documents if found and not expired, None otherwise.
+            List of cached documents or None if not found/expired
         """
-        cache_path = self._get_cache_path(source_type, identifier)
-        
-        if not cache_path.exists():
-            return None
-        
         try:
+            cache_key = self._get_cache_key(source_type, identifier)
+            cache_path = self.cache_dir / f"{cache_key}.json"
+            
+            if not cache_path.exists():
+                return None
+            
+            # Check if cache is expired
+            if self.ttl_seconds > 0:
+                mod_time = os.path.getmtime(cache_path)
+                age_seconds = time.time() - mod_time
+                if age_seconds > self.ttl_seconds:
+                    self.logger.debug(f"Cache expired for {source_type}:{identifier}")
+                    return None
+            
+            # Load cache data
             with open(cache_path, "r", encoding="utf-8") as f:
                 cache_data = json.load(f)
             
-            # Check if cache is expired
-            if time.time() - cache_data["timestamp"] > self.ttl_seconds:
-                self.logger.debug(f"Cache expired for {source_type}:{identifier}")
-                return None
+            documents = cache_data.get("documents", [])
+            self.logger.debug(f"Retrieved {len(documents)} documents from cache for {source_type}:{identifier}")
             
-            self.logger.info(f"Cache hit for {source_type}:{identifier}")
-            return cache_data["documents"]
-            
+            return documents
+        
         except Exception as e:
-            self.logger.warning(f"Error reading cache for {source_type}:{identifier}: {e}")
+            self.logger.error(f"Error retrieving from cache {source_type}:{identifier}: {str(e)}")
             return None
     
-    def save_to_cache(self, source_type: str, identifier: str, documents: List[Dict[str, Any]]) -> bool:
+    def save_to_cache(self, source_type: str, identifier: str, documents: List) -> None:
         """
         Save documents to cache.
         
         Args:
-            source_type: Type of the source
-            identifier: Unique identifier for the source
-            documents: Documents to cache
-            
-        Returns:
-            True if saved successfully, False otherwise.
+            source_type: Source type
+            identifier: Source identifier
+            documents: List of documents to cache
         """
-        cache_path = self._get_cache_path(source_type, identifier)
-        
         try:
+            # Convert documents to a serializable format if needed
+            serializable_docs = []
+            for doc in documents:
+                if hasattr(doc, 'page_content') and hasattr(doc, 'metadata'):
+                    # Convert Document object to dict
+                    serializable_docs.append({
+                        'page_content': doc.page_content,
+                        'metadata': dict(doc.metadata)  # Convert metadata to a regular dict
+                    })
+                elif isinstance(doc, dict) and 'page_content' in doc:
+                    # Already a dictionary
+                    serializable_docs.append(doc)
+                else:
+                    # Unknown format - create minimal representation
+                    self.logger.warning(f"Unknown document format for cache: {type(doc)}")
+                    serializable_docs.append({
+                        'page_content': str(doc),
+                        'metadata': {'source_type': source_type, 'source': identifier}
+                    })
+            
+            # Store cache data
             cache_data = {
-                "timestamp": time.time(),
                 "source_type": source_type,
                 "identifier": identifier,
-                "documents": documents
+                "timestamp": self._get_iso_timestamp(),
+                "documents": serializable_docs
             }
             
+            # Create cache key
+            cache_key = self._get_cache_key(source_type, identifier)
+            cache_path = self.cache_dir / f"{cache_key}.json"
+            
+            # Write to cache file
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(cache_data, f, ensure_ascii=False, indent=2)
-            
-            self.logger.info(f"Cached {len(documents)} documents for {source_type}:{identifier}")
-            return True
+                
+            self.logger.debug(f"Cached {len(documents)} documents for {source_type}:{identifier}")
             
         except Exception as e:
-            self.logger.error(f"Error caching {source_type}:{identifier}: {e}", exc_info=True)
-            return False
+            self.logger.error(f"Error caching {source_type}:{identifier}: {str(e)}")
     
     def clear_cache(self, source_type: Optional[str] = None, identifier: Optional[str] = None) -> int:
         """
