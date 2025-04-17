@@ -45,7 +45,7 @@ class IngestionService(BaseIngestionService):
         cache_ttl: Optional[int] = None,
         use_cache: bool = True,
         metrics_dir: Optional[str] = None,
-        collect_metrics: bool = True,
+        collect_metrics: bool = False,
     ):
         """
         Initialize the ingestion service.
@@ -217,8 +217,15 @@ class IngestionService(BaseIngestionService):
                 loader = WebLoader()
                 docs = loader.load(source.identifier)
                 
-                # Estimate size based on content length
-                source_size_bytes = sum(len(doc.get("page_content", "")) for doc in docs)
+                # Estimate size based on content length - Handle both document types
+                source_size_bytes = 0
+                for doc in docs:
+                    if hasattr(doc, 'page_content'):  # Document object with attributes
+                        source_size_bytes += len(doc.page_content)
+                    elif isinstance(doc, dict) and 'page_content' in doc:  # Dictionary
+                        source_size_bytes += len(doc['page_content'])
+                    else:
+                        self.logger.warning(f"Unknown document format: {type(doc)}")
                 
                 # Cache the results
                 if self.use_cache:
@@ -279,19 +286,28 @@ class IngestionService(BaseIngestionService):
         
         # Start metrics session if enabled
         if self.collect_metrics and self.metrics_manager is not None:
-            self.metrics_manager.start_session()
+            self.metrics_manager.start_session(input_count=len(inputs))  # Add the input_count parameter
         
         sources = self._build_sources(inputs)
         if not sources:
+            # End metrics session even if no sources
+            if self.collect_metrics and self.metrics_manager is not None:
+                self.metrics_manager.end_session(document_count=0)
             raise ValueError("No valid sources found")
 
         documents = []
         # Process sources in batches to manage memory
         for i in range(0, len(sources), self.batch_size):
             batch = sources[i:i + self.batch_size]
-            self.logger.info(f"Processing batch {i // self.batch_size + 1} with {len(batch)} sources")
+            batch_id = i // self.batch_size + 1
+            self.logger.info(f"Processing batch {batch_id} with {len(batch)} sources")
+            
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                batch_docs = executor.map(lambda src: self._load_source(src, batch_id=i // self.batch_size + 1), batch)
+                # Pass batch_id to _load_source for metrics tracking
+                batch_docs = executor.map(
+                    lambda src: self._load_source(src, batch_id=batch_id), 
+                    batch
+                )
                 for docs in batch_docs:
                     documents.extend(docs)
         
