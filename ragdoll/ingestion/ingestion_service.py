@@ -206,7 +206,7 @@ class IngestionService(BaseIngestionService):
                 docs = loader.get_relevant_documents(query=source.identifier)
                 
                 # Cache the results
-                if self.use_cache:
+                if self.use_cache and self.should_cache_source(source, len(docs), source_size_bytes):
                     self.cache_manager.save_to_cache(
                         source_type=source.type.value,
                         identifier=source.identifier,
@@ -227,8 +227,8 @@ class IngestionService(BaseIngestionService):
                     else:
                         self.logger.warning(f"Unknown document format: {type(doc)}")
                 
-                # Cache the results
-                if self.use_cache:
+                # Cache only if it meets caching criteria
+                if self.use_cache and self.should_cache_source(source, len(docs), source_size_bytes):
                     self.cache_manager.save_to_cache(
                         source_type=source.type.value,
                         identifier=source.identifier,
@@ -268,6 +268,32 @@ class IngestionService(BaseIngestionService):
                 )
             
             return []
+
+    def should_cache_source(self, source, doc_count, source_size_bytes):
+        """
+        Determine if a source should be cached based on size and type.
+        
+        Returns:
+            bool: True if the source should be cached, False otherwise.
+        """
+        # Don't cache tiny documents (not worth the overhead)
+        if source_size_bytes < 1024 and doc_count < 2:
+            return False
+            
+        # Always cache websites and Arxiv sources, they're expensive to fetch
+        if source.type in [SourceType.ARXIV, SourceType.WEBSITE]:
+            return True
+            
+        # Cache PDFs and other complex document types
+        if source.extension in ['.pdf', '.docx', '.pptx']:
+            return True
+            
+        # For large text files, cache if they're big enough
+        if source.extension == '.txt' and source_size_bytes > 100 * 1024:  # > 100 KB
+            return True
+            
+        # Default to not caching
+        return False
 
     def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
         """
