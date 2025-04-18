@@ -11,6 +11,25 @@ RAGdoll 2 is an extensible framework for building Retrieval-Augmented Generation
 
 Note that RAGdoll 2 is a complete overhaul of the initial RAGdoll project and is not backwards compatible in any respect. 
 
+## What's New
+
+### Enhanced Features in RAGdoll 2.0
+
+This version of RAGdoll introduces several key features that improve the flexibility and usability of the framework:
+
+-   **Caching:** RAGdoll now supports caching, allowing you to store and reuse results from previous operations. This can significantly speed up the execution of your RAG applications by avoiding redundant computations.
+    
+-   **Auto Loader Selection**: RAGdoll now includes loaders for multiple file types (not only pdf). The loader defaults to Langchain-Markitdown loaders, but can be configured to use any Lanchain compatible loader. 
+    
+-   **Monitoring:** A new monitoring capability has been added to RAGdoll. This allows you to track and understand the performance and behavior of your RAG applications over time.
+    
+<CODE_BLOCK>
+    # Enable monitoring in config
+    monitor:
+      enabled: true
+</CODE_BLOCK>
+
+
 ## Quick Start Guide
 
 Here's a quick example of how to get started with RAGdoll:
