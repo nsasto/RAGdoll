@@ -4,6 +4,12 @@ cache:
 monitor:
   enabled: false
 
+chunker:
+  default_splitter: recursive
+  chunk_size: 1000
+  chunk_overlap: 200
+  enabled: false
+
 ingestion:
   max_threads: 10
   batch_size: 100
