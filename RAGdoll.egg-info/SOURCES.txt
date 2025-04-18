@@ -38,4 +38,9 @@ ragdoll_v1/multi_query.py
 ragdoll_v1/prompts.py
 ragdoll_v1/retriever.py
 ragdoll_v1/scraper.py
+tests/__init__.py
+tests/conftest.py
+tests/test_cache_manager.py
 tests/test_ingestion_service.py
+tests/test_metrics_manager.py
+tests/test_ragdoll.py
