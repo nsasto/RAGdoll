@@ -1,3 +1,9 @@
+cache:
+  enabled: true
+
+monitor:
+  enabled: false
+
 ingestion:
   max_threads: 10
   batch_size: 100
