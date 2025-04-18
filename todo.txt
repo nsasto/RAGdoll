@@ -1,2 +1,85 @@
 add pdf extraction:
 https://github.com/opendatalab/PDF-Extract-Kit
+
+
+
+mermaid: 
+
+graph TD
+    %% Input Data and Preprocessing
+    subgraph Input_Data_and_Preprocessing
+        A["Input Document(s)"] --> B["Chunking"]
+    end
+    
+    %% Chunking Methods
+    subgraph Chunking_Methods
+        B -->|Current Chunking| C["Default Chunking <br> (BaseChunkingService)"]
+        B -->|LangChain Chunking| D["LangChain Chunking <br> (LangChainChunkingService)"]
+    end
+    C --> E{"Chunks <br>(GTChunk)"}
+    D --> E
+    
+    %% Graph and Vector Database Operations
+    subgraph Graph_and_Vector_Database_Operations
+        E --> F["Information Extraction <br> (DefaultInformationExtractionService)"]
+        F --> G{"Entities <br> (GTEntity)"}
+        F --> H{"Relationships <br> (GTRelation)"}
+        G --> I{"Entity Embeddings"}
+        H --> J{"Chunk Relationships"}
+
+        subgraph Vector_Database
+            I -->|Hnswlib| K["HnswlibVectorStorage"]
+            I -->|ChromaDB| L["ChromaVectorStorage"]
+        end
+        K --> M(("Vector DB"))
+        L --> M
+        J --> N["Graph Upsert <br> (BaseGraphUpsertPolicy)"]
+        N --> O(("Graph DB"))
+        
+        subgraph Graph_Database
+            O -->|In-Memory| P["IGraphStorage"]
+            O -->|Persistent| Q["Neo4j or other"]
+        end
+    end
+
+    %% Query Processing
+    subgraph Query_Processing
+        R["Query"] --> S["Information Extraction"]
+        S --> T{"Entities Extracted"}
+        T --> U{"Context Retrieval <br> (BaseStateManagerService)"}
+        U --> M
+        U --> O
+        U --> V{"Relevant Chunks <br> (GTChunk)"}
+        V --> W["LLM Prompting"]
+        W --> X["Answer"]
+    end
+
+    style A fill:#ccf,stroke:#333,stroke-width:2px
+    style B fill:#ccf,stroke:#333,stroke-width:2px
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#f9f,stroke:#333,stroke-width:2px
+    style F fill:#f9f,stroke:#333,stroke-width:2px
+    style K fill:#f9f,stroke:#333,stroke-width:2px
+    style L fill:#f9f,stroke:#333,stroke-width:2px
+    style P fill:#f9f,stroke:#333,stroke-width:2px
+    style Q fill:#f9f,stroke:#333,stroke-width:2px
+    style U fill:#f9f,stroke:#333,stroke-width:2px
+    style W fill:#f9f,stroke:#333,stroke-width:2px
+    
+    linkStyle 0 stroke-width:2px
+    linkStyle 1 stroke-width:2px
+    linkStyle 2 stroke-width:2px
+    linkStyle 3 stroke-width:2px
+    linkStyle 4 stroke-width:2px
+    linkStyle 5 stroke-width:2px
+    linkStyle 6 stroke-width:2px
+    linkStyle 7 stroke-width:2px
+    linkStyle 8 stroke-width:2px
+    linkStyle 9 stroke-width:2px
+    linkStyle 10 stroke-width:2px
+    linkStyle 11 stroke-width:2px
+    linkStyle 12 stroke-width:2px
+    linkStyle 13 stroke-width:2px
+    linkStyle 14 stroke-width:2px
+    linkStyle 15 stroke-width:2px
+    
