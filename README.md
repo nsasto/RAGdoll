@@ -1,8 +1,11 @@
 # RAGdoll: A Flexible and Extensible RAG Framework
 
+
+Welcome to Ragdoll 2.0! This release marks a significant overhaul of the Ragdoll project, focusing on enhanced flexibility, extensibility, and maintainability. We've completely refactored the core architecture to make it easier than ever to adapt Ragdoll to your specific needs and integrate it with the broader LangChain ecosystem. This document outlines the major changes and improvements you'll find in this exciting new version.
+
 ## Introduction
 
-RAGdoll is a versatile and highly extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. RAGdoll is designed to be flexible and adaptable, empowering you to create custom RAG pipelines tailored to your specific needs.
+RAGdoll is an extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. It's based on Langchain components and is designed to get up and running on ingestion, with no external dependencies, and then switch to third party components if and when required.
 
 ## Quick Start Guide
 
