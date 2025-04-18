@@ -44,14 +44,13 @@ class Chunker(ABC):
         add_start_index = True
         if callable(length_function):
             pass
+            
         default_splitter_type = self.config["chunker"]["default_splitter"]
         if default_splitter_type == "markdown":
-            headers_to_split = [
-                ("###", 1),  # h3
-                ("##", 2),  # h2
-                ("#", 3),  # h1
-            ]            
-            text_splitter = MarkdownHeaderTextSplitter(headers_to_split=headers_to_split)
+            text_splitter = MarkdownHeaderTextSplitter(
+               headers_to_split = [
+                    ("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3"),
+               ] )
         elif default_splitter_type == "recursive":
 
             text_splitter = RecursiveCharacterTextSplitter(
