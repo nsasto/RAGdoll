@@ -16,6 +16,17 @@ ingestion:
   retry_attempts: 3
   retry_delay: 1
   retry_backoff: 2
+
+embeddings:
+  enabled: true
+  default_model: openai  
+  openai:
+    model: "text-embedding-3-large"
+    dimensions: 1024
+  huggingface:
+    model_name: "sentence-transformers/all-mpnet-base-v2"
+
+
   loader_mappings:
     mappings:
       .json: langchain_community.document_loaders.JSONLoader
