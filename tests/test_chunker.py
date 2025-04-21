@@ -30,7 +30,7 @@ def test_markdown_splitter_no_config_params(mock_config_manager):
     chunker = Chunker()
     splitter = chunker.get_text_splitter()
     assert isinstance(splitter, MarkdownHeaderTextSplitter)
-    assert splitter.headers_to_split == [("###", 1), ("##", 2), ("#", 3)]
+    assert splitter.headers_to_split_on == [("###", 1), ("##", 2), ("#", 3)]
 
 
 def test_recursive_splitter_default_params(mock_config_manager):
@@ -108,7 +108,7 @@ def test_markdown_splitter_headers(mock_config_manager):
     chunker = Chunker()
     splitter = chunker.get_text_splitter()
     assert isinstance(splitter, MarkdownHeaderTextSplitter)
-    assert splitter.headers_to_split == [("###", 1), ("##", 2), ("#", 3)]
+    assert splitter.headers_to_split_on == [("###", 1), ("##", 2), ("#", 3)]
 
 
 def test_text_splitter_not_recreated(mock_config_manager):
@@ -141,7 +141,7 @@ def test_text_splitter_not_recreated(mock_config_manager):
     chunker_markdown = Chunker()
     splitter_markdown = chunker_markdown.get_text_splitter()
     assert isinstance(splitter_markdown, MarkdownHeaderTextSplitter)
-    assert splitter_markdown.headers_to_split == [("###", 1), ("##", 2), ("#", 3)]
+    assert splitter_markdown.headers_to_split_on == [("###", 1), ("##", 2), ("#", 3)]
 
 
 def test_custom_splitter_override():

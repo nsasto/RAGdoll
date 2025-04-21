@@ -11,7 +11,7 @@ ragdoll/ragdoll.py
 ragdoll/chains/__init__.py
 ragdoll/chains/base_chain.py
 ragdoll/chunkers/__init__.py
-ragdoll/chunkers/base_chunker.py
+ragdoll/chunkers/chunker.py
 ragdoll/embeddings/__init__.py
 ragdoll/embeddings/base_embeddings.py
 ragdoll/graph_stores/__init__.py
@@ -41,6 +41,7 @@ ragdoll_v1/scraper.py
 tests/__init__.py
 tests/conftest.py
 tests/test_cache_manager.py
+tests/test_chunker.py
 tests/test_ingestion_service.py
 tests/test_metrics_manager.py
 tests/test_ragdoll.py
