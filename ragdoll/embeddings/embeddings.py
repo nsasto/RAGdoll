@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
 
-from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from ragdoll.config.config_manager import ConfigManager # type: ignore
  
 
@@ -49,10 +49,8 @@ class RagdollEmbeddings:
         model_name = model_params.get("model", "text-embedding-3-large")
         dimensions = model_params.get("dimensions")
 
-        # Remove 'model' from model_params to avoid passing it twice
+        # Remove 'model' and 'dimensions' from model_params to avoid passing them twice
         model_params.pop("model", None)
-
-        # Remove 'dimensions' from model_params to avoid passing it twice
         model_params.pop("dimensions", None)
 
         if dimensions is not None:
@@ -61,7 +59,7 @@ class RagdollEmbeddings:
             return OpenAIEmbeddings(model=model_name, **model_params)
 
 
-    def _create_huggingface_embeddings(self, model_params: Dict[str, Any]) -> HuggingFaceEmbeddings:
+    def _create_huggingface_embeddings(self, model_params: Dict[str, Any]) -> HuggingFaceEmbeddings: # type: ignore
         """Creates a HuggingFaceEmbeddings model with parameters from config.
 
         Args:
@@ -72,6 +70,7 @@ class RagdollEmbeddings:
         model_params = model_params or {}
         model_name = model_params.get("model_name", "sentence-transformers/all-mpnet-base-v2")
         
+
         # Remove 'model_name' from model_params to avoid passing it twice
         model_params.pop("model_name", None)
         return HuggingFaceEmbeddings(model_name=model_name, **model_params)
