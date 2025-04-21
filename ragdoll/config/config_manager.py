@@ -27,9 +27,17 @@ class ConfigManager:
         self._config = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from file."""
+        """Load configuration from file and environment."""
         with open(self.config_path, 'r') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+
+        # Retrieve OpenAI API key from environment if not in config
+        if "embeddings" in config and "openai" in config["embeddings"] and "openai_api_key" not in config["embeddings"]["openai"]:
+            config["embeddings"]["openai"]["openai_api_key"] = os.environ.get(
+                "OPENAI_API_KEY", "your_default_api_key"
+            )
+        
+        return config
     
     @property
     def ingestion_config(self) -> IngestionConfig:
