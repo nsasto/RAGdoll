@@ -5,7 +5,7 @@ monitor:
   enabled: false
 
 chunker:
-  default_splitter: recursive
+  default_splitter: markdown
   chunk_size: 1000
   chunk_overlap: 200
   enabled: false
