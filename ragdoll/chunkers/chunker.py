@@ -17,6 +17,8 @@ class Chunker(ABC):
             config: An optional configuration object. If None, the default configuration is loaded.
             text_splitter (Optional[TextSplitter]): An optional LangChain text splitter to use.
         """
+        if text_splitter is not None and not isinstance(text_splitter, TextSplitter):
+            raise TypeError("text_splitter must be an instance of TextSplitter")
         if config is None:
             config_manager = ConfigManager()
             self.config = config_manager._config  # Load default config
@@ -48,9 +50,9 @@ class Chunker(ABC):
         default_splitter_type = self.config["chunker"]["default_splitter"]
         if default_splitter_type == "markdown":
             headers_to_split = [                
-                ("#", 1),  # h1
-                ("##", 2),  # h2
                 ("###", 1),  # h3
+                ("##", 2),  # h2
+                ("#", 3),  # h1
             ]
             text_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split)
             
