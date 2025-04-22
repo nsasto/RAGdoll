@@ -5,7 +5,7 @@ from importlib import import_module
 from typing import Dict, Any, Type
 from pathlib import Path
 
-from ragdoll.config.base_config import IngestionConfig, LoadersConfig, EmbeddingsConfig, CacheConfig
+from ragdoll.config.base_config import IngestionConfig, LoadersConfig, EmbeddingsConfig, CacheConfig, MonitorConfig
 
 class ConfigManager:
     """Manages configuration loading and validation"""
@@ -63,6 +63,12 @@ class ConfigManager:
     def cache_config(self) -> CacheConfig:
         """Get the cache configuration."""
         return CacheConfig.model_validate(self._config.get("cache", {}))
+    
+    @property
+    def monitor_config(self) -> MonitorConfig:
+        """Get the monitor configuration."""
+        return MonitorConfig.model_validate(self._config.get("monitor", {}))
+
 
 
     

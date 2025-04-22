@@ -31,13 +31,16 @@ class IngestionService(BaseIngestionService):
         cache_manager: Optional[CacheManager] = None,
         metrics_manager: Optional[MetricsManager] = None,
         use_cache: bool = True,
+        collect_metrics: bool = False
     ):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
         self.config_manager = ConfigManager(config_path)
         config = self.config_manager.ingestion_config
+        monitor_config = self.config_manager.monitor_config
 
         self.max_threads = max_threads if max_threads is not None else config.max_threads
+        self.collect_metrics = collect_metrics if collect_metrics is not None else monitor_config.enabled
         self.batch_size = batch_size if batch_size is not None else config.batch_size
 
         self.use_cache = use_cache
@@ -121,7 +124,6 @@ class IngestionService(BaseIngestionService):
                         docs = loader.load()
                 else:
                     loader = loader_class()
-                    docs = loader.load()
 
                 
                 docs = loader.load()

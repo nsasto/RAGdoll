@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List, Type, Union, Literal
 from typing import Optional, Dict, Any
 
-class BaseConfig(BaseModel):
+class BaseConfig(BaseModel):    
     """Base configuration class that all configs should inherit from"""
     enabled: bool = Field(default=True, description="Whether this component is enabled")
 
@@ -39,14 +39,15 @@ class EmbeddingsConfig(BaseConfig):
     default_client: str = Field(..., description="The default client to use.")
     clients: Dict[str, ClientConfig] = Field(..., description="Configurations for each embedding client.")
 
-
+class MonitorConfig(BaseConfig):
+    """Configuration for the monitor."""
+    collect_metrics: bool = Field(
+        default=True, description="Whether to collect metrics or not."
+    )
 
 class VectorStoreConfig(BaseConfig):
     """Configuration for vector stores"""
     store_type: str = Field(default="chroma", description="Type of vector store")
-
-
-
 
 class LLMConfig(BaseConfig):
     """Configuration for language models"""
@@ -57,8 +58,13 @@ class LLMConfig(BaseConfig):
 
 class CacheConfig(BaseConfig):
     """Configuration for the cache"""
-    ttl: int = Field(default=86400, description="Time to live for cached items")
+    """
+    Configuration for the cache.
 
+    Attributes:
+        cache_ttl (int): Time to live for cached items in seconds.
+    """
+    cache_ttl: int = Field(default=86400, description="Time to live for cached items in seconds.")
 
 class LoadersConfig(BaseConfig):
     """Configuration for file extension to loader mappings"""
