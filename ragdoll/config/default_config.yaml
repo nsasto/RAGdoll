@@ -1,8 +1,10 @@
 cache:
   enabled: true
+  cache_ttl: 3600
 
 monitor:
   enabled: false
+  collect_metrics: true
 
 chunker:
   default_splitter: markdown
