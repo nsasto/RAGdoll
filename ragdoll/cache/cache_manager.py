@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
+from ragdoll.config.config_manager import ConfigManager
+
 
 class CacheManager:
     """Manages caching for network-based document sources."""
@@ -12,16 +14,19 @@ class CacheManager:
     logger = logging.getLogger(__name__)
     
     def __init__(self, cache_dir: str = None, ttl_seconds: int = 86400):
-        """
-        Initialize the cache manager.
+        """Initialize the cache manager.
         
         Args:
             cache_dir: Directory to store the cache. If None, uses ~/.ragdoll/cache/
-            ttl_seconds: Time-to-live for cache entries in seconds. Default is 24 hours.
         """
+        config_manager = ConfigManager()
+        cache_config = config_manager.cache_config
+
         if cache_dir is None:
             cache_dir = os.path.join(os.path.expanduser("~"), ".ragdoll", "cache")
         
+        ttl_seconds = cache_config.cache_ttl
+
         self.cache_dir = Path(cache_dir)
         self.ttl_seconds = ttl_seconds
         
