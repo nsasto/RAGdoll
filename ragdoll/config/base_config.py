@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List, Type, Union
+from typing import Optional, Dict, Any, List, Type, Union, Literal
+from typing import Optional, Dict, Any
 
 class BaseConfig(BaseModel):
     """Base configuration class that all configs should inherit from"""
@@ -17,15 +18,35 @@ class ChunkerConfig(BaseConfig):
     chunk_overlap: int = Field(default=200, description="Overlap between chunks")
     separator: str = Field(default="\n\n", description="Separator to use when splitting text")
 
+class ClientConfig(BaseConfig):
+    """Configuration for a specific embedding client."""
+    client: str = Field(..., description="The name of the client (e.g., 'openai', 'huggingface').")
+    model: str = Field(..., description="The name of the embedding model.")
+    kwargs: Dict[str, Any] = Field(default_factory=dict, description="Additional settings for the client.")
+
 class EmbeddingsConfig(BaseConfig):
-    """Configuration for embedding models"""
-    model_name: str = Field(default="text-embedding-ada-002", description="Name of embedding model to use")
-    dimensions: int = Field(default=1536, description="Dimensions of the embedding vectors")
-    api_key: Optional[str] = Field(default=None, description="API key for the embedding service")
+    """
+    Configuration for embedding models.
+
+    This class allows configuration for different embedding clients and models.
+
+    Attributes:
+        enabled (bool): Whether embeddings are enabled or not.
+        default_client (str): The default client to use.
+        clients (Dict[str, ClientConfig]): Configurations for each embedding client.
+    """
+    enabled: bool = Field(..., description="Whether to use embeddings or not.")
+    default_client: str = Field(..., description="The default client to use.")
+    clients: Dict[str, ClientConfig] = Field(..., description="Configurations for each embedding client.")
+
+
 
 class VectorStoreConfig(BaseConfig):
     """Configuration for vector stores"""
     store_type: str = Field(default="chroma", description="Type of vector store")
+
+
+
 
 class LLMConfig(BaseConfig):
     """Configuration for language models"""
@@ -34,21 +55,17 @@ class LLMConfig(BaseConfig):
     max_tokens: int = Field(default=500, description="Maximum tokens for generation")
     api_key: Optional[str] = Field(default=None, description="API key for the LLM service")
 
-class LoaderMappingConfig(BaseConfig):
-    """Configuration for file extension to loader mappings"""
-    mappings: Dict[str, str] = Field(
-        default={
-            ".json": "langchain_community.document_loaders.JSONLoader",
-            ".jsonl": "langchain_community.document_loaders.JSONLoader",
-            ".yaml": "langchain_community.document_loaders.JSONLoader",
-            ".csv": "langchain_community.document_loaders.CSVLoader",
-            ".txt": "langchain_community.document_loaders.TextLoader",
-            ".md": "langchain_community.document_loaders.TextLoader",
-            ".pdf": "langchain_community.document_loaders.PyMuPDFLoader",
-        },
-        description="Mapping of file extensions to loader class paths"
-    )
+class CacheConfig(BaseConfig):
+    """Configuration for the cache"""
+    ttl: int = Field(default=86400, description="Time to live for cached items")
 
+
+class LoadersConfig(BaseConfig):
+    """Configuration for file extension to loader mappings"""
+    file_mappings: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Mapping of file extensions to loader class paths",
+    )
 class IngestionConfig(BaseConfig):
     """Configuration for ingestion service"""
     max_threads: int = Field(default=10, description="Maximum threads for concurrent processing")
@@ -56,5 +73,5 @@ class IngestionConfig(BaseConfig):
     retry_attempts: int = Field(default=3, description="Number of retry attempts for failed ingestion")
     retry_delay: int = Field(default=1, description="Delay between retries in seconds")
     retry_backoff: int = Field(default=2, description="Backoff multiplier for retries")
-    loader_mappings: LoaderMappingConfig = Field(default_factory=LoaderMappingConfig, 
-                                               description="Loader mappings configuration")
+    loaders: LoadersConfig = Field(default_factory=LoadersConfig, 
+                                               description="Loaders configuration")
