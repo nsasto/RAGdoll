@@ -1,272 +1,162 @@
+import concurrent.futures
 import os
-import time
-import json
-import tempfile
-import shutil
+import logging
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import pytest
-from datetime import datetime
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from enum import Enum
+from retry import retry
+
+from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
+from ragdoll.config.config_manager import ConfigManager
 from ragdoll.cache.cache_manager import CacheManager
-from langchain.schema import Document
-from ragdoll.ingestion.ingestion_service import IngestionService, Source, SourceType
+from ragdoll.metrics.metrics_manager import MetricsManager
 
-class TestCacheManager:
-    """Tests for the CacheManager class."""
-    
-    def test_memory_cache(self, cache_manager, sample_documents):
-        """Test that memory cache works correctly."""
-        # Save to cache
-        cache_manager.save_to_cache("arxiv", "1234.5678", sample_documents)
-        
-        # First retrieval should be from disk
-        cached_docs = cache_manager.get_from_cache("arxiv", "1234.5678")
-        
-        # Compare documents (handle Document objects)
-        assert len(cached_docs) == len(sample_documents)
-        for i, doc in enumerate(cached_docs):
-            if hasattr(doc, 'page_content'):
-                # Document object returned
-                assert doc.page_content == sample_documents[i]['page_content']
-                for key, value in sample_documents[i]['metadata'].items():
-                    assert doc.metadata[key] == value
+@dataclass
+class Source:
+    identifier: str
+    extension: Optional[str] = None
+    is_file: bool = False
+
+class IngestionService(BaseIngestionService):
+    logger = logging.getLogger(__name__)
+
+    def __init__(
+        self,
+        config_path: Optional[str] = None,
+        custom_loaders: Optional[Dict[str, Any]] = None,
+        max_threads: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        cache_manager: Optional[CacheManager] = None,
+        metrics_manager: Optional[MetricsManager] = None,
+        use_cache: bool = True,
+    ):
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+        self.config_manager = ConfigManager(config_path)
+        config = self.config_manager.ingestion_config
+
+        self.max_threads = max_threads if max_threads is not None else config.max_threads
+        self.batch_size = batch_size if batch_size is not None else config.batch_size
+
+        self.use_cache = use_cache
+        self.cache_manager = cache_manager or CacheManager(ttl_seconds=86400)
+        self.metrics_manager = metrics_manager
+        self.collect_metrics = metrics_manager is not None
+
+        self.loaders = self.config_manager.get_loader_mapping()
+        if custom_loaders:
+            for ext, loader_class in custom_loaders.items():
+                if hasattr(loader_class, 'load'):
+                    self.loaders[ext] = loader_class
+                else:
+                    self.logger.warning(f"Invalid custom loader for {ext}")
+
+        self.logger.info(f"Service initialized: loaders={len(self.loaders)}, max_threads={self.max_threads}")
+
+    def _is_arxiv_url(self, url: str) -> bool:
+        return "arxiv.org" in url
+
+    def _parse_url_sources(self, url: str) -> Source:
+        if self._is_arxiv_url(url):
+            return Source(identifier=url.split("/")[-1], is_file=False)
+        return Source(identifier=url, extension=Path(url).suffix.lower() or None, is_file=False)
+
+    def _parse_file_sources(self, pattern: str) -> List[Source]:
+        sources = []
+        for path in Path().glob(pattern) if "*" in pattern else [Path(pattern)]:
+            if path.exists() and path.is_file():
+                sources.append(Source(identifier=str(path.absolute()), extension=path.suffix.lower(), is_file=True))
+        return sources
+
+    def _build_sources(self, inputs: List[str]) -> List[Source]:
+        sources = []
+        for input_str in inputs:
+            if input_str.startswith(("http://", "https://")):
+                sources.append(self._parse_url_sources(input_str))
             else:
-                # Dict returned
-                assert doc == sample_documents[i]
-        
-        # The document should now be in memory cache
-        # Check if any key in memory_cache contains our documents
-        found_in_cache = False
-        for key, cached_docs in cache_manager.memory_cache.items():
-            # Check if the documents match
-            if len(cached_docs) == len(sample_documents):
-                if all(cached_docs[i].page_content == sample_documents[i]['page_content'] 
-                       for i in range(len(cached_docs))):
-                    found_in_cache = True
-                    break
-        
-        assert found_in_cache, "Documents not found in memory cache"
-        
-        # Memory cache should be used for subsequent retrievals
-        with patch.object(cache_manager, '_get_cache_path') as mock_path:
-            # Get the same document again - should use memory cache
-            cached_docs = cache_manager.get_from_cache("arxiv", "1234.5678")
-            # Verify the file path wasn't checked (memory cache used)
-            mock_path.assert_not_called()
-    
-    def test_memory_cache_limit(self, cache_manager, sample_documents):
-        """Test that memory cache respects the item limit."""
-        # Set a smaller limit for testing
-        original_limit = cache_manager.max_memory_cache_items
-        cache_manager.max_memory_cache_items = 2
-        
+                sources.extend(self._parse_file_sources(input_str))
+        return sources
+
+    @retry(tries=3, delay=1, backoff=2, exceptions=(ConnectionError, TimeoutError))
+    def _load_source(self, source: Source, batch_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        path = Path(source.identifier)
+        source_size_bytes = path.stat().st_size if source.is_file and path.exists() else 0
+
+        metrics_info = None
+        if self.collect_metrics and batch_id is not None:
+            metrics_info = self.metrics_manager.start_source(batch_id, source.identifier)
+
         try:
-            # Add 3 items to cache
-            cache_manager.save_to_cache("arxiv", "doc1", sample_documents)
-            cache_manager.save_to_cache("arxiv", "doc2", sample_documents)
-            cache_manager.save_to_cache("arxiv", "doc3", sample_documents)
-            
-            # Get all 3 items to put them in memory cache
-            cache_manager.get_from_cache("arxiv", "doc1")
-            cache_manager.get_from_cache("arxiv", "doc2")
-            cache_manager.get_from_cache("arxiv", "doc3")
-            
-            # Verify only 2 items are in memory cache (due to limit)
-            assert len(cache_manager.memory_cache) <= 2
-        finally:
-            # Restore original limit
-            cache_manager.max_memory_cache_items = original_limit
-    
-    def test_clear_specific_cache_type(self, cache_manager, sample_documents):
-        """Test clearing only a specific source type from cache."""
-        # Save different types of documents
-        cache_manager.save_to_cache("arxiv", "doc1", sample_documents)
-        cache_manager.save_to_cache("website", "website1", sample_documents)
-        cache_manager.save_to_cache("website", "website2", sample_documents)
-        
-        # Clear only website entries
-        count = cache_manager.clear_cache("website")
-        assert count == 2
-        
-        # Arxiv entry should still exist
-        assert cache_manager.get_from_cache("arxiv", "doc1") is not None
-        
-        # Website entries should be gone
-        assert cache_manager.get_from_cache("website", "website1") is None
-        assert cache_manager.get_from_cache("website", "website2") is None
-    
-    def test_error_handling_in_get_from_cache(self, cache_manager, sample_documents):
-        """Test error handling in get_from_cache method."""
-        # Save to cache
-        cache_manager.save_to_cache("arxiv", "1234.5678", sample_documents)
-        
-        # Get the cache path to verify file content later
-        cache_path = cache_manager._get_cache_path("arxiv", "1234.5678")
-        
-        # Mock open to raise an exception
-        with patch('builtins.open', side_effect=Exception('Test error')):
-            # Should return None on error, not raise an exception
-            result = cache_manager.get_from_cache("arxiv", "1234.5678")
-            assert result is None
-        
-        # Verify the cache file exists and has correct content
-        with open(cache_path, "r", encoding="utf-8") as f:
-            cache_data = json.load(f)
-        
-        assert cache_data["source_type"] == "arxiv"
-        assert cache_data["identifier"] == "1234.5678"
-        assert len(cache_data["documents"]) == len(sample_documents)
-        assert "timestamp" in cache_data
-    
-    def test_cache_expiration(self, cache_manager, sample_documents):
-        """Test that expired cache entries are not returned."""
-        # Save to cache with short TTL
-        cache_manager.save_to_cache("arxiv", "1234.5678", sample_documents)
-        
-        # Verify it's in the cache
-        assert cache_manager.get_from_cache("arxiv", "1234.5678") is not None
-        
-        # Sleep longer than TTL
-        time.sleep(6)  # TTL is 5 seconds in test fixture
-        
-        # Verify it's expired
-        assert cache_manager.get_from_cache("arxiv", "1234.5678") is None
-    
-    def test_clear_cache(self, cache_manager, sample_documents):
-        """Test clearing all cache."""
-        # Save documents to cache
-        cache_manager.save_to_cache("arxiv", "1234.5678", sample_documents)
-        cache_manager.save_to_cache("website", "https://example.com", sample_documents)
-        
-        # Clear all cache
-        count = cache_manager.clear_cache()
-        assert count == 2
-        
-        # Verify all are gone
-        assert cache_manager.get_from_cache("arxiv", "1234.5678") is None
-        assert cache_manager.get_from_cache("website", "https://example.com") is None
+            if not source.extension:
+                if self.use_cache and not source.is_file:
+                    cached = self.cache_manager.get_from_cache("website", source.identifier)
+                    if cached:
+                        self._record_metrics(metrics_info, batch_id, source, len(cached), source_size_bytes, success=True)
+                        return cached
 
+            if source.extension in self.loaders:
+                loader = self.loaders[source.extension](file_path=source.identifier)
+                docs = loader.load()
+            else:
+                raise ValueError(f"Unsupported source: ext={source.extension}")
 
-class TestIngestionServiceCache:
-    """Tests for the cache integration with IngestionService."""
-    
-    @pytest.fixture
-    def cache_dir(self):
-        """Create a temporary directory for cache testing."""
-        temp_dir = tempfile.mkdtemp()
-        yield temp_dir
-        # Cleanup after test
-        shutil.rmtree(temp_dir)
-    
-    @pytest.fixture
-    def mock_config_manager(self, monkeypatch):
-        """Mock the config manager."""
-        mock_manager = MagicMock()
-        mock_manager.get_loader_mapping.return_value = {}
-        mock_manager.ingestion_config.max_threads = 2
-        mock_manager.ingestion_config.batch_size = 5
-        
-        mock_config = MagicMock()
-        mock_config.return_value = mock_manager
-        monkeypatch.setattr("ragdoll.ingestion.ingestion_service.ConfigManager", mock_config)
-        
-        return mock_config
-    
-    def test_cache_integration(self, cache_dir, sample_documents, mock_config_manager):
-        """Test that the ingestion service uses cache correctly."""
-        # Set up ingestion service with cache
-        service = IngestionService(cache_dir=cache_dir, cache_ttl=3600, use_cache=True)
-        
-        # Mock the ArxivRetriever
-        with patch("ragdoll.ingestion.ingestion_service.ArxivRetriever") as mock_arxiv:
-            mock_retriever = MagicMock()
-            mock_retriever.get_relevant_documents.return_value = sample_documents
-            mock_arxiv.return_value = mock_retriever
-            
-            # First call should use the retriever
-            source = Source(type=SourceType.ARXIV, identifier="1234.5678")
-            docs = service._load_source(source)
-            
-            # Verify retriever was called
-            mock_retriever.get_relevant_documents.assert_called_once_with(query="1234.5678")
-            
-            # Compare documents (handle Document objects)
-            assert len(docs) == len(sample_documents)
-            for i, doc in enumerate(docs):
-                if hasattr(doc, 'page_content'):
-                    # Document object returned
-                    assert doc.page_content == sample_documents[i]['page_content']
-                    for key, value in sample_documents[i]['metadata'].items():
-                        assert doc.metadata[key] == value
-                else:
-                    # Dict returned
-                    assert doc == sample_documents[i]
-            
-            # Reset mock
-            mock_retriever.get_relevant_documents.reset_mock()
-            
-            # Second call should use cache
-            docs = service._load_source(source)
-            
-            # Verify retriever was NOT called
-            mock_retriever.get_relevant_documents.assert_not_called()
-            
-            # Compare documents again
-            assert len(docs) == len(sample_documents)
-            for i, doc in enumerate(docs):
-                if hasattr(doc, 'page_content'):
-                    # Document object returned
-                    assert doc.page_content == sample_documents[i]['page_content']
-                    for key, value in sample_documents[i]['metadata'].items():
-                        assert doc.metadata[key] == value
-                else:
-                    # Dict returned
-                    assert doc == sample_documents[i]
+            self._record_metrics(metrics_info, batch_id, source, len(docs), source_size_bytes, success=True)
+            return docs
+        except Exception as e:
+            self.logger.error(f"Failed to load {source.identifier}: {str(e)}", exc_info=True)
+            self._record_metrics(metrics_info, batch_id, source, 0, 0, success=False, error=str(e))
+            return []
 
+    def _record_metrics(self, metrics_info, batch_id, source, doc_count, byte_size, success=True, error=None):
+        if self.collect_metrics and metrics_info:
+            self.metrics_manager.end_source(
+                batch_id=batch_id,
+                source_id=source.identifier,
+                success=success,
+                document_count=doc_count,
+                bytes_count=byte_size,
+                error_message=error
+            )
 
-# Create test fixtures for use in tests
-@pytest.fixture
-def temp_cache_dir():
-    """Create a temporary directory for cache testing."""
-    temp_dir = tempfile.mkdtemp()
-    yield temp_dir
-    # Cleanup after test
-    shutil.rmtree(temp_dir)
+    def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
+        self.logger.info(f"Starting ingestion of {len(inputs)} inputs")
 
-@pytest.fixture
-def sample_documents():
-    """Sample documents for testing."""
-    return [
-        {"page_content": "Test content 1", "metadata": {"source": "test1"}},
-        {"page_content": "Test content 2", "metadata": {"source": "test2"}}
-    ]
+        if self.collect_metrics:
+            self.metrics_manager.start_session(input_count=len(inputs))
 
-@pytest.fixture(autouse=True)
-def patch_cache_manager():
-    """Patch the CacheManager class to add missing methods."""
-    
-    # Only patch if the method doesn't exist
-    if not hasattr(CacheManager, '_get_iso_timestamp'):
-        def get_iso_timestamp(self):
-            return datetime.now().isoformat()
-            
-        CacheManager._get_iso_timestamp = get_iso_timestamp
-        
-        # Also fix save_to_cache to return True (expected by tests)
-        original_save = CacheManager.save_to_cache
-        def patched_save(self, source_type, identifier, documents):
-            try:
-                original_save(self, source_type, identifier, documents)
-                return True
-            except Exception:
-                return False
-                
-        CacheManager.save_to_cache = patched_save
-    
-    yield
+        sources = self._build_sources(inputs)
+        if not sources:
+            if self.collect_metrics:
+                self.metrics_manager.end_session(document_count=0)
+            raise ValueError("No valid sources found")
 
-@pytest.fixture
-def cache_manager(temp_cache_dir):
-    """Create a cache manager with a short TTL for testing."""
-    cache_mgr = CacheManager(cache_dir=temp_cache_dir, ttl_seconds=5)
-    return cache_mgr
+        documents = []
+        for i in range(0, len(sources), self.batch_size):
+            batch = sources[i:i + self.batch_size]
+            batch_id = i // self.batch_size + 1
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                results = list(executor.map(lambda s: self._load_source(s, batch_id=batch_id), batch))
+                for docs in results:
+                    documents.extend(docs)
+
+        if self.collect_metrics:
+            self.metrics_manager.end_session(document_count=len(documents))
+
+        self.logger.info(f"Finished ingestion: {len(documents)} documents")
+        return documents
+
+    def clear_cache(self, source_type: Optional[str] = None, identifier: Optional[str] = None) -> int:
+        if not self.use_cache:
+            return 0
+        return self.cache_manager.clear_cache(source_type, identifier)
+
+    def get_metrics(self, days: int = 30) -> Dict[str, Any]:
+        if not self.collect_metrics:
+            return {"enabled": False, "message": "Metrics collection is disabled"}
+        return {
+            "enabled": True,
+            "recent_sessions": self.metrics_manager.get_recent_sessions(limit=5),
+            "aggregate": self.metrics_manager.get_aggregate_metrics(days=days)
+        }

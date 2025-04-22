@@ -1,0 +1,35 @@
+import logging
+from ragdoll.config.config_manager import ConfigManager
+
+# Initialize logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Create a ConfigManager instance (assuming default_config.yaml is in the same directory)
+config_manager = ConfigManager()
+
+# 1. Accessing the Ingestion Configuration
+ingestion_config = config_manager.ingestion_config
+logging.info(f"Ingestion Config: {ingestion_config}")
+max_threads = ingestion_config.max_threads
+batch_size = ingestion_config.batch_size
+logging.info(f"Max Threads: {max_threads}")
+logging.info(f"Batch Size: {batch_size}")
+
+# 2. Accessing the Embeddings Configuration
+embeddings_config = config_manager.embeddings_config
+logging.info(f"Embeddings Config: {embeddings_config}")
+default_client = embeddings_config.default_client
+clients = embeddings_config.clients
+if default_client in clients:
+    default_client_config = clients[default_client]
+    logging.info(f"Default Client Config ({default_client}): {default_client_config}")
+else:
+    logging.warning(f"Unknown default client: {default_client}")
+
+# 3. Accessing the Loaders Configuration
+loaders_mapping = config_manager.get_loader_mapping()
+logging.info(f"Loaders Config: {list(loaders_mapping.keys())}")
+
+
+
+
