@@ -31,22 +31,23 @@ class IngestionService(BaseIngestionService):
         cache_manager: Optional[CacheManager] = None,
         metrics_manager: Optional[MetricsManager] = None,
         use_cache: bool = True,
-        collect_metrics: bool = False
-    ):
+        collect_metrics: Optional[bool] = None
+    ):        
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
         self.config_manager = ConfigManager(config_path)
         config = self.config_manager.ingestion_config
         monitor_config = self.config_manager.monitor_config
-
+       
         self.max_threads = max_threads if max_threads is not None else config.max_threads
-        self.collect_metrics = collect_metrics if collect_metrics is not None else monitor_config.enabled
         self.batch_size = batch_size if batch_size is not None else config.batch_size
 
         self.use_cache = use_cache
-        self.cache_manager = cache_manager or CacheManager(ttl_seconds=86400)
-        self.metrics_manager = metrics_manager
-        self.collect_metrics = metrics_manager is not None
+        self.cache_manager = cache_manager or CacheManager(self.config_manager.cache_config.cache_ttl)
+
+        self.collect_metrics = collect_metrics if collect_metrics is not None else monitor_config.enabled
+        self.metrics_manager = metrics_manager if metrics_manager is not None else MetricsManager()
+       
 
         self.loaders = self.config_manager.get_loader_mapping()
         self.logger.debug(f"Available loaders: {list(self.loaders.keys())}")
@@ -93,7 +94,8 @@ class IngestionService(BaseIngestionService):
 
         metrics_info = None
         if self.collect_metrics and batch_id is not None:
-            metrics_info = self.metrics_manager.start_source(batch_id, source.identifier)
+            _source_type = source.extension if source.extension is not None else 'unknown'
+            metrics_info = self.metrics_manager.start_source(batch_id, source.identifier, _source_type)
 
         try:
             if not source.extension:
