@@ -12,20 +12,22 @@ class CacheManager:
     """Manages caching for network-based document sources."""
     
     logger = logging.getLogger(__name__)
-    
-    def __init__(self, cache_dir: str = None, ttl_seconds: int = 86400):
+
+    def __init__(self, ttl_seconds: int = None, cache_dir: str = None):
         """Initialize the cache manager.
-        
+
         Args:
-            cache_dir: Directory to store the cache. If None, uses ~/.ragdoll/cache/
+            cache_dir (str): Directory to store the cache.
+            ttl_seconds (int): The TTL for cache entries in seconds.
         """
         config_manager = ConfigManager()
         cache_config = config_manager.cache_config
 
+
         if cache_dir is None:
             cache_dir = os.path.join(os.path.expanduser("~"), ".ragdoll", "cache")
         
-        ttl_seconds = cache_config.cache_ttl
+        ttl_seconds = cache_config.cache_ttl if ttl_seconds is None else ttl_seconds
 
         self.cache_dir = Path(cache_dir)
         self.ttl_seconds = ttl_seconds
@@ -38,7 +40,7 @@ class CacheManager:
         self.max_memory_cache_items = 100  # Limit to avoid memory issues
 
         self.logger.info(f"Cache initialized at {self.cache_dir} with TTL={ttl_seconds}s")
-    
+
     def _get_cache_key(self, source_type: str, identifier: str) -> str:
         """Generate a unique cache key for a source."""
         key = f"{source_type}:{identifier}"
