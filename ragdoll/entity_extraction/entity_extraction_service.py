@@ -4,7 +4,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Dict, List, Optional, Literal, Any, Union
+from typing import Dict, List, Optional, Literal, Any, Union, Callable
 
 import networkx as nx
 import spacy
@@ -753,43 +753,19 @@ class GraphCreationService:
 
     async def _call_llm(self, prompt: str) -> str:
         """
-        Calls the LLM and handles errors.
+        Call the LLM with the given prompt.
         
         Args:
-            prompt: The prompt to send to the LLM.
+            prompt: The prompt to send to the LLM
             
         Returns:
-            The LLM's response.
+            The LLM's response
         """
         try:
-            if not self.llm:
-                raise ValueError("LLM not initialized")
-                
-            # For async LLMs
-            if hasattr(self.llm, "agenerate") and callable(getattr(self.llm, "agenerate")):
-                generation = await self.llm.agenerate([prompt])
-                response = generation.generations[0][0].text
-                return response
-                
-            # For sync LLMs
-            elif hasattr(self.llm, "generate") and callable(getattr(self.llm, "generate")):
-                generation = self.llm.generate([prompt])
-                response = generation.generations[0][0].text
-                return response
-                
-            # For BaseLLM with __call__
-            elif hasattr(self.llm, "__call__"):
-                response = self.llm(prompt)
-                return response
-                
-            # Fallback to basic .call() interface
-            else:
-                response = self.llm.call(prompt)
-                return response
-                
+            return self.llm(prompt)
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
-            return ""  # Return empty string on error
+            return ""
 
     async def _store_graph(self, graph: Graph):
         """
@@ -913,24 +889,32 @@ class GraphCreationService:
     async def extract(
         self, 
         documents: List[Document], 
-        llm: BaseLLM, 
+        llm: Union[str, Callable[[str], str]], 
         entity_types: Optional[List[str]] = None,
         relationship_types: Optional[List[str]] = None
     ) -> Graph:
         """
-        Main method to extract a graph from a list of Langchain Documents.
+        Extract entities and relationships from a set of documents.
         
         Args:
-            documents: List of Langchain Document objects
-            llm: Language model to use for extraction
-            entity_types: Optional list of entity types to extract
-            relationship_types: Optional list of relationship types to extract
+            documents: List of Document objects
+            llm: Either a model name (str) or a callable function that takes a prompt and returns a response
+            entity_types: List of entity types to extract. If None, uses config.
+            relationship_types: List of relationship types to extract. If None, uses config.
             
         Returns:
-            The extracted knowledge graph
+            Graph object with nodes and edges
         """
-        # Store the LLM instance
-        self.llm = llm
+        # If a string (model name) is provided, get the LiteLLM model
+        if isinstance(llm, str):
+            from ragdoll.llms.llm_utils import get_litellm_model
+            llm_fn = get_litellm_model(llm)
+            if llm_fn is None:
+                raise ValueError(f"Failed to initialize LiteLLM model: {llm}")
+            self.llm = llm_fn
+        else:
+            # Otherwise, use the provided callable directly
+            self.llm = llm
         
         # Update config with passed arguments
         if entity_types:

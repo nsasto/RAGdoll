@@ -83,3 +83,25 @@ llm_prompts:
   coreference_resolution: coreference_resolution
   entity_relationship_continue_extraction: entity_relationship_continue
   entity_relationship_gleaning_done_extraction: entity_relationship_gleaning_done
+
+llms:
+  model_list:
+    - model_name: gpt-3.5-turbo
+      litellm_params:
+        model: openai/gpt-3.5-turbo
+        api_key: os.environ/OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: claude-3-sonnet
+      litellm_params:
+        model: anthropic/claude-3-sonnet-20240229
+        api_key: os.environ/ANTHROPIC_API_KEY
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: gemini-pro
+      litellm_params:
+        model: google/gemini-pro
+        api_key: os.environ/GOOGLE_API_KEY
+        temperature: 0.0
+        max_tokens: 1024
+  default_model: gpt-3.5-turbo
