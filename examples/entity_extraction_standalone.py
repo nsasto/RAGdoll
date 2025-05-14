@@ -1,16 +1,66 @@
-# examples/entity_extraction_example.py
-
 import asyncio
+import json
 import logging
-from typing import List, Dict
+import uuid
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Any
 
 from langchain.docstore.document import Document
-from ragdoll.entity_extraction.entity_extraction_service import GraphCreationService
 from ragdoll.llms.base_llm import BaseLLM
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Simple models for the example
+class GraphNode:
+    def __init__(self, id=None, text="", type="", metadata=None):
+        self.id = id or str(uuid.uuid4())
+        self.text = text
+        self.type = type
+        self.metadata = metadata or {}
+
+
+class GraphEdge:
+    def __init__(self, id=None, source="", target="", type="", metadata=None, source_document_id=None):
+        self.id = id or str(uuid.uuid4())
+        self.source = source
+        self.target = target
+        self.type = type
+        self.metadata = metadata or {}
+        self.source_document_id = source_document_id
+
+
+class Graph:
+    def __init__(self):
+        self.nodes = []
+        self.edges = []
+    
+    def json(self):
+        """Return a JSON representation of the graph"""
+        return json.dumps({
+            "nodes": [self._node_to_dict(node) for node in self.nodes],
+            "edges": [self._edge_to_dict(edge) for edge in self.edges]
+        }, indent=2)
+        
+    def _node_to_dict(self, node):
+        return {
+            "id": node.id,
+            "text": node.text,
+            "type": node.type,
+            "metadata": node.metadata
+        }
+        
+    def _edge_to_dict(self, edge):
+        return {
+            "id": edge.id,
+            "source": edge.source,
+            "target": edge.target,
+            "type": edge.type,
+            "metadata": edge.metadata,
+            "source_document_id": edge.source_document_id
+        }
+
 
 # Simple mock LLM implementation for example purposes
 class MockLLM(BaseLLM):
@@ -19,7 +69,7 @@ class MockLLM(BaseLLM):
         Simple implementation that returns mock JSON responses
         for graph creation tasks.
         """
-        if "entity_extraction_llm" in prompt or "Extract entities" in prompt:
+        if "entity_extraction_llm" in prompt or "Extract" in prompt:
             return '''[
                 {"text": "Barack Obama", "type": "PERSON"},
                 {"text": "President", "type": "ROLE"},
@@ -51,42 +101,80 @@ class MockLLM(BaseLLM):
             return '{}'
 
 
+@dataclass
+class MockGraphCreationService:
+    config: Dict[str, Any]
+    
+    def __init__(self, config=None):
+        self.config = config or {}
+        self.llm = None
+    
+    async def extract(self, documents, llm, entity_types=None, relationship_types=None):
+        """
+        Simplified mock implementation of the graph extraction process
+        """
+        self.llm = llm
+        graph = Graph()
+        entity_id_map = {}
+        
+        for doc in documents:
+            logger.info(f"Processing document: {doc.metadata.get('id', 'unknown')}")
+            
+            # Extract entities
+            entity_data = json.loads(self.llm.call(f"Extract entities from: {doc.page_content}"))
+            
+            # Create nodes
+            for entity in entity_data:
+                node_id = str(uuid.uuid4())
+                node = GraphNode(
+                    id=node_id,
+                    text=entity["text"],
+                    type=entity["type"],
+                    metadata={"source_doc": doc.metadata.get("id")}
+                )
+                graph.nodes.append(node)
+                entity_id_map[entity["text"].lower()] = node_id
+            
+            # Extract relationships
+            relationship_data = json.loads(self.llm.call(
+                f"Given these entities: {[e['text'] for e in entity_data]}, extract relationships from: {doc.page_content}"
+            ))
+            
+            # Create edges
+            for rel in relationship_data:
+                subject_text = rel["subject"].lower()
+                object_text = rel["object"].lower()
+                
+                if subject_text in entity_id_map and object_text in entity_id_map:
+                    edge = GraphEdge(
+                        source=entity_id_map[subject_text],
+                        target=entity_id_map[object_text],
+                        type=rel["relationship"],
+                        source_document_id=doc.metadata.get("id")
+                    )
+                    graph.edges.append(edge)
+            
+        logger.info(f"Created graph with {len(graph.nodes)} nodes and {len(graph.edges)} edges")
+        return graph
+
+
 async def main():
     """
-    Demonstrates how to use the GraphCreationService.
+    Demonstrates how to use a simplified version of the GraphCreationService.
     """
     # Create a mock LLM implementation
     llm = MockLLM()
 
     # Configure the service
     config = {
-        "spacy_model": "en_core_web_sm",
-        "chunking_strategy": "fixed",
-        "chunk_size": 1000,
-        "chunk_overlap": 50,
-        "coreference_resolution_method": "llm",
-        "entity_extraction_methods": ["ner", "llm"],
-        "relationship_extraction_method": "llm",
-        "entity_types": ["PERSON", "GPE", "ORG", "DATE", "ROLE"],
-        "relationship_types": ["HAS_ROLE", "BORN_IN", "PARENT_OF", "SPOUSE_OF", "REPRESENTS"],
-        "gleaning_enabled": True,
-        "max_gleaning_steps": 2,
-        "entity_linking_enabled": True,
-        "entity_linking_method": "string_similarity",
-        "entity_linking_threshold": 0.8,
-        "postprocessing_steps": ["merge_similar_entities", "normalize_relations"],
         "output_format": "json",
         "graph_database_config": {
             "output_file": "graph_output.json"
-        },
-        "llm_prompt_templates": {
-            "entity_extraction_llm": "Extract entities from the following text: {text}",
-            "extract_relationships": "Given these entities:\n{entities}\n\nExtract relationships from the text: {text}"
         }
     }
     
-    # Create an instance of the GraphCreationService
-    graph_service = GraphCreationService(config)
+    # Create an instance of the mock GraphCreationService
+    graph_service = MockGraphCreationService(config)
 
     # Define sample text
     sample_text = (
@@ -171,16 +259,25 @@ async def main():
         
         plt.axis("off")
         plt.title("Knowledge Graph Visualization", size=15)
-        plt.tight_layout()
         
         # Save the visualization
+        plt.tight_layout()
         plt.savefig("knowledge_graph.png", dpi=300, bbox_inches="tight")
         print("\nGraph visualization saved as 'knowledge_graph.png'")
+        
+        # Save graph as JSON
+        with open("graph_output.json", "w") as f:
+            f.write(graph.json())
+        print("Graph data saved as 'graph_output.json'")
         
     except ImportError:
         print("\nNote: Install networkx and matplotlib for graph visualization:")
         print("pip install networkx matplotlib")
-
+        
+        # Still save graph as JSON even without visualization
+        with open("graph_output.json", "w") as f:
+            f.write(graph.json())
+        print("Graph data saved as 'graph_output.json'")
 
 if __name__ == "__main__":
     asyncio.run(main())
