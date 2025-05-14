@@ -71,33 +71,47 @@ class ConfigManager:
         self.logger.debug(f"Loaded config: {self._config}")
         
         # Initialize available prompts
-        self.available_prompts = set(list_prompts())
-        self.logger.debug(f"Available prompts: {self.available_prompts}")
+        try:
+            self.available_prompts = set(list_prompts())
+            self.logger.debug(f"Available prompts: {self.available_prompts}")
+        except Exception as e:
+            self.logger.warning(f"Could not load available prompts: {e}")
+            self.available_prompts = set()
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from file and environment."""
 
         if not os.path.exists(self.config_path):
             self.logger.debug(f"Config file not found at {self.config_path}. Using default values.")
+            return {}
         else:
             self.logger.debug(f"Config file loaded from {self.config_path}.")
         
         with open(self.config_path, 'r') as f:
             config = yaml.safe_load(f)
 
+        # Return empty dict if config is None
+        if config is None:
+            return {}
+
         # Retrieve OpenAI API key from environment if not in config
-        if "embeddings" in config and "openai" in config["embeddings"] and "openai_api_key" not in config["embeddings"]["openai"]:
-            config["embeddings"]["openai"]["openai_api_key"] = os.environ.get(
-                "OPENAI_API_KEY"
-            )
+        if "embeddings" in config and "openai" in config.get("embeddings", {}):
+            if "openai_api_key" not in config["embeddings"]["openai"]:
+                config["embeddings"]["openai"]["openai_api_key"] = os.environ.get(
+                    "OPENAI_API_KEY"
+                )
         if "embeddings" in config and "default_client" not in config["embeddings"]:
-             config["embeddings"]["default_client"] = "openai"
+            config["embeddings"]["default_client"] = "openai"
               
         if "embeddings" in config and "default_model" not in config["embeddings"]:
-             config["embeddings"]["default_model"] = "openai"
+            config["embeddings"]["default_model"] = "openai"
 
         if "embeddings" in config and "clients" not in config["embeddings"]:
-            config["embeddings"]["clients"] = {"openai":config["embeddings"]["openai"], "huggingface":config["embeddings"]["huggingface"]}
+            if "openai" in config["embeddings"] and "huggingface" in config["embeddings"]:
+                config["embeddings"]["clients"] = {
+                    "openai": config["embeddings"]["openai"], 
+                    "huggingface": config["embeddings"]["huggingface"]
+                }
         
         return config
     
@@ -152,7 +166,6 @@ class ConfigManager:
 
                     self.logger.debug(f"Loading module: {module_path}, Class: {class_name}")
 
-
                     # Import the module
                     module = import_module(module_path)
 
@@ -195,34 +208,20 @@ class ConfigManager:
         source_loaders = {}
         loaders_config = self.ingestion_config.loaders
 
-        # Copy file mappings to source_loaders
-        for ext, class_path in loaders_config.file_mappings.items():
-            if ext not in source_loaders:
-                try:
-                    module_path, class_name = class_path.rsplit(".", 1)
-                    module = import_module(module_path)
-                    loader_class = getattr(module, class_name)
-                    source_loaders[ext] = loader_class
-                    self.logger.debug(f"Loaded loader for extension {ext} source: {class_path}")
-                except (ImportError, AttributeError, ValueError) as e:
-                    self.logger.warning(
-                        f"Error loading loader for extension {ext} source: {e}. This source type will not be supported."
-                    )
-        
-        # Add arxiv_retriever if present
-        if "arxiv_retriever" in loaders_config:
-            class_path = loaders_config["arxiv_retriever"]
-            if "arxiv" not in source_loaders:
-                try:
-                    module_path, class_name = class_path.rsplit(".", 1)
-                    module = import_module(module_path)
-                    loader_class = getattr(module, class_name)
-                    source_loaders["arxiv"] = loader_class
-                    self.logger.debug(f"Loaded loader for arxiv source: {class_path}")
-                except (ImportError, AttributeError, ValueError) as e:
-                    self.logger.warning(
-                        f"Error loading loader for arxiv source: {e}. This source type will not be supported."
-                    )
+        if loaders_config and hasattr(loaders_config, "file_mappings"):
+            # Copy file mappings to source_loaders
+            for ext, class_path in loaders_config.file_mappings.items():
+                if ext not in source_loaders:
+                    try:
+                        module_path, class_name = class_path.rsplit(".", 1)
+                        module = import_module(module_path)
+                        loader_class = getattr(module, class_name)
+                        source_loaders[ext] = loader_class
+                        self.logger.debug(f"Loaded loader for extension {ext} source: {class_path}")
+                    except (ImportError, AttributeError, ValueError) as e:
+                        self.logger.warning(
+                            f"Error loading loader for extension {ext} source: {e}. This source type will not be supported."
+                        )
 
         self.logger.info(f"Loaded {len(source_loaders)} source loaders")
         return source_loaders

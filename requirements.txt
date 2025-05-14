@@ -26,3 +26,4 @@ retry
 spacy
 networkx
 matplotlib
+litellm
