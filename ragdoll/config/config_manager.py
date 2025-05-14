@@ -2,10 +2,52 @@ import os
 import yaml
 import logging
 from importlib import import_module
-from typing import Dict, Any, Type
+from typing import Dict, Any, Type, List
 from pathlib import Path
 
+from pydantic import BaseModel, Field
+
 from ragdoll.config.base_config import IngestionConfig, LoadersConfig, EmbeddingsConfig, CacheConfig, MonitorConfig
+
+
+class LLMPromptsConfig(BaseModel):
+    """Configuration for LLM prompts"""
+    entity_extraction_llm: str = Field(default="Extract entities from the following text: {text}")
+    extract_relationships: str = Field(default="Extract relationships from the text: {text}")
+    coreference_resolution: str = Field(default="Resolve coreferences in the following text: {text}")
+    entity_relationship_continue_extraction: str = Field(default="Continue extracting entities and relationships")
+    entity_relationship_gleaning_done_extraction: str = Field(default="Are you done extracting?")
+
+
+class GraphDatabaseConfig(BaseModel):
+    """Configuration for graph database output"""
+    output_file: str = Field(default="graph_output.json")
+    uri: str = Field(default="")
+    user: str = Field(default="")
+    password: str = Field(default="")
+
+
+class EntityExtractionConfig(BaseModel):
+    """Configuration for entity extraction and graph creation"""
+    enabled: bool = Field(default=True)
+    spacy_model: str = Field(default="en_core_web_sm")
+    chunking_strategy: str = Field(default="fixed")
+    chunk_size: int = Field(default=1000)
+    chunk_overlap: int = Field(default=50)
+    coreference_resolution_method: str = Field(default="llm")
+    entity_extraction_methods: List[str] = Field(default=["ner", "llm"])
+    relationship_extraction_method: str = Field(default="llm")
+    entity_types: List[str] = Field(default=["PERSON", "ORG", "GPE", "DATE", "LOC"])
+    relationship_types: List[str] = Field(default=["HAS_ROLE", "WORKS_FOR"])
+    gleaning_enabled: bool = Field(default=True)
+    max_gleaning_steps: int = Field(default=2)
+    entity_linking_enabled: bool = Field(default=True)
+    entity_linking_method: str = Field(default="string_similarity")
+    entity_linking_threshold: float = Field(default=0.8)
+    postprocessing_steps: List[str] = Field(default=["merge_similar_entities", "normalize_relations"])
+    output_format: str = Field(default="json")
+    graph_database_config: GraphDatabaseConfig = Field(default_factory=GraphDatabaseConfig)
+
 
 class ConfigManager:
     """Manages configuration loading and validation"""
@@ -68,17 +110,20 @@ class ConfigManager:
     def monitor_config(self) -> MonitorConfig:
         """Get the monitor configuration."""
         return MonitorConfig.model_validate(self._config.get("monitor", {}))
-
-
-
     
-
+    @property
+    def entity_extraction_config(self) -> EntityExtractionConfig:
+        """Get the entity extraction configuration."""
+        return EntityExtractionConfig.model_validate(self._config.get("entity_extraction", {}))
     
+    @property
+    def llm_prompts_config(self) -> LLMPromptsConfig:
+        """Get the LLM prompts configuration."""
+        return LLMPromptsConfig.model_validate(self._config.get("llm_prompts", {}))
+
     @property
     def ingestion_config(self) -> IngestionConfig:
         """Get the ingestion configuration."""
-        # Use model_validate instead of parse_obj (Pydantic v2 compatibility)
-
         return IngestionConfig.model_validate(self._config.get("ingestion", {}))
 
     def get_loader_mapping(self) -> Dict[str, Type]:
@@ -176,5 +221,20 @@ class ConfigManager:
 
         self.logger.info(f"Loaded {len(source_loaders)} source loaders")
         return source_loaders
+    
+    def get_entity_extraction_service_config(self) -> Dict[str, Any]:
+        """
+        Get a dictionary with all configuration needed for entity extraction service.
         
+        Returns:
+            Dictionary with entity extraction configuration.
+        """
+        # Get config from entity_extraction section
+        config = self.entity_extraction_config.model_dump()
+        
+        # Add LLM prompts
+        config["llm_prompt_templates"] = self.llm_prompts_config.model_dump()
+        
+        return config
+
 
