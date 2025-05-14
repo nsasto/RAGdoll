@@ -811,7 +811,9 @@ class GraphCreationService:
                 
             elif output_format == "json":
                 import json
-                graph_json = graph.json(indent=2)
+                # Fix: use model_dump_json instead of json() method with indent parameter
+                graph_json = graph.model_dump_json(indent=2)  # For newer pydantic versions
+                # For older pydantic versions, use: graph.json(indent=2)
                 logger.debug(f"Graph JSON: {graph_json}")
                 
                 # Optionally save to a file

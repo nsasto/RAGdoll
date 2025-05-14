@@ -7,6 +7,7 @@ from typing import List, Dict
 from langchain.docstore.document import Document
 from ragdoll.entity_extraction.entity_extraction_service import GraphCreationService
 from ragdoll.llms.base_llm import BaseLLM
+from ragdoll.config.config_manager import ConfigManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,13 +32,15 @@ class MockLLM(BaseLLM):
                 {"text": "Senator", "type": "ROLE"},
                 {"text": "Illinois", "type": "GPE"}
             ]'''
-        elif "extract_relationships" in prompt:
+        elif "extract_relationships" in prompt or "relationships" in prompt:
+            # Make sure this is correctly detected as a list
             return '''[
                 {"subject": "Barack Obama", "relationship": "HAS_ROLE", "object": "President"},
                 {"subject": "Barack Obama", "relationship": "BORN_IN", "object": "Hawaii"},
                 {"subject": "Barack Obama", "relationship": "SPOUSE_OF", "object": "Michelle Obama"},
                 {"subject": "Barack Obama", "relationship": "PARENT_OF", "object": "Malia Ann Obama"},
                 {"subject": "Barack Obama", "relationship": "PARENT_OF", "object": "Sasha Obama"},
+                {"subject": "Barack Obama", "relationship": "HAS_ROLE", "object": "Senator"},
                 {"subject": "Senator", "relationship": "REPRESENTS", "object": "Illinois"}
             ]'''
         elif "coreference_resolution" in prompt:
@@ -48,7 +51,7 @@ class MockLLM(BaseLLM):
         elif "entity_relationship_gleaning_done_extraction" in prompt:
             return "done"
         else:
-            return '{}'
+            return '[]'  # Return empty list by default, not empty dict
 
 
 async def main():
@@ -58,35 +61,19 @@ async def main():
     # Create a mock LLM implementation
     llm = MockLLM()
 
-    # Configure the service
-    config = {
-        "spacy_model": "en_core_web_sm",
-        "chunking_strategy": "fixed",
-        "chunk_size": 1000,
-        "chunk_overlap": 50,
-        "coreference_resolution_method": "llm",
-        "entity_extraction_methods": ["ner", "llm"],
-        "relationship_extraction_method": "llm",
-        "entity_types": ["PERSON", "GPE", "ORG", "DATE", "ROLE"],
-        "relationship_types": ["HAS_ROLE", "BORN_IN", "PARENT_OF", "SPOUSE_OF", "REPRESENTS"],
-        "gleaning_enabled": True,
-        "max_gleaning_steps": 2,
-        "entity_linking_enabled": True,
-        "entity_linking_method": "string_similarity",
-        "entity_linking_threshold": 0.8,
-        "postprocessing_steps": ["merge_similar_entities", "normalize_relations"],
-        "output_format": "json",
-        "graph_database_config": {
-            "output_file": "graph_output.json"
-        },
-        "llm_prompt_templates": {
-            "entity_extraction_llm": "Extract entities from the following text: {text}",
-            "extract_relationships": "Given these entities:\n{entities}\n\nExtract relationships from the text: {text}"
-        }
-    }
+    # Get configuration from config manager
+    config_manager = ConfigManager()
+    config = config_manager.get_entity_extraction_service_config()
     
     # Create an instance of the GraphCreationService
     graph_service = GraphCreationService(config)
+
+    # Configure debug output
+    print("== Configuration ==")
+    print(f"Entity extraction methods: {config['entity_extraction_methods']}")
+    print(f"Relationship extraction method: {config['relationship_extraction_method']}")
+    print(f"Entity types: {config['entity_types']}")
+    print(f"Relationship types: {config['relationship_types']}")
 
     # Define sample text
     sample_text = (
@@ -111,9 +98,11 @@ async def main():
     graph = await graph_service.extract(
         documents=[sample_doc],
         llm=llm,
-        entity_types=["PERSON", "GPE", "ORG", "ROLE"],
-        relationship_types=["HAS_ROLE", "BORN_IN", "SPOUSE_OF", "PARENT_OF", "REPRESENTS"]
+        entity_types=config['entity_types'],
+        relationship_types=config['relationship_types']
     )
+
+    print(f"\nExtracted {len(graph.nodes)} nodes and {len(graph.edges)} edges")
 
     # Display the extracted graph
     print("\n=== Extracted Knowledge Graph ===")
@@ -176,6 +165,16 @@ async def main():
         # Save the visualization
         plt.savefig("knowledge_graph.png", dpi=300, bbox_inches="tight")
         print("\nGraph visualization saved as 'knowledge_graph.png'")
+        
+        # Save graph data as JSON
+        if hasattr(graph, "model_dump_json"):  # Pydantic v2
+            with open("graph_output.json", "w") as f:
+                f.write(graph.model_dump_json(indent=2))
+        else:  # Pydantic v1
+            with open("graph_output.json", "w") as f:
+                f.write(graph.json(indent=2))
+                
+        print("Graph data saved as 'graph_output.json'")
         
     except ImportError:
         print("\nNote: Install networkx and matplotlib for graph visualization:")

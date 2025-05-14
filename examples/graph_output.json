@@ -1,77 +1,175 @@
 {
   "nodes": [
     {
-      "id": "a695d7ec-cf57-4170-a716-6a8e425ddf9d",
+      "id": "0e43e560-4513-4453-8cea-0c90a10f50f4",
+      "type": "PERSON",
       "text": "Barack Obama",
-      "type": "PERSON",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "da0d395e-a553-4e88-8592-0a377b02ea1e",
+      "id": "67c9a7db-7e68-473f-8799-1b3f982884a2",
+      "type": "ROLE",
       "text": "President",
-      "type": "ROLE",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "341ba49c-46f6-4513-9f3d-2580d93cfb7d",
+      "id": "bae43925-f4e7-4ef3-9624-b152f09b3305",
+      "type": "GPE",
       "text": "United States",
-      "type": "GPE",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "12307f34-0ab4-4b7e-86ca-cee80b3952ef",
+      "id": "bc9abe9b-afe5-4922-afd3-8db35d6df90e",
+      "type": "GPE",
       "text": "Hawaii",
-      "type": "GPE",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "635b1bc7-135c-48ec-8f48-55c733770173",
+      "id": "1cadf11b-2c4c-4715-bbad-929ada8bd057",
+      "type": "PERSON",
       "text": "Michelle Obama",
-      "type": "PERSON",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "707d099f-8d43-4ef6-bc4d-1dac7d8a5014",
+      "id": "46e92a0a-f8ac-4954-bdab-d32071572d87",
+      "type": "PERSON",
       "text": "Malia Ann Obama",
-      "type": "PERSON",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "8678f779-1e25-4d75-b8a1-e36f8b3698dd",
+      "id": "e957b814-b32f-43da-a25b-e91423ee9a1b",
+      "type": "PERSON",
       "text": "Sasha Obama",
-      "type": "PERSON",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "ebbd7c1e-6f1d-4783-9d0e-a16bf452091b",
-      "text": "Senator",
+      "id": "3dac57cd-97ea-47bd-a1c9-3bfce92d9bd4",
       "type": "ROLE",
+      "text": "Senator",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     },
     {
-      "id": "3c5af196-e94e-492e-bf06-81f6b10f26ef",
-      "text": "Illinois",
+      "id": "28c711be-808e-4168-b472-0d6887db7e8d",
       "type": "GPE",
+      "text": "Illinois",
       "metadata": {
-        "source_doc": "doc1"
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "example_doc_1",
+        "chunk_idx": 0
       }
     }
   ],
-  "edges": []
+  "edges": [
+    {
+      "id": "f041e904-738b-4cd4-bdc2-573dcc8aff4d",
+      "source": "0e43e560-4513-4453-8cea-0c90a10f50f4",
+      "target": "67c9a7db-7e68-473f-8799-1b3f982884a2",
+      "type": "HAS_ROLE",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "example_doc_1"
+    },
+    {
+      "id": "88091f8c-7fc8-470b-bf64-8715c430057b",
+      "source": "0e43e560-4513-4453-8cea-0c90a10f50f4",
+      "target": "bc9abe9b-afe5-4922-afd3-8db35d6df90e",
+      "type": "BORN_IN",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "example_doc_1"
+    },
+    {
+      "id": "e5a6e9ad-9b75-4d1d-aa36-a5deab2f37f4",
+      "source": "0e43e560-4513-4453-8cea-0c90a10f50f4",
+      "target": "1cadf11b-2c4c-4715-bbad-929ada8bd057",
+      "type": "SPOUSE_OF",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "example_doc_1"
+    },
+    {
+      "id": "191edfb5-c36c-41f6-b3e6-c8c3b80cdfd2",
+      "source": "0e43e560-4513-4453-8cea-0c90a10f50f4",
+      "target": "46e92a0a-f8ac-4954-bdab-d32071572d87",
+      "type": "PARENT_OF",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "example_doc_1"
+    },
+    {
+      "id": "82cf4089-c09b-4ba6-a0c2-460d6a2da9f4",
+      "source": "0e43e560-4513-4453-8cea-0c90a10f50f4",
+      "target": "e957b814-b32f-43da-a25b-e91423ee9a1b",
+      "type": "PARENT_OF",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "example_doc_1"
+    },
+    {
+      "id": "d0a53617-d1c2-4c2f-b7fe-509e4405e0af",
+      "source": "0e43e560-4513-4453-8cea-0c90a10f50f4",
+      "target": "3dac57cd-97ea-47bd-a1c9-3bfce92d9bd4",
+      "type": "HAS_ROLE",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "example_doc_1"
+    },
+    {
+      "id": "97a42554-6dce-458f-a5b8-60647d11b78b",
+      "source": "3dac57cd-97ea-47bd-a1c9-3bfce92d9bd4",
+      "target": "28c711be-808e-4168-b472-0d6887db7e8d",
+      "type": "REPRESENTS",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "example_doc_1"
+    }
+  ]
 }

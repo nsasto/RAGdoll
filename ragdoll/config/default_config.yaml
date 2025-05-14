@@ -53,5 +53,69 @@ embeddings:
     huggingface:      
       model: "sentence-transformers/all-mpnet-base-v2"
       client: huggingface
-      model: "sentence-transformers/all-mpnet-base-v2"
-      api_key: "your_default_api_key"     
+      api_key: "your_default_api_key"
+
+entity_extraction:
+  enabled: true
+  spacy_model: "en_core_web_sm"
+  chunking_strategy: "fixed"
+  chunk_size: 1000
+  chunk_overlap: 50
+  coreference_resolution_method: "llm"
+  entity_extraction_methods: ["ner", "llm"]
+  relationship_extraction_method: "llm"
+  entity_types: ["PERSON", "ORG", "GPE", "DATE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "ROLE"]
+  relationship_types: ["HAS_ROLE", "WORKS_FOR", "LOCATED_IN", "BORN_IN", "FOUNDED", "PARENT_OF", "SPOUSE_OF", "AFFILIATED_WITH", "BELONGS_TO", "CREATED", "PART_OF", "REPRESENTS"]
+  gleaning_enabled: true
+  max_gleaning_steps: 2
+  entity_linking_enabled: true
+  entity_linking_method: "string_similarity"
+  entity_linking_threshold: 0.8
+  postprocessing_steps: ["merge_similar_entities", "normalize_relations"]
+  output_format: "json"
+  graph_database_config:
+    output_file: "graph_output.json"
+
+llm_prompts:
+  entity_extraction_llm: |
+    Extract entities from the following text. Return as a JSON array of objects with 'text' and 'type' properties.
+    For entity types, use: PERSON, ORG, GPE (geopolitical entity), DATE, LOC (location), PRODUCT, EVENT, WORK_OF_ART, LAW, ROLE.
+    
+    Text: {text}
+  
+  extract_relationships: |
+    Given these entities:
+    {entities}
+    
+    Extract relationships between them from this text: 
+    {text}
+    
+    Return the relationships as a JSON array with 'subject', 'relationship', and 'object' properties.
+    Use relationship types such as: HAS_ROLE, WORKS_FOR, LOCATED_IN, BORN_IN, FOUNDED, PARENT_OF, SPOUSE_OF, AFFILIATED_WITH, BELONGS_TO, CREATED, PART_OF.
+
+  coreference_resolution: |
+    Resolve coreferences in the following text by replacing pronouns with their referents.
+    
+    Text: {text}
+    
+    Return the text with all pronouns replaced with the specific entities they refer to.
+
+  entity_relationship_continue_extraction: |
+    Continue extracting entities and relationships from the text. 
+    
+    Current graph summary: {graph_summary}
+    
+    Nodes:
+    {nodes}
+    
+    Relationships:
+    {edges}
+    
+    Original text:
+    {text}
+    
+    Return any additional entities and relationships you can identify as a JSON object with 'nodes' and 'edges' arrays.
+    Each node should have 'id', 'type', and 'text' properties.
+    Each edge should have 'source', 'target', and 'type' properties.
+
+  entity_relationship_gleaning_done_extraction: "Are you done extracting entities and relationships? Respond with 'done' or 'continue'."
