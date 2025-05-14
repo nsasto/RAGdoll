@@ -24,3 +24,5 @@ requests
 bs4
 retry
 spacy
+networkx
+matplotlib
