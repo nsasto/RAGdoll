@@ -76,46 +76,10 @@ entity_extraction:
   graph_database_config:
     output_file: "graph_output.json"
 
+# References to prompt files (without .md extension)
 llm_prompts:
-  entity_extraction_llm: |
-    Extract entities from the following text. Return as a JSON array of objects with 'text' and 'type' properties.
-    For entity types, use: PERSON, ORG, GPE (geopolitical entity), DATE, LOC (location), PRODUCT, EVENT, WORK_OF_ART, LAW, ROLE.
-    
-    Text: {text}
-  
-  extract_relationships: |
-    Given these entities:
-    {entities}
-    
-    Extract relationships between them from this text: 
-    {text}
-    
-    Return the relationships as a JSON array with 'subject', 'relationship', and 'object' properties.
-    Use relationship types such as: HAS_ROLE, WORKS_FOR, LOCATED_IN, BORN_IN, FOUNDED, PARENT_OF, SPOUSE_OF, AFFILIATED_WITH, BELONGS_TO, CREATED, PART_OF.
-
-  coreference_resolution: |
-    Resolve coreferences in the following text by replacing pronouns with their referents.
-    
-    Text: {text}
-    
-    Return the text with all pronouns replaced with the specific entities they refer to.
-
-  entity_relationship_continue_extraction: |
-    Continue extracting entities and relationships from the text. 
-    
-    Current graph summary: {graph_summary}
-    
-    Nodes:
-    {nodes}
-    
-    Relationships:
-    {edges}
-    
-    Original text:
-    {text}
-    
-    Return any additional entities and relationships you can identify as a JSON object with 'nodes' and 'edges' arrays.
-    Each node should have 'id', 'type', and 'text' properties.
-    Each edge should have 'source', 'target', and 'type' properties.
-
-  entity_relationship_gleaning_done_extraction: "Are you done extracting entities and relationships? Respond with 'done' or 'continue'."
+  entity_extraction_llm: entity_extraction
+  extract_relationships: relationship_extraction
+  coreference_resolution: coreference_resolution
+  entity_relationship_continue_extraction: entity_relationship_continue
+  entity_relationship_gleaning_done_extraction: entity_relationship_gleaning_done

@@ -8,15 +8,16 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from ragdoll.config.base_config import IngestionConfig, LoadersConfig, EmbeddingsConfig, CacheConfig, MonitorConfig
+from ragdoll.prompts import get_prompt, list_prompts  # Import the prompt functions
 
 
 class LLMPromptsConfig(BaseModel):
     """Configuration for LLM prompts"""
-    entity_extraction_llm: str = Field(default="Extract entities from the following text: {text}")
-    extract_relationships: str = Field(default="Extract relationships from the text: {text}")
-    coreference_resolution: str = Field(default="Resolve coreferences in the following text: {text}")
-    entity_relationship_continue_extraction: str = Field(default="Continue extracting entities and relationships")
-    entity_relationship_gleaning_done_extraction: str = Field(default="Are you done extracting?")
+    entity_extraction_llm: str = Field(default="entity_extraction")
+    extract_relationships: str = Field(default="relationship_extraction")
+    coreference_resolution: str = Field(default="coreference_resolution")
+    entity_relationship_continue_extraction: str = Field(default="entity_relationship_continue")
+    entity_relationship_gleaning_done_extraction: str = Field(default="entity_relationship_gleaning_done")
 
 
 class GraphDatabaseConfig(BaseModel):
@@ -68,6 +69,10 @@ class ConfigManager:
         self.config_path = config_path
         self._config = self._load_config()
         self.logger.debug(f"Loaded config: {self._config}")
+        
+        # Initialize available prompts
+        self.available_prompts = set(list_prompts())
+        self.logger.debug(f"Available prompts: {self.available_prompts}")
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from file and environment."""
@@ -232,8 +237,25 @@ class ConfigManager:
         # Get config from entity_extraction section
         config = self.entity_extraction_config.model_dump()
         
-        # Add LLM prompts
-        config["llm_prompt_templates"] = self.llm_prompts_config.model_dump()
+        # Get prompt templates with actual content from files
+        llm_prompt_templates = {}
+        prompt_config = self.llm_prompts_config.model_dump()
+        
+        for prompt_name, prompt_value in prompt_config.items():
+            # If the prompt value is a file name
+            if isinstance(prompt_value, str) and prompt_value in self.available_prompts:
+                try:
+                    llm_prompt_templates[prompt_name] = get_prompt(prompt_value)
+                    self.logger.debug(f"Loaded prompt '{prompt_name}' from file: {prompt_value}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to load prompt '{prompt_name}' from file: {e}")
+                    # Use the prompt value as-is (might be an inline template)
+                    llm_prompt_templates[prompt_name] = prompt_value
+            else:
+                # Use the value as-is (might be an inline template)
+                llm_prompt_templates[prompt_name] = prompt_value
+                
+        config["llm_prompt_templates"] = llm_prompt_templates
         
         return config
 

@@ -225,12 +225,13 @@ class GraphCreationService:
             logger.error(f"Error during NER entity extraction: {e}")
             return []
 
-    async def _extract_entities_llm(self, text: str) -> List[Dict]:
+    async def _extract_entities_llm(self, text: str, prompt_template: str = None) -> List[Dict]:
         """
         Extracts entities from text using the LLM.
         
         Args:
             text: The text to extract entities from.
+            prompt_template: Optional custom prompt template. If None, uses configured template.
             
         Returns:
             A list of entities extracted by the LLM.
@@ -245,12 +246,13 @@ class GraphCreationService:
             entity_types = self.config.get("entity_types", [])
             entity_types_str = ", ".join(entity_types) if entity_types else "any important entities"
             
-            prompt_template = self.config.get("llm_prompt_templates", {}).get(
+            # Use the provided prompt if given, otherwise use configured template
+            template = prompt_template or self.config.get("llm_prompt_templates", {}).get(
                 "entity_extraction_llm",
                 "Extract {entity_types} from the following text. Return as a JSON array of objects with 'text' and 'type' properties. Text: {text}"
             )
             
-            prompt = prompt_template.format(text=text, entity_types=entity_types_str)
+            prompt = template.format(text=text, entity_types=entity_types_str)
             response = await self._call_llm(prompt)
             
             # Parse LLM response
