@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 from typing import Dict, Optional, List
+from datetime import datetime
 
 PROMPTS_DIR = Path(__file__).parent
 
@@ -20,7 +21,10 @@ def get_prompt(prompt_name: str) -> str:
         raise ValueError(f"Prompt '{prompt_name}' does not exist at {prompt_path}")
         
     with open(prompt_path, "r", encoding="utf-8") as f:
-        return f.read().strip()
+        prompt_text = f.read().strip()
+        current_time = datetime.now().strftime("%d %B %Y, %H:%M:%S")
+        prompt_text = prompt_text.replace("CURRENT_TIME", current_time)
+        return prompt_text
 
 def list_prompts() -> List[str]:
     """

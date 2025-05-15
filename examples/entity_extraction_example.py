@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from langchain.docstore.document import Document
 from ragdoll.entity_extraction.entity_extraction_service import GraphCreationService
 from ragdoll.config.config_manager import ConfigManager
-from ragdoll.llms import get_litellm_model
+from ragdoll.llms import get_llm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -54,16 +54,18 @@ async def main(use_mock_llm: bool = True, model_name: Optional[str] = None):
     Demonstrates how to use the GraphCreationService.
     
     Args:
-        use_mock_llm: If True, use the mock LLM function. If False, use LiteLLM.
-        model_name: Optional name of the model to use (if not using mock LLM)
+        use_mock_llm: If True, use the mock LLM function. If False, use a real LLM.
+        model_name: Optional name of the model to use (if not using mock LLM).  Can be a model name or a model type ('default', 'reasoning', 'vision')
     """
     # Load environment variables for API keys
     load_dotenv()
     
     # Get configuration
     config_manager = ConfigManager()
-    entity_extraction_config = config_manager.get_entity_extraction_service_config()
-    
+    entity_extraction_config = config_manager.entity_extraction_config.model_dump()
+
+    print(f"EX config: {entity_extraction_config}")
+
     # Determine which LLM to use
     if use_mock_llm:
         print("Using mock LLM for entity extraction (predefined responses)")
@@ -71,12 +73,16 @@ async def main(use_mock_llm: bool = True, model_name: Optional[str] = None):
     else:
         # If no specific model provided, use the default from config
         model_name = model_name or config_manager._config.get("llms", {}).get("default_model", "gpt-3.5-turbo")
-        print(f"Using LiteLLM with model: {model_name}")
-        llm = get_litellm_model(model_name, config_manager)
+        print(f"Using get_llm with model: {model_name}")
+        llm = get_llm(model_name, config_manager)
     
     # Create the service and process the text
     graph_service = GraphCreationService(entity_extraction_config)
+    #graph_service = GraphCreationService()
     
+    # template = prompt_template or self.config.get("llm_prompt_templates", {}).get(
+    #             "entity_extraction_llm",
+
     # Define sample text
     sample_text = (
         "Barack Obama was the 44th President of the United States. "
@@ -144,7 +150,6 @@ async def main(use_mock_llm: bool = True, model_name: Optional[str] = None):
         
         plt.axis("off")
         plt.title("Knowledge Graph Visualization", size=15)
-        plt.title("Knowledge Graph Visualization", size=15)
         plt.tight_layout()
         
         # Save the visualization
@@ -173,7 +178,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Entity extraction example")
     parser.add_argument('--use-real-llm', action='store_true', help='Use real LLM instead of mock')
-    parser.add_argument('--model', type=str, default=None, help='Specify a model name (from config)')
+    parser.add_argument('--model', type=str, default=None, help='Specify a model name (from config) or a model type (default, reasoning, vision)')
     args = parser.parse_args()
     
     asyncio.run(main(use_mock_llm=not args.use_real_llm, model_name=args.model))

@@ -13,7 +13,7 @@ from ragdoll.prompts import get_prompt, list_prompts  # Import the prompt functi
 
 class LLMPromptsConfig(BaseModel):
     """Configuration for LLM prompts"""
-    entity_extraction_llm: str = Field(default="entity_extraction")
+    entity_extraction: str = Field(default="entity_extraction")
     extract_relationships: str = Field(default="relationship_extraction")
     coreference_resolution: str = Field(default="coreference_resolution")
     entity_relationship_continue_extraction: str = Field(default="entity_relationship_continue")
@@ -118,32 +118,38 @@ class ConfigManager:
     @property
     def embeddings_config(self) -> EmbeddingsConfig:
         """Get the embeddings configuration."""
-        return EmbeddingsConfig.model_validate(self._config.get("embeddings", {})) 
+        config = self._config.get("embeddings", {})
+        return EmbeddingsConfig.model_validate(config)
 
     @property
     def cache_config(self) -> CacheConfig:
         """Get the cache configuration."""
-        return CacheConfig.model_validate(self._config.get("cache", {}))
+        config = self._config.get("cache", {})
+        return CacheConfig.model_validate(config)
     
     @property
     def monitor_config(self) -> MonitorConfig:
         """Get the monitor configuration."""
-        return MonitorConfig.model_validate(self._config.get("monitor", {}))
+        config = self._config.get("monitor", {})
+        return MonitorConfig.model_validate(config)
     
     @property
     def entity_extraction_config(self) -> EntityExtractionConfig:
         """Get the entity extraction configuration."""
-        return EntityExtractionConfig.model_validate(self._config.get("entity_extraction", {}))
+        config = self._config.get("entity_extraction", {})
+        return EntityExtractionConfig.model_validate(config)
     
     @property
     def llm_prompts_config(self) -> LLMPromptsConfig:
         """Get the LLM prompts configuration."""
-        return LLMPromptsConfig.model_validate(self._config.get("llm_prompts", {}))
+        config = self._config.get("llm_prompts", {})
+        return LLMPromptsConfig.model_validate(config)
 
     @property
     def ingestion_config(self) -> IngestionConfig:
         """Get the ingestion configuration."""
-        return IngestionConfig.model_validate(self._config.get("ingestion", {}))
+        config = self._config.get("ingestion", {})
+        return IngestionConfig.model_validate(config)
 
     def get_loader_mapping(self) -> Dict[str, Type]:
         """
@@ -225,37 +231,34 @@ class ConfigManager:
 
         self.logger.info(f"Loaded {len(source_loaders)} source loaders")
         return source_loaders
-    
-    def get_entity_extraction_service_config(self) -> Dict[str, Any]:
+
+    def get_default_prompt_templates(self) -> Dict[str, str]:
         """
-        Get a dictionary with all configuration needed for entity extraction service.
+        Get the default prompt templates with actual content from files.
+        Maps keys from LLMPromptsConfig to their corresponding prompt templates.
         
         Returns:
-            Dictionary with entity extraction configuration.
+            Dictionary with prompt templates using the config keys.
         """
-        # Get config from entity_extraction section
-        config = self.entity_extraction_config.model_dump()
+        prompt_templates = {}
         
-        # Get prompt templates with actual content from files
-        llm_prompt_templates = {}
-        prompt_config = self.llm_prompts_config.model_dump()
+        # Get the mapping from our LLMPromptsConfig model
+        prompt_mapping = self.llm_prompts_config.model_dump()
         
-        for prompt_name, prompt_value in prompt_config.items():
-            # If the prompt value is a file name
-            if isinstance(prompt_value, str) and prompt_value in self.available_prompts:
-                try:
-                    llm_prompt_templates[prompt_name] = get_prompt(prompt_value)
-                    self.logger.debug(f"Loaded prompt '{prompt_name}' from file: {prompt_value}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to load prompt '{prompt_name}' from file: {e}")
-                    # Use the prompt value as-is (might be an inline template)
-                    llm_prompt_templates[prompt_name] = prompt_value
-            else:
-                # Use the value as-is (might be an inline template)
-                llm_prompt_templates[prompt_name] = prompt_value
+        # Iterate through each key-value pair in the prompt mapping
+        for config_key, prompt_name in prompt_mapping.items():
+            try:
+                # Get the prompt template content directly using the filename from the config
+                prompt_template = get_prompt(prompt_name)
                 
-        config["llm_prompt_templates"] = llm_prompt_templates
-        
-        return config
+                if prompt_template:
+                    # Store using the config key
+                    prompt_templates[config_key] = prompt_template
+                    self.logger.debug(f"Loaded prompt template: {prompt_name} as {config_key}")
+                else:
+                    self.logger.warning(f"Prompt template {prompt_name} not found for {config_key}.")
+            except Exception as e:
+                self.logger.warning(f"Error loading prompt template {prompt_name} for {config_key}: {e}")
 
+        return prompt_templates
 

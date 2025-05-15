@@ -66,8 +66,72 @@ entity_extraction:
   coreference_resolution_method: "llm"
   entity_extraction_methods: ["ner", "llm"]
   relationship_extraction_method: "llm"
-  entity_types: ["PERSON", "ORG", "GPE", "DATE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "ROLE"]
-  relationship_types: ["HAS_ROLE", "WORKS_FOR", "LOCATED_IN", "BORN_IN", "FOUNDED", "PARENT_OF", "SPOUSE_OF", "AFFILIATED_WITH", "BELONGS_TO", "CREATED", "PART_OF", "REPRESENTS"]
+  entity_types:
+    - "PERSON"                # Individual people
+    - "ORGANIZATION"          # Companies, institutions, etc. (more explicit than ORG)
+    - "GEO_POLITICAL_ENTITY"  # Countries, cities, states (more explicit than GPE)
+    - "DATE"                  # Calendar dates, days, years
+    - "LOCATION"              # Specific places, broader than GPE (e.g., mountains, rivers)
+    - "PRODUCT"               # Tangible goods and services
+    - "EVENT"                 # Happenings, occurrences
+    - "WORK_OF_ART"           # Books, paintings, music, etc.
+    - "LAW"                   # Statutes, regulations, legal documents
+    - "ROLE"                  # Titles, positions held by people
+    - "NORP"                  # Nationalities or religious or political groups
+    - "FACILITY"              # Buildings, airports, highways, bridges, etc.
+    - "LANGUAGE"              # Spoken and written languages
+    - "PERCENT"               # Percentage values
+    - "MONEY"                 # Monetary values, including currency
+    - "QUANTITY"              # Measurements of distance, weight, etc.
+    - "ORDINAL"               # Positions in a sequence ("first", "second")
+    - "CARDINAL"              # Numeric values that are not quantities
+    - "TIME"                  # Specific times of day
+    - "CONCEPT"               # Abstract ideas or notions (e.g., "justice", "democracy")
+    - "DOMAIN"                # Fields of knowledge or activity (e.g., "medicine", "technology")
+    - "SUBSTANCE"             # Materials or chemical compounds (e.g., "water", "gold")
+    - "DISEASE"               # Illnesses and medical conditions
+    - "ANIMAL"                # Living creatures other than humans
+    - "PLANT"                 # Living vegetation
+    - "VEHICLE"               # Means of transportation (e.g., "car", "airplane")
+    - "DEVICE"                # Electronic or mechanical appliances (e.g., "smartphone", "engine")
+    - "SOFTWARE"              # Computer programs and applications
+    - "GAME"                  # Recreational activities with rules
+    - "FOOD"                  # Edible substances
+    - "DRINK"                 # Potable liquids
+    - "MUSICAL_INSTRUMENT"    # Devices used to create music
+    - "MEDIA"                 # Forms of communication (e.g., "newspaper", "television")
+    - "SYMBOL"                # Signs or marks that represent something else (e.g., "$", "π")
+    - "IDEOLOGY"              # Systems of beliefs or ideas
+    - "ETHNICITY"             # Cultural heritage and ancestry
+    - "RELIGION"              # Systems of faith and worship
+    - "ACADEMIC_DISCIPLINE"   # Fields of study (e.g., "physics", "history")
+  relationship_types:
+    - "HAS_ROLE"
+    - "WORKS_FOR"
+    - "LOCATED_IN"
+    - "BORN_IN"
+    - "FOUNDED"
+    - "PARENT_OF"
+    - "SPOUSE_OF"
+    - "AFFILIATED_WITH"
+    - "BELONGS_TO"
+    - "CREATED"
+    - "PART_OF"
+    - "IS_A"
+    - "HAS_MEMBER"
+    - "CONTAINS"
+    - "USES"
+    - "PRODUCES"
+    - "IS_RELATED_TO"
+    - "HAS_ATTRIBUTE"
+    - "HAS_CAUSE"
+    - "HAS_EFFECT"
+    - "MANAGES"
+    - "OWNS"
+    - "COMPETES_WITH"
+    - "ACQUIRED"
+    - "LOCATED_NEAR"
+    - "CONNECTED_TO"
   gleaning_enabled: true
   max_gleaning_steps: 2
   entity_linking_enabled: true
@@ -80,7 +144,7 @@ entity_extraction:
 
 # References to prompt files (without .md extension)
 llm_prompts:
-  entity_extraction_llm: entity_extraction
+  entity_extraction: entity_extraction
   extract_relationships: relationship_extraction
   coreference_resolution: coreference_resolution
   entity_relationship_continue_extraction: entity_relationship_continue
@@ -89,21 +153,33 @@ llm_prompts:
 llms:
   model_list:
     - model_name: gpt-3.5-turbo
-      litellm_params:
-        model: openai/gpt-3.5-turbo
-        api_key: os.environ/OPENAI_API_KEY
+      provider: openai
+      params:
+        model: gpt-3.5-turbo
+        api_key: #OPENAI_API_KEY
         temperature: 0.0
         max_tokens: 1024
-    - model_name: claude-3-sonnet
-      litellm_params:
-        model: anthropic/claude-3-sonnet-20240229
-        api_key: os.environ/ANTHROPIC_API_KEY
+    - model_name: gpt-4o
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: #OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: claude-3-5-sonnet
+      provider: anthropic
+      params:
+        model: claude-3-5-sonnet-latest
+        api_key: #ANTHROPIC_API_KEY
         temperature: 0.0
         max_tokens: 1024
-    - model_name: gemini-pro
-      litellm_params:
-        model: google/gemini-pro
-        api_key: os.environ/GOOGLE_API_KEY
+    - model_name: gemini-1.5-pro
+      provider: google
+      params:
+        model: gemini-1.5-pro
+        api_key: #GOOGLE_API_KEY
         temperature: 0.0
         max_tokens: 1024
-  default_model: gpt-3.5-turbo
+  default_model: gpt-4o
+  reasoning_model: gpt-4o
+  vision_model: gpt-4o
