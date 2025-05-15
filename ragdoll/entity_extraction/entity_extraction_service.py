@@ -17,6 +17,7 @@ from langchain.text_splitter import (
     RecursiveCharacterTextSplitter,
 )
 from pydantic import BaseModel, Field
+from ragdoll.chunkers.chunker import Chunker  # Import the Chunker class
 
 # Configure logging
 logging.basicConfig(
@@ -67,6 +68,7 @@ class GraphCreationService:
         """
         self.config = config or {}
         self.llm = None  # Will be set in the extract method
+        self.chunker = Chunker(config=self.config)  # Create a Chunker instance
         
         # Load spaCy model
         spacy_model = self.config.get("spacy_model", "en_core_web_sm")
@@ -94,55 +96,18 @@ class GraphCreationService:
         Returns:
             A list of document chunks.
         """
-        try:
-            strategy = self.config.get("chunking_strategy", "none")
-            
-            if strategy == "none":
-                logger.debug(f"No chunking applied for document {document.metadata.get('id', 'unknown')}")
-                return [document]
-            
-            elif strategy == "fixed":
-                chunk_size = self.config.get("chunk_size", 500)
-                chunk_overlap = self.config.get("chunk_overlap", 50)
-                logger.debug(f"Applying fixed chunking with size={chunk_size}, overlap={chunk_overlap}")
-                
-                text_splitter = CharacterTextSplitter(
-                    separator="\n\n",
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
-                    length_function=len,
-                )
-                return text_splitter.split_documents([document])
-            
-            elif strategy == "semantic":
-                splitter_type = self.config.get("splitter_type", "markdown")
-                chunk_size = self.config.get("chunk_size", 1000)
-                chunk_overlap = self.config.get("chunk_overlap", 0)
-                logger.debug(f"Applying semantic chunking with type={splitter_type}, size={chunk_size}, overlap={chunk_overlap}")
-                
-                if splitter_type == "markdown":
-                    text_splitter = MarkdownTextSplitter(
-                        chunk_size=chunk_size,
-                        chunk_overlap=chunk_overlap
-                    )
-                elif splitter_type == "python":
-                    text_splitter = PythonCodeTextSplitter(
-                        chunk_size=chunk_size,
-                        chunk_overlap=chunk_overlap
-                    )
-                else:
-                    text_splitter = RecursiveCharacterTextSplitter(
-                        chunk_size=chunk_size,
-                        chunk_overlap=chunk_overlap
-                    )
-
-                return text_splitter.split_documents([document])
-            else:
-                raise ValueError(f"Invalid chunking strategy: {strategy}")
-                
-        except Exception as e:
-            logger.error(f"Error during document chunking: {e}")
-            return [document]  # Fall back to the entire document
+        strategy = self.config.get("chunking_strategy", "none")
+        chunk_size = self.config.get("chunk_size", None)
+        chunk_overlap = self.config.get("chunk_overlap", None)
+        splitter_type = self.config.get("splitter_type", None)
+        
+        return self.chunker.chunk_document(
+            document=document,
+            strategy=strategy,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            splitter_type=splitter_type
+        )
 
     async def _resolve_coreferences(self, text: str) -> str:
         """

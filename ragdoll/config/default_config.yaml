@@ -10,7 +10,8 @@ chunker:
   default_splitter: markdown
   chunk_size: 1000
   chunk_overlap: 200
-  enabled: false
+  chunking_strategy: "fixed"  # Options: none, fixed, semantic, recursive, header
+  enabled: true
 
 ingestion:
   max_threads: 10
@@ -58,9 +59,10 @@ embeddings:
 entity_extraction:
   enabled: true
   spacy_model: "en_core_web_sm"
-  chunking_strategy: "fixed"
-  chunk_size: 1000
-  chunk_overlap: 50
+  chunking_strategy: "fixed"  # Use 'default' to use the chunker config or 'none' to disable chunking
+  chunk_size: 1000           # Can be omitted to use the chunker config
+  chunk_overlap: 50          # Can be omitted to use the chunker config
+  splitter_type: "markdown"  # Can be omitted to use the chunker config
   coreference_resolution_method: "llm"
   entity_extraction_methods: ["ner", "llm"]
   relationship_extraction_method: "llm"

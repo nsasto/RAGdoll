@@ -1,5 +1,6 @@
 add pdf extraction:
-https://github.com/opendatalab/PDF-Extract-Kit
+[x] https://github.com/opendatalab/PDF-Extract-Kit - added from markitdown
+[ ] move chunking from entity to use standard chunking from config
 
 
 
