@@ -18,6 +18,7 @@ from langchain.text_splitter import (
 )
 from pydantic import BaseModel, Field
 from ragdoll.chunkers.chunker import Chunker  # Import the Chunker class
+from ragdoll.config.config_manager import ConfigManager
 
 # Configure logging
 logging.basicConfig(
@@ -62,28 +63,39 @@ class GraphCreationService:
     def __init__(self, config: Dict[str, Any] = None):
         """
         Initialize the GraphCreationService with configuration options.
-        
+
         Args:
             config: Dictionary containing configuration parameters.
         """
-        self.config = config or {}
+        config_manager = ConfigManager()
+        default_config = config_manager.entity_extraction_config.model_dump()  # Get default config as a dict
+        default_config["prompts"] = config_manager.get_default_prompt_templates()  # Get default prompts
+        
+        # Override defaults with any provided config
+        if config:
+            merged_config = {**default_config, **config}
+        else:
+            merged_config = default_config
+
+        self.config = merged_config
         self.llm = None  # Will be set in the extract method
         self.chunker = Chunker(config=self.config)  # Create a Chunker instance
-        
+        import json
+        print("GraphCreationService config:\n" + json.dumps(self.config, indent=2))
+
         # Load spaCy model
         spacy_model = self.config.get("spacy_model", "en_core_web_sm")
         try:
             self.nlp = spacy.load(spacy_model)
             logger.info(f"Loaded spaCy model: {spacy_model}")
-        except Exception as e:
-            logger.error(f"Failed to load spaCy model {spacy_model}: {e}")
-            logger.info("Attempting to download the model...")
+        except OSError:
+            logger.info(f"spaCy model '{spacy_model}' not found. Downloading...")
             try:
                 spacy.cli.download(spacy_model)
                 self.nlp = spacy.load(spacy_model)
-                logger.info(f"Successfully downloaded and loaded model: {spacy_model}")
+                logger.info(f"Downloaded and loaded spaCy model: {spacy_model}")
             except Exception as download_error:
-                logger.error(f"Failed to download model: {download_error}")
+                logger.error(f"Error downloading spaCy model: {download_error}")
                 raise
 
     async def _chunk_document(self, document: Document) -> List[Document]:
@@ -109,12 +121,13 @@ class GraphCreationService:
             splitter_type=splitter_type
         )
 
-    async def _resolve_coreferences(self, text: str) -> str:
+    async def _resolve_coreferences(self, text: str, prompt_template: str = None) -> str:
         """
         Resolves coreferences in the input text based on the configured method.
         
         Args:
             text: The text to process.
+            prompt_template: Optional custom prompt template. If None, uses configured template.
             
         Returns:
             Text with resolved coreferences.
@@ -137,10 +150,12 @@ class GraphCreationService:
                     logger.warning("LLM not available for coreference resolution")
                     return text
                     
-                prompt_template = self.config.get("llm_prompt_templates", {}).get(
-                    "coreference_resolution",
-                    "Resolve coreferences in the following text by replacing pronouns with their referents. Text: {text}"
-                )
+                # Use provided template or get from config
+                prompt_template = prompt_template or self.config.get("prompts", {}).get("coreference_resolution")
+                
+                if not prompt_template:
+                    raise ValueError("No 'prompt_coreference_resolution' prompt template specified in the config")
+                    
                 prompt = prompt_template.format(text=text)
                 response = await self._call_llm(prompt)
                 return response
@@ -211,13 +226,13 @@ class GraphCreationService:
             entity_types = self.config.get("entity_types", [])
             entity_types_str = ", ".join(entity_types) if entity_types else "any important entities"
             
-            # Use the provided prompt if given, otherwise use configured template
-            template = prompt_template or self.config.get("llm_prompt_templates", {}).get(
-                "entity_extraction_llm",
-                "Extract {entity_types} from the following text. Return as a JSON array of objects with 'text' and 'type' properties. Text: {text}"
-            )
+            # Use provided template or get from config
+            prompt_template = prompt_template or self.config.get("prompts", {}).get("entity_extraction")
             
-            prompt = template.format(text=text, entity_types=entity_types_str)
+            if not prompt_template:
+                raise ValueError("No 'entity_extraction' prompt template specified in the config")
+                
+            prompt = prompt_template.format(text=text, entity_types=entity_types_str)
             response = await self._call_llm(prompt)
             
             # Parse LLM response
@@ -262,13 +277,14 @@ class GraphCreationService:
             logger.error(f"Error during LLM entity extraction: {e}")
             return []
 
-    async def _extract_relationships_llm(self, text: str, entities: List[Dict]) -> List[Dict]:
+    async def _extract_relationships_llm(self, text: str, entities: List[Dict], prompt_template: str = None) -> List[Dict]:
         """
         Extracts relationships between entities using the LLM.
         
         Args:
             text: The source text.
             entities: The entities extracted from the text.
+            prompt_template: Optional custom prompt template. If None, uses configured template.
             
         Returns:
             A list of extracted relationships.
@@ -287,21 +303,23 @@ class GraphCreationService:
             # Format entities for prompt
             entity_str = "\n".join([f"- {entity['text']} (Type: {entity['type']})" for entity in entities])
             
+            # Get relationship types from config and format them for the prompt
             relationship_types = self.config.get("relationship_types", [])
-            relationship_types_str = ", ".join(relationship_types) if relationship_types else "any relevant relationships"
             
-            prompt_template = self.config.get("llm_prompt_templates", {}).get(
-                "extract_relationships",
-                """
-                Extract {relationship_types} from the text, given these entities:
-                {entities}
-                
-                Text: {text}
-                
-                Return the relationships as a JSON array with 'subject', 'relationship', and 'object' properties.
-                """
-            )
+            # Format relationship types - either as a comma-separated list or with more structure
+            if relationship_types:
+                relationship_types_str = ", ".join(relationship_types)
+            else:
+                relationship_types_str = "any relevant relationships"
             
+            logger.debug(f"Using relationship types: {relationship_types_str}")
+
+            # Use provided template or get from config
+            prompt_template = prompt_template or self.config.get("prompts", {}).get("extract_relationships")
+            
+            if not prompt_template:
+                raise ValueError("No 'extract_relationships' prompt template specified in the config")
+           
             prompt = prompt_template.format(
                 text=text,
                 entities=entity_str,
@@ -358,7 +376,7 @@ class GraphCreationService:
             logger.error(f"Error during relationship extraction: {e}")
             return []
 
-    async def _glean_graph(self, initial_graph: Graph, text: str, history: List[Dict]) -> Graph:
+    async def _glean_graph(self, initial_graph: Graph, text: str, history: List[Dict], prompt_template: str = None) -> Graph:
         """
         Iteratively refines the graph by querying the LLM.
         
@@ -366,6 +384,7 @@ class GraphCreationService:
             initial_graph: The initial graph to refine.
             text: The source text.
             history: Conversation history for the LLM.
+            prompt_template: Optional custom prompt template. If None, uses configured template.
             
         Returns:
             The refined graph.
@@ -401,29 +420,14 @@ class GraphCreationService:
                     for edge in current_graph.edges
                 ])
                 
-                prompt_template = self.config.get("llm_prompt_templates", {}).get(
-                    "entity_relationship_continue_extraction",
-                    """
-                    Continue extracting entities and relationships from the text. 
-                    
-                    Current graph summary: {graph_summary}
-                    
-                    Nodes:
-                    {nodes}
-                    
-                    Relationships:
-                    {edges}
-                    
-                    Original text:
-                    {text}
-                    
-                    Return any additional entities and relationships you can identify as a JSON object with 'nodes' and 'edges' arrays.
-                    Each node should have 'id', 'type', and 'text' properties.
-                    Each edge should have 'source', 'target', and 'type' properties.
-                    """
-                )
+                # Use provided template or get from config
+                gleaning_prompt_template = prompt_template or self.config.get("prompts", {}).get(
+                    "entity_relationship_continue_extraction")
                 
-                prompt = prompt_template.format(
+                if not gleaning_prompt_template:
+                    raise ValueError("No 'entity_relationship_continue_extraction' prompt template specified in the config")
+                    
+                prompt = gleaning_prompt_template.format(
                     graph_summary=graph_summary,
                     nodes=nodes_str,
                     edges=edges_str,
@@ -477,14 +481,15 @@ class GraphCreationService:
                 
                 # Check if we should continue gleaning
                 if step < max_gleaning_steps - 1:
-                    prompt_template = self.config.get("llm_prompt_templates", {}).get(
-                        "entity_relationship_gleaning_done_extraction",
-                        "Are you done extracting entities and relationships? Respond with 'done' or 'continue'."
-                    )
+                    # Use the specific prompt for checking if gleaning is done
+                    done_prompt_template = self.config.get("prompts", {}).get(
+                        "entity_relationship_gleaning_done_extraction")
                     
-                    prompt = prompt_template
-                    response = await self._call_llm(prompt)
-                    history.append({"role": "user", "content": prompt})
+                    if not done_prompt_template:
+                        raise ValueError("No 'entity_relationship_gleaning_done_extraction' prompt template specified in the config")
+                    
+                    response = await self._call_llm(done_prompt_template)
+                    history.append({"role": "user", "content": done_prompt_template})
                     history.append({"role": "assistant", "content": response})
                     
                     if "done" in response.lower():
@@ -863,19 +868,25 @@ class GraphCreationService:
         
         Args:
             documents: List of Document objects
-            llm: Either a model name (str) or a callable function that takes a prompt and returns a response
+            llm: Either a model type ('default', 'reasoning', 'vision') or a callable function that takes a prompt and returns a response
             entity_types: List of entity types to extract. If None, uses config.
             relationship_types: List of relationship types to extract. If None, uses config.
             
         Returns:
             Graph object with nodes and edges
         """
-        # If a string (model name) is provided, get the LiteLLM model
+        # If a string (model type) is provided, get the LangChain model
         if isinstance(llm, str):
-            from ragdoll.llms.llm_utils import get_litellm_model
-            llm_fn = get_litellm_model(llm)
-            if llm_fn is None:
-                raise ValueError(f"Failed to initialize LiteLLM model: {llm}")
+            from ragdoll.llms import get_basic_llm
+
+            llm_model = get_basic_llm(llm)
+            if llm_model is None:
+                raise ValueError(f"Failed to initialize LangChain model: {llm}")
+
+            # Wrap the LangChain model in a callable function
+            async def llm_fn(prompt: str) -> str:
+                return llm_model.invoke(prompt)  # Use .invoke() for ChatModels
+
             self.llm = llm_fn
         else:
             # Otherwise, use the provided callable directly

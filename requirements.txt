@@ -1,5 +1,7 @@
 langchain
 langchain_openai
+langchain-anthropic
+langchain-google-genai
 langchain-huggingface
 langchain_community
 langchain-google-community
@@ -26,4 +28,4 @@ retry
 spacy
 networkx
 matplotlib
-litellm
+py2neo
