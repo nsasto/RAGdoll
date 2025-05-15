@@ -1,7 +1,7 @@
 {
   "nodes": [
     {
-      "id": "e169afe1-58e9-4209-86a5-e5815c42ca6b",
+      "id": "12b79282-7afb-4dae-a48b-7d4ba984ea33",
       "type": "PERSON",
       "text": "Barack Obama",
       "metadata": {
@@ -12,7 +12,7 @@
       }
     },
     {
-      "id": "090deec3-43a7-4b3d-a379-823236f88bdc",
+      "id": "182bf97f-9a41-48a1-a23f-d34dccc990d5",
       "type": "ROLE",
       "text": "President",
       "metadata": {
@@ -23,7 +23,7 @@
       }
     },
     {
-      "id": "d67bc0f9-7cff-42cc-8d9e-89a3e1f21743",
+      "id": "ade14df9-bd3a-4052-a1e6-ccc219238a5e",
       "type": "GPE",
       "text": "United States",
       "metadata": {
@@ -34,7 +34,7 @@
       }
     },
     {
-      "id": "f313f485-943d-4ac7-adce-1c2308fad628",
+      "id": "c7314350-99dd-4796-b2de-b0b984dd3d85",
       "type": "GPE",
       "text": "Hawaii",
       "metadata": {
@@ -45,7 +45,7 @@
       }
     },
     {
-      "id": "a8bdd494-1685-4cd7-9e07-e9206c88157c",
+      "id": "10b02973-a32c-4f7e-89cd-2de1cfe73f0a",
       "type": "PERSON",
       "text": "Michelle Obama",
       "metadata": {
@@ -56,7 +56,7 @@
       }
     },
     {
-      "id": "adde5240-6f85-49d8-8a4c-baa731b5fba5",
+      "id": "7299cfe9-83ed-45d2-acb0-a871dd2dc1c7",
       "type": "PERSON",
       "text": "Malia Ann Obama",
       "metadata": {
@@ -67,7 +67,7 @@
       }
     },
     {
-      "id": "ad27ec94-3f4f-411f-ab3b-006284fd52d2",
+      "id": "a3c5b158-aa00-483f-b092-12bbe20d3e66",
       "type": "PERSON",
       "text": "Sasha Obama",
       "metadata": {
@@ -78,7 +78,7 @@
       }
     },
     {
-      "id": "32e49303-dbfb-4bba-b0e4-f0aa1218350c",
+      "id": "913f1132-b818-4abf-86a9-80fe8c69f8da",
       "type": "ROLE",
       "text": "Senator",
       "metadata": {
@@ -89,7 +89,7 @@
       }
     },
     {
-      "id": "9bc523d5-8f9f-46cc-a375-d2c6ed9a6f69",
+      "id": "37bde039-bee0-4d22-9b11-e6bb1bf859e2",
       "type": "GPE",
       "text": "Illinois",
       "metadata": {
@@ -102,9 +102,9 @@
   ],
   "edges": [
     {
-      "id": "45358608-f2df-4715-b726-71ff03d0cabb",
-      "source": "e169afe1-58e9-4209-86a5-e5815c42ca6b",
-      "target": "090deec3-43a7-4b3d-a379-823236f88bdc",
+      "id": "c7ead6a8-2007-49a5-a19e-1c919c7f9bd4",
+      "source": "12b79282-7afb-4dae-a48b-7d4ba984ea33",
+      "target": "182bf97f-9a41-48a1-a23f-d34dccc990d5",
       "type": "HAS_ROLE",
       "metadata": {
         "chunk_idx": 0
@@ -112,9 +112,9 @@
       "source_document_id": "example_doc_1"
     },
     {
-      "id": "7799cd35-47b3-448c-909a-7e2c2a03d15c",
-      "source": "e169afe1-58e9-4209-86a5-e5815c42ca6b",
-      "target": "f313f485-943d-4ac7-adce-1c2308fad628",
+      "id": "83cc8505-fd5e-48a6-88b4-b8352a1af804",
+      "source": "12b79282-7afb-4dae-a48b-7d4ba984ea33",
+      "target": "c7314350-99dd-4796-b2de-b0b984dd3d85",
       "type": "BORN_IN",
       "metadata": {
         "chunk_idx": 0
@@ -122,9 +122,9 @@
       "source_document_id": "example_doc_1"
     },
     {
-      "id": "88fdefec-8ca6-4f87-8e45-40cd7c8932f7",
-      "source": "e169afe1-58e9-4209-86a5-e5815c42ca6b",
-      "target": "a8bdd494-1685-4cd7-9e07-e9206c88157c",
+      "id": "48e9c159-94b2-4b02-823d-de696bf10702",
+      "source": "12b79282-7afb-4dae-a48b-7d4ba984ea33",
+      "target": "10b02973-a32c-4f7e-89cd-2de1cfe73f0a",
       "type": "SPOUSE_OF",
       "metadata": {
         "chunk_idx": 0
@@ -132,9 +132,9 @@
       "source_document_id": "example_doc_1"
     },
     {
-      "id": "3885f9af-b4db-4339-ac70-5b88190c886f",
-      "source": "e169afe1-58e9-4209-86a5-e5815c42ca6b",
-      "target": "adde5240-6f85-49d8-8a4c-baa731b5fba5",
+      "id": "fece82d0-d2c1-46e3-a6df-bc3c488fde9d",
+      "source": "12b79282-7afb-4dae-a48b-7d4ba984ea33",
+      "target": "7299cfe9-83ed-45d2-acb0-a871dd2dc1c7",
       "type": "PARENT_OF",
       "metadata": {
         "chunk_idx": 0
@@ -142,9 +142,9 @@
       "source_document_id": "example_doc_1"
     },
     {
-      "id": "33ce6788-116e-49ab-9945-9e5904a4c62d",
-      "source": "e169afe1-58e9-4209-86a5-e5815c42ca6b",
-      "target": "ad27ec94-3f4f-411f-ab3b-006284fd52d2",
+      "id": "a09e076c-f8f9-4099-adac-ad981daae6e2",
+      "source": "12b79282-7afb-4dae-a48b-7d4ba984ea33",
+      "target": "a3c5b158-aa00-483f-b092-12bbe20d3e66",
       "type": "PARENT_OF",
       "metadata": {
         "chunk_idx": 0
@@ -152,9 +152,9 @@
       "source_document_id": "example_doc_1"
     },
     {
-      "id": "54d75f39-faf2-4040-855d-c4cdb32a1bba",
-      "source": "e169afe1-58e9-4209-86a5-e5815c42ca6b",
-      "target": "32e49303-dbfb-4bba-b0e4-f0aa1218350c",
+      "id": "6b72481b-337e-41f7-b6fe-73d4c2d64cef",
+      "source": "12b79282-7afb-4dae-a48b-7d4ba984ea33",
+      "target": "913f1132-b818-4abf-86a9-80fe8c69f8da",
       "type": "HAS_ROLE",
       "metadata": {
         "chunk_idx": 0
@@ -162,9 +162,9 @@
       "source_document_id": "example_doc_1"
     },
     {
-      "id": "66f6dcb6-820f-4cd1-8ffb-78a89ae0f87e",
-      "source": "32e49303-dbfb-4bba-b0e4-f0aa1218350c",
-      "target": "9bc523d5-8f9f-46cc-a375-d2c6ed9a6f69",
+      "id": "40c2070f-6dda-4d87-a1ec-4fb59ef06be0",
+      "source": "913f1132-b818-4abf-86a9-80fe8c69f8da",
+      "target": "37bde039-bee0-4d22-9b11-e6bb1bf859e2",
       "type": "REPRESENTS",
       "metadata": {
         "chunk_idx": 0
