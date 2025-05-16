@@ -112,7 +112,8 @@ def get_llm(model_name_or_config: Union[str, Dict[str, Any]] = None, config_mana
                 break
 
         if model_config is None or provider is None:
-            logger.error(f"Model '{config_model_name}' not found in config or missing provider.")
+            available_models = [model.get("model_name") for model in model_list if "model_name" in model]
+            logger.error(f"Model '{config_model_name}' not found in config or missing provider. Available models: {available_models}")
             return None
     elif isinstance(model_name_or_config, dict):
         model_config = model_name_or_config.copy()  # Make a copy to avoid modifying the original
