@@ -21,6 +21,8 @@ from ragdoll.chunkers.chunker import Chunker  # Import the Chunker class
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.llms import get_llm, call_llm
 
+import json
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -336,13 +338,18 @@ class GraphCreationService:
             
             if not prompt_template:
                 raise ValueError("No 'entity_extraction' prompt template specified in the config")
-                
+            logger.debug(f'Using prompt template for entity extraction with entity types {entity_types_str}')    
             prompt = prompt_template.format(text=text, entity_types=entity_types_str)
             response = await self._call_llm(prompt)
-            
             # Parse LLM response
             try:
-                import json
+                # Remove ```json or ``` from start/end if present
+                if response.strip().startswith("```json"):
+                    response = response.strip()[7:]
+                if response.strip().startswith("```"):
+                    response = response.strip()[3:]
+                if response.strip().endswith("```"):
+                    response = response.strip()[:-3]
                 entities = json.loads(response)
                 if not isinstance(entities, list):
                     logger.warning(f"LLM entity extraction returned non-list: {type(entities)}")
@@ -433,11 +440,19 @@ class GraphCreationService:
                 entities=entity_str,
                 relationship_types=relationship_types_str
             )
-            logger.debug(f"First 100 characters of extract_relationships prompt:\n {prompt[:100]}\n")
+            #logger.debug(f"First 100 characters of extract_relationships prompt:\n {prompt[:100]}\n")
             response = await self._call_llm(prompt)
+            print(response)
             # Parse LLM response
             try:
-                import json
+                # Remove ```json or ``` from start/end if present
+                if response.strip().startswith("```json"):
+                    response = response.strip()[7:]
+                if response.strip().startswith("```"):
+                    response = response.strip()[3:]
+                if response.strip().endswith("```"):
+                    response = response.strip()[:-3]
+
                 relationships = json.loads(response)
                 if not isinstance(relationships, list):
                     logger.warning(f"LLM relationship extraction returned non-list: {type(relationships)}")

@@ -30,7 +30,7 @@ async def main(model_name: Optional[str] = None):
     entity_extraction_config = config_manager.entity_extraction_config.model_dump()
 
     # Use the real LLM
-    model_name = model_name or "4o"#"gpt-3.5-turbo"
+    model_name = model_name or "gpt-4o"#"gpt-3.5-turbo"
     print(f"Using get_llm with model: {model_name}")
     llm = get_llm(model_name, config_manager)
 

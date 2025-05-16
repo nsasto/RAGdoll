@@ -63,7 +63,7 @@ entity_extraction:
   chunk_overlap: 50          # Can be omitted to use the chunker config
   splitter_type: "markdown"  # Can be omitted to use the chunker config
   coreference_resolution_method: "llm"  # Options: "rule_based", "llm", "none"
-  entity_extraction_methods: ["ner", "llm"]
+  entity_extraction_methods: ["llm"] # Options: ["ner", "llm"]
   relationship_extraction_method: "llm"
   entity_types:
     - "PERSON"                # Individual people
