@@ -57,13 +57,12 @@ embeddings:
       api_key: "your_default_api_key"
 
 entity_extraction:
-  enabled: true
   spacy_model: "en_core_web_sm"
-  chunking_strategy: "fixed"  # Use 'default' to use the chunker config or 'none' to disable chunking
+  chunking_strategy: "none"  # Use 'default' to use the chunker config or 'none' to disable chunking
   chunk_size: 1000           # Can be omitted to use the chunker config
   chunk_overlap: 50          # Can be omitted to use the chunker config
   splitter_type: "markdown"  # Can be omitted to use the chunker config
-  coreference_resolution_method: "llm"
+  coreference_resolution_method: "llm"  # Options: "rule_based", "llm", "none"
   entity_extraction_methods: ["ner", "llm"]
   relationship_extraction_method: "llm"
   entity_types:
