@@ -63,9 +63,6 @@ async def main(use_mock_llm: bool = True, model_name: Optional[str] = None):
     # Get configuration
     config_manager = ConfigManager()
     entity_extraction_config = config_manager.entity_extraction_config.model_dump()
-
-    print(f"EX config: {entity_extraction_config}")
-
     # Determine which LLM to use
     if use_mock_llm:
         print("Using mock LLM for entity extraction (predefined responses)")
