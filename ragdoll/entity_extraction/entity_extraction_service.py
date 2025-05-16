@@ -19,19 +19,21 @@ from langchain.text_splitter import (
 from pydantic import BaseModel, Field
 from ragdoll.chunkers.chunker import Chunker  # Import the Chunker class
 from ragdoll.config.config_manager import ConfigManager
+from ragdoll.llms import get_llm, call_llm
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="[%(module)s][%(levelname)s] %(asctime)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S", 
     handlers=[logging.StreamHandler()]
 )
-# Specifically silence matplotlib logger and PngImagePlugin
-logging.getLogger('matplotlib').setLevel(logging.ERROR)  # or logging.WARNING
-# Specifically silence config manager
-logging.getLogger('config_manager').setLevel(logging.WARNING)  # Silence general config manager logs
-logging.getLogger('ragdoll.config_manager').setLevel(logging.WARNING)  # Silence ragdoll-specific config manager logs
-logging.getLogger('ragdoll.config.config_manager').setLevel(logging.WARNING)  # Ensure fully qualified path is covered
+# # Specifically silence matplotlib logger and PngImagePlugin
+# logging.getLogger('matplotlib').setLevel(logging.ERROR)  # or logging.WARNING
+# # Specifically silence config manager
+# logging.getLogger('config_manager').setLevel(logging.WARNING)  # Silence general config manager logs
+# logging.getLogger('ragdoll.config_manager').setLevel(logging.WARNING)  # Silence ragdoll-specific config manager logs
+# logging.getLogger('ragdoll.config.config_manager').setLevel(logging.WARNING)  # Ensure fully qualified path is covered
 
 
 logger = logging.getLogger(__name__)
@@ -88,7 +90,7 @@ class GraphCreationService:
         self.config = merged_config
         self.llm = None  # Will be set in the extract method
         self.chunker = Chunker(config=self.config)  # Create a Chunker instance
-        logger.info(self._log_graph_creation_pipeline(merged_config))
+        logger.debug(self._log_graph_creation_pipeline(merged_config))
         
 
         # Load spaCy model
@@ -116,7 +118,7 @@ class GraphCreationService:
         coref_method = config.get('coreference_resolution_method', 'none')
         log_string += f"\t{step_number}. Coreference Resolution: method='{coref_method}'\n"
         step_number += 1
-        
+
         log_string += f"\t{step_number}. Entity Extraction: chunking_strategy='{ee_chunking}', methods={ee_methods}"
         if "ner" in ee_methods:
             log_string += f', ner method/spacy model = {config.get("spacy_model", "en_core_web_sm")}'
@@ -224,7 +226,7 @@ class GraphCreationService:
                     return text  # Return original text instead of failing
                     
                 prompt = prompt_template.format(text=text)
-                logger.debug(f"Coreference resolution prompt:\n {prompt}\n")
+                #logger.debug(f"Co-reference resolution prompt [first 100 chars]: {prompt[:100]}")
                 
                 # Call LLM with better error handling
                 try:
@@ -836,26 +838,8 @@ class GraphCreationService:
         Returns:
             The LLM's response
         """
-        if not prompt:
-            logger.warning("Empty prompt passed to _call_llm")
-            return ""
-            
-        try:
-            # Ensure self.llm is properly defined and callable
-            if not self.llm:
-                logger.error("LLM function is not defined")
-                return ""
-                
-            response = await self.llm(prompt) if asyncio.iscoroutinefunction(self.llm) else self.llm(prompt)
-            
-            if not response:
-                logger.warning("LLM returned None or empty response")
-                
-            return response or ""
-            
-        except Exception as e:
-            logger.error(f"Error calling LLM: {str(e)}")
-            return ""  # Return empty string on error (though this may be causing your issues)
+        # Use the centralized helper from the llms module
+        return await call_llm(self.llm, prompt)
 
     async def _store_graph(self, graph: Graph):
         """
@@ -997,9 +981,7 @@ class GraphCreationService:
         """
         # If a string (model type) is provided, get the LangChain model
         if isinstance(llm, str):
-            from ragdoll.llms import get_basic_llm
-
-            llm_model = get_basic_llm(llm)
+            llm_model = get_llm(llm)
             if llm_model is None:
                 raise ValueError(f"Failed to initialize LangChain model: {llm}")
 
@@ -1040,11 +1022,11 @@ class GraphCreationService:
                     for chunk_idx, chunk in enumerate(chunks):
                         logger.debug(f"Processing chunk {chunk_idx+1}/{len(chunks)}")
                         text = chunk.page_content
-                        print(f"\t1. Chunk text: {text}\n")
+
                         # Resolve coreferences if configured
                         if self.config.get("coreference_resolution_method") != "none":
                             text = await self._resolve_coreferences(text)
-                            
+   
                         # Extract entities based on configured methods
                         chunk_entities = []
                         if "ner" in self.config.get("entity_extraction_methods", ["ner"]):
@@ -1054,8 +1036,7 @@ class GraphCreationService:
                         if "llm" in self.config.get("entity_extraction_methods", ["ner"]):
                             llm_entities = await self._extract_entities_llm(text)
                             chunk_entities.extend(llm_entities)
-
-                        print(f"\t2. text: {text}\n")     
+   
                         # Extract relationships
                         chunk_relationships = []
                         if chunk_entities and self.config.get("relationship_extraction_method", "llm") == "llm":

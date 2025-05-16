@@ -2,18 +2,16 @@
 LLM utilities for RAGdoll (Transitioning to LangChain).
 
 This module provides utilities for working with chat-based language models through LangChain's init_chat_model.
-It now supports loading LLMs by name from config and caching basic LLMs, with automatic default config loading.
+It supports loading LLMs by name from config with automatic default config loading.
 """
 import os
 import logging
 import importlib.util
 from typing import Dict, Any, Optional, Union
 from langchain_core.language_models import BaseChatModel, BaseLanguageModel
+from .utils import call_llm
 
-logger = logging.getLogger(__name__)
-
-# Global cache for basic LLMs
-_llm_cache: Dict[str, Union[BaseChatModel, BaseLanguageModel]] = {}
+logger = logging.getLogger("ragdoll.llms")
 
 def is_langchain_available() -> bool:
     """Check if LangChain core is available."""
@@ -99,115 +97,83 @@ def get_llm(model_name_or_config: Union[str, Dict[str, Any]] = None, config_mana
 
     model_config: Optional[Dict[str, Any]] = None
     provider: Optional[str] = None
-    model_name: Optional[str] = None
+    config_model_name: Optional[str] = None  # For lookup in config
+    actual_model_name: Optional[str] = None  # For passing to LangChain
 
     if isinstance(model_name_or_config, str):
-        model_name = model_name_or_config
+        config_model_name = model_name_or_config
         model_list = llm_config.get("model_list", [])
         for model in model_list:
-            if model.get("model_name") == model_name:
-                model_config = model.get("params", {})
+            if model.get("model_name") == config_model_name:
+                model_config = model.get("params", {}).copy()  # Make a copy to avoid modifying the original
                 provider = model.get("provider")
+                # Get the actual model name from params if available, otherwise use model_name as fallback
+                actual_model_name = model_config.pop("model", config_model_name)
                 break
 
         if model_config is None or provider is None:
-            logger.error(f"Model '{model_name}' not found in config or missing provider.")
+            logger.error(f"Model '{config_model_name}' not found in config or missing provider.")
             return None
     elif isinstance(model_name_or_config, dict):
-        model_config = model_name_or_config
-        provider = model_config.get("provider")
-        model_name = model_config.get("model") # Try to get model name from direct config
+        model_config = model_name_or_config.copy()  # Make a copy to avoid modifying the original
+        provider = model_config.pop("provider", None)  # Remove to avoid duplicate
+        actual_model_name = model_config.pop("model", None)  # Remove to avoid duplicate
         if provider is None:
             logger.error("Provider not specified in model configuration.")
             return None
-        if model_name is None:
+        if actual_model_name is None:
             logger.warning("Model name not specified in direct configuration.")
     else:
         logger.error(f"Invalid model_name_or_config type: {type(model_name_or_config)}. Expected str or dict.")
         return None
 
-    if model_config is None or provider is None or model_name is None:
+    if model_config is None or provider is None or actual_model_name is None:
         return None
 
     processed_config = _resolve_env_vars(model_config)
     _set_api_key_from_config(provider, processed_config)
 
     try:
+        logger.debug(f"Initializing {provider} model '{actual_model_name}' with config keys: {list(processed_config.keys())}")
         model = init_chat_model(
-            model=model_name,
+            model=actual_model_name,
             model_provider=provider,
             **processed_config
         )
         return model
     except Exception as e:
-        logger.error(f"Failed to initialize {provider} model '{model_name}': {e}")
+        logger.error(f"Failed to initialize {provider} model '{actual_model_name}': {e}")
         return None
-
-def get_basic_llm(model_type: str = "default", config_manager=None) -> Optional[Union[BaseChatModel, BaseLanguageModel]]:
-    """
-    Retrieves a basic LLM (default, reasoning, or vision) from the cache or loads it.
-    Automatically loads the default config if config_manager is not provided.
-
-    Args:
-        model_type: The type of basic model to retrieve ('default', 'reasoning', 'vision'). Defaults to 'default'.
-        config_manager: Optional ConfigManager instance. If None, the default config is loaded.
-
-    Returns:
-        The cached or newly loaded LangChain ChatModel or LanguageModel object, or None if an error occurs.
-    """
-    if model_type not in ["default", "reasoning", "vision"]:
-        logger.error(f"Invalid model_type: '{model_type}'. Must be 'default', 'reasoning', or 'vision'.")
-        return None
-
-    if model_type in _llm_cache:
-        return _llm_cache[model_type]
-
-    if config_manager is None:
-        config_manager = _load_default_config()
-        if config_manager is None:
-            logger.warning("No ConfigManager provided and default loading failed. Cannot retrieve basic LLMs.")
-            return None
-
-    if config_manager:
-        llm_config = config_manager._config.get("llms", {})
-        model_name = llm_config.get(model_type + "_model")
-        if model_name:
-            llm = get_llm(model_name, config_manager)
-            if llm:
-                _llm_cache[model_type] = llm
-            return llm
-        else:
-            logger.warning(f"'{model_type}_model' not defined in the 'llms' section of the config.")
-            return None
-    return None
 
 # Example Usage (assuming you have ragdoll installed):
 if __name__ == "__main__":
     # Get an LLM by name without providing config_manager (will load default)
     default_gpt = get_llm("gpt-3.5-turbo")
     if default_gpt:
-        print(f"Loaded (default config): {default_gpt}")
+        print(f"Loaded model: {default_gpt}")
+    
+    # Get the default LLM using no model name (uses default from config)
+    default_llm = get_llm()
+    if default_llm:
+        print(f"Default model from config: {default_llm}")
+    
+    # Get a model using a direct configuration
+    custom_config = {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "temperature": 0.7
+    }
+    custom_llm = get_llm(custom_config)
+    if custom_llm:
+        print(f"Custom configured model: {custom_llm}")
 
-    # Get the default LLM (will load default config and be cached)
-    default_reasoning_llm = get_basic_llm("default")
-    if default_reasoning_llm:
-        print(f"Default LLM (default config): {default_reasoning_llm}")
-        default_llm_again = get_basic_llm("default")
-        print(f"Default LLM (cached, default config): {default_llm_again}")
-        assert default_reasoning_llm is default_llm_again
-
-    # Get the default LLM using no model name
-    default_llm_no_name = get_llm()
-    if default_llm_no_name:
-        print(f"Default LLM (no name specified): {default_llm_no_name}")
-
-    # You can still provide a specific config_manager if needed
+    # Example with custom config file
     try:
         from ragdoll.config.config_manager import ConfigManager
-        custom_config_manager = ConfigManager(config_path="path/to/your/custom_config.yaml") # Replace with actual path
+        custom_config_manager = ConfigManager(config_path="path/to/your/custom_config.yaml")  # Replace with actual path
         claude = get_llm("claude-3-5-sonnet", custom_config_manager)
         if claude:
-            print(f"Loaded (custom config): {claude}")
+            print(f"Loaded with custom config: {claude}")
     except ImportError:
         print("ConfigManager not available for custom config example.")
     except FileNotFoundError:
