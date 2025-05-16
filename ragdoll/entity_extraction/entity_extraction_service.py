@@ -22,10 +22,18 @@ from ragdoll.config.config_manager import ConfigManager
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+    level=logging.DEBUG,
+    format="[%(module)s][%(levelname)s] %(asctime)s %(message)s",
     handlers=[logging.StreamHandler()]
 )
+# Specifically silence matplotlib logger and PngImagePlugin
+logging.getLogger('matplotlib').setLevel(logging.ERROR)  # or logging.WARNING
+# Specifically silence config manager
+logging.getLogger('config_manager').setLevel(logging.WARNING)  # Silence general config manager logs
+logging.getLogger('ragdoll.config_manager').setLevel(logging.WARNING)  # Silence ragdoll-specific config manager logs
+logging.getLogger('ragdoll.config.config_manager').setLevel(logging.WARNING)  # Ensure fully qualified path is covered
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,8 +88,8 @@ class GraphCreationService:
         self.config = merged_config
         self.llm = None  # Will be set in the extract method
         self.chunker = Chunker(config=self.config)  # Create a Chunker instance
-        import json
-        logger.debug("GraphCreationService config:\n" + json.dumps(self.config, indent=2)+"\n\n")
+        logger.info(self._log_graph_creation_pipeline(merged_config))
+        
 
         # Load spaCy model
         spacy_model = self.config.get("spacy_model", "en_core_web_sm")
@@ -97,6 +105,47 @@ class GraphCreationService:
             except Exception as download_error:
                 logger.error(f"Error downloading spaCy model: {download_error}")
                 raise
+
+    def _log_graph_creation_pipeline(self, config):
+        log_string = "Graph creation pipeline:\n"
+        step_number = 1
+
+        ee_methods = config.get('entity_extraction_methods', [])
+        ee_chunking = config.get('chunking_strategy', 'none')
+
+        coref_method = config.get('coreference_resolution_method', 'none')
+        log_string += f"\t{step_number}. Coreference Resolution: method='{coref_method}'\n"
+        step_number += 1
+        
+        log_string += f"\t{step_number}. Entity Extraction: chunking_strategy='{ee_chunking}', methods={ee_methods}"
+        if "ner" in ee_methods:
+            log_string += f', ner method/spacy model = {config.get("spacy_model", "en_core_web_sm")}'
+        log_string += "\n"
+        step_number += 1
+
+        linking_enabled = config.get('entity_linking_enabled', False)
+        linking_method = config.get('entity_linking_method', 'none')
+        linking_info = f"enabled={linking_enabled}, method='{linking_method}'"
+        log_string += f"\t{step_number}. Entity Linking: {linking_info}\n"
+        step_number += 1
+
+        relation_method = config.get('relationship_extraction_method', 'none')
+        log_string += f"\t{step_number}. Relationship Extraction: method='{relation_method}'\n"
+        step_number += 1
+
+        gleaning_enabled = config.get('gleaning_enabled', False)
+        max_gleaning = config.get('max_gleaning_steps', 'none') if gleaning_enabled else 'none'
+        gleaning_info = f"enabled={gleaning_enabled}, max_steps={max_gleaning}"
+        log_string += f"\t{step_number}. Gleaning: {gleaning_info}\n"
+        step_number += 1
+
+        postprocessing = config.get('postprocessing_steps', [])
+        log_string += f"\t{step_number}. Postprocessing: steps={postprocessing if postprocessing else 'none'}\n"
+        step_number += 1
+
+        log_string += "\n"
+        return log_string
+
 
     async def _chunk_document(self, document: Document) -> List[Document]:
         """
@@ -133,17 +182,34 @@ class GraphCreationService:
             Text with resolved coreferences.
         """
         try:
+            # Always log the input text length
+            logger.debug(f"Resolving coreferences in text of length: {len(text)}")
+            
             method = self.config.get("coreference_resolution_method", "none")
             
             if method == "none":
                 return text
-                
+                    
             elif method == "rule_based":
                 logger.debug("Applying rule-based coreference resolution")
-                # Simple rule-based coreference resolution
-                resolved_text = re.sub(r'\b(he|she|it|they|him|her|them)\b', '[ENTITY]', text, flags=re.IGNORECASE)
+
+                # Define a mapping of pronouns to placeholder entities
+                pronoun_map = {
+                    r'\bhe\b': '[MALE_ENTITY]',
+                    r'\bshe\b': '[FEMALE_ENTITY]',
+                    r'\bit\b': '[NEUTRAL_ENTITY]',
+                    r'\bthey\b': '[PLURAL_ENTITY]',
+                    r'\bhim\b': '[MALE_ENTITY]',
+                    r'\bher\b': '[FEMALE_ENTITY]',
+                    r'\bthem\b': '[PLURAL_ENTITY]',
+                }
+
+                resolved_text = text
+                for pattern, replacement in pronoun_map.items():
+                    resolved_text = re.sub(pattern, replacement, resolved_text, flags=re.IGNORECASE)
+
                 return resolved_text
-                
+                    
             elif method == "llm":
                 logger.debug("Applying LLM-based coreference resolution")
                 if not self.llm:
@@ -154,12 +220,49 @@ class GraphCreationService:
                 prompt_template = prompt_template or self.config.get("prompts", {}).get("coreference_resolution")
                 
                 if not prompt_template:
-                    raise ValueError("No 'prompt_coreference_resolution' prompt template specified in the config")
+                    logger.error("No 'coreference_resolution' prompt template specified in the config")
+                    return text  # Return original text instead of failing
                     
                 prompt = prompt_template.format(text=text)
-                response = await self._call_llm(prompt)
-                return response
+                logger.debug(f"Coreference resolution prompt:\n {prompt}\n")
                 
+                # Call LLM with better error handling
+                try:
+                    response = await self._call_llm(prompt)
+                    
+                    logger.debug(f"LLM coreference response length: {len(response or '')}")
+                    logger.debug(f"LLM Response: {response[:100]}...")  # Log the first 100 characters of the response
+                    
+                    # Check if the response looks like JSON (starts with [ or {)
+                    if response and (response.strip().startswith('[') or response.strip().startswith('{')):
+                        logger.warning("LLM returned JSON instead of plain text for coreference resolution")
+                        try:
+                            # Try to extract text content from JSON
+                            import json
+                            json_response = json.loads(response)
+                            if isinstance(json_response, list) and len(json_response) > 0:
+                                # If it's a list, see if we can extract text from an item
+                                if isinstance(json_response[0], dict) and "text" in json_response[0]:
+                                    return json_response[0]["text"]
+                                elif isinstance(json_response[0], str):
+                                    return json_response[0]
+                            # If JSON parsing worked but we couldn't find text, fall back to original
+                            logger.warning("Couldn't extract plain text from JSON response")
+                            return text
+                        except:
+                            # If JSON parsing failed, continue with the response as is
+                            pass
+                    
+                    # Critical fix: Never return empty text
+                    if not response or len(response.strip()) == 0:
+                        logger.warning("LLM returned empty response for coreference resolution")
+                        return text  # Return original text if response is empty
+                        
+                    return response
+                except Exception as llm_error:
+                    logger.error(f"LLM call failed during coreference resolution: {llm_error}")
+                    return text  # Return original text on LLM failure
+                    
             else:
                 logger.warning(f"Unknown coreference resolution method: {method}")
                 return text
@@ -289,6 +392,9 @@ class GraphCreationService:
         Returns:
             A list of extracted relationships.
         """
+        if not text:
+            logger.warning("No reference text provided for llm relationship extraction")
+
         if not self.llm:
             logger.warning("LLM not available for relationship extraction")
             return []
@@ -319,15 +425,14 @@ class GraphCreationService:
             
             if not prompt_template:
                 raise ValueError("No 'extract_relationships' prompt template specified in the config")
-           
+
             prompt = prompt_template.format(
                 source_text=text,
                 entities=entity_str,
                 relationship_types=relationship_types_str
             )
-            print(prompt)
+            logger.debug(f"First 100 characters of extract_relationships prompt:\n {prompt[:100]}\n")
             response = await self._call_llm(prompt)
-            
             # Parse LLM response
             try:
                 import json
@@ -731,11 +836,26 @@ class GraphCreationService:
         Returns:
             The LLM's response
         """
-        try:
-            return self.llm(prompt)
-        except Exception as e:
-            logger.error(f"Error calling LLM: {e}")
+        if not prompt:
+            logger.warning("Empty prompt passed to _call_llm")
             return ""
+            
+        try:
+            # Ensure self.llm is properly defined and callable
+            if not self.llm:
+                logger.error("LLM function is not defined")
+                return ""
+                
+            response = await self.llm(prompt) if asyncio.iscoroutinefunction(self.llm) else self.llm(prompt)
+            
+            if not response:
+                logger.warning("LLM returned None or empty response")
+                
+            return response or ""
+            
+        except Exception as e:
+            logger.error(f"Error calling LLM: {str(e)}")
+            return ""  # Return empty string on error (though this may be causing your issues)
 
     async def _store_graph(self, graph: Graph):
         """
@@ -920,7 +1040,7 @@ class GraphCreationService:
                     for chunk_idx, chunk in enumerate(chunks):
                         logger.debug(f"Processing chunk {chunk_idx+1}/{len(chunks)}")
                         text = chunk.page_content
-                        
+                        print(f"\t1. Chunk text: {text}\n")
                         # Resolve coreferences if configured
                         if self.config.get("coreference_resolution_method") != "none":
                             text = await self._resolve_coreferences(text)
@@ -934,7 +1054,8 @@ class GraphCreationService:
                         if "llm" in self.config.get("entity_extraction_methods", ["ner"]):
                             llm_entities = await self._extract_entities_llm(text)
                             chunk_entities.extend(llm_entities)
-                            
+
+                        print(f"\t2. text: {text}\n")     
                         # Extract relationships
                         chunk_relationships = []
                         if chunk_entities and self.config.get("relationship_extraction_method", "llm") == "llm":

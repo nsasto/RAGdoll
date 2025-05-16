@@ -1,6 +1,7 @@
 import os
 import yaml
 import logging
+import json
 from importlib import import_module
 from typing import Dict, Any, Type, List
 from pathlib import Path
@@ -68,7 +69,7 @@ class ConfigManager:
         
         self.config_path = config_path
         self._config = self._load_config()
-        self.logger.debug(f"Loaded config: {self._config}")
+        self.logger.debug(f"Loaded config:\n{json.dumps(self._config, indent=2)}")
         
         # Initialize available prompts
         try:
