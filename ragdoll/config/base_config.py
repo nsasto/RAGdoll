@@ -51,7 +51,7 @@ class VectorStoreConfig(BaseConfig):
 
 class LLMConfig(BaseConfig):
     """Configuration for language models"""
-    model_name: str = Field(default="gpt-3.5-turbo", description="Name of the language model to use")
+    model: str = Field(default="gpt-3.5-turbo", description="Name of the language model to use")
     temperature: float = Field(default=0.7, description="Temperature for generation")
     max_tokens: int = Field(default=500, description="Maximum tokens for generation")
     api_key: Optional[str] = Field(default=None, description="API key for the LLM service")

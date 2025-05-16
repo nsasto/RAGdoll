@@ -15,7 +15,12 @@ You are a coreference resolution expert. Your job is to revise a given text by r
 ## Input:
 {text}
 
+## Example:
+
+Input: John went to the park. He saw a dog. It was a golden retriever.
+Output: John went to the park. John saw a dog. The dog was a golden retriever.
+
 ## Output Format:
-Return the revised version of the input with all pronouns and ambiguous references replaced with specific referents. 
-Return ONLY the revised text with pronouns replaced. 
+Return the revised version of the input with all pronouns and ambiguous references replaced with specific referents.
+Return ONLY the revised text with pronouns replaced.
 Do not include any explanation or JSON formatting.
