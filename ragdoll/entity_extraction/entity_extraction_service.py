@@ -81,7 +81,7 @@ class GraphCreationService:
         self.llm = None  # Will be set in the extract method
         self.chunker = Chunker(config=self.config)  # Create a Chunker instance
         import json
-        print("GraphCreationService config:\n" + json.dumps(self.config, indent=2))
+        logger.debug("GraphCreationService config:\n" + json.dumps(self.config, indent=2)+"\n\n")
 
         # Load spaCy model
         spacy_model = self.config.get("spacy_model", "en_core_web_sm")
@@ -321,11 +321,11 @@ class GraphCreationService:
                 raise ValueError("No 'extract_relationships' prompt template specified in the config")
            
             prompt = prompt_template.format(
-                text=text,
+                source_text=text,
                 entities=entity_str,
                 relationship_types=relationship_types_str
             )
-            
+            print(prompt)
             response = await self._call_llm(prompt)
             
             # Parse LLM response
