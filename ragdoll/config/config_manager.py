@@ -41,6 +41,20 @@ class EntityExtractionConfig(BaseModel):
     relationship_extraction_method: str = Field(default="llm")
     entity_types: List[str] = Field(default=["PERSON", "ORG", "GPE", "DATE", "LOC"])
     relationship_types: List[str] = Field(default=["HAS_ROLE", "WORKS_FOR"])
+    relationship_type_mapping: Dict[str, str] = {
+        "works for": "WORKS_FOR",
+        "is a": "IS_A",
+        "is an": "IS_A",
+        "located in": "LOCATED_IN",
+        "located at": "LOCATED_IN",
+        "born in": "BORN_IN",
+        "lives in": "LOCATED_IN",
+        "married to": "SPOUSE_OF",
+        "spouse of": "SPOUSE_OF",
+        "parent of": "PARENT_OF",
+        "child of": "PARENT_OF",
+        "works with": "AFFILIATED_WITH"
+    }
     gleaning_enabled: bool = Field(default=True)
     max_gleaning_steps: int = Field(default=2)
     entity_linking_enabled: bool = Field(default=True)
@@ -78,6 +92,26 @@ class ConfigManager:
         except Exception as e:
             self.logger.warning(f"Could not load available prompts: {e}")
             self.available_prompts = set()
+        
+        # Ensure default relationship types and mapping are present
+        entity_extraction_config = self.entity_extraction_config
+        if not entity_extraction_config.relationship_types:
+            entity_extraction_config.relationship_types = []
+        if not entity_extraction_config.relationship_type_mapping:
+            entity_extraction_config.relationship_type_mapping = {
+                "works for": "WORKS_FOR",
+                "is a": "IS_A",
+                "is an": "IS_A",
+                "located in": "LOCATED_IN",
+                "located at": "LOCATED_IN",
+                "born in": "BORN_IN",
+                "lives in": "LOCATED_IN",
+                "married to": "SPOUSE_OF",
+                "spouse of": "SPOUSE_OF",
+                "parent of": "PARENT_OF",
+                "child of": "PARENT_OF",
+                "works with": "AFFILIATED_WITH"
+            }
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from file and environment."""
