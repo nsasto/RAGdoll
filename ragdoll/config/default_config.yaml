@@ -131,6 +131,19 @@ entity_extraction:
     - "ACQUIRED"
     - "LOCATED_NEAR"
     - "CONNECTED_TO"
+  relationship_type_mapping:
+    "works for": "WORKS_FOR"
+    "is a": "IS_A"
+    "is an": "IS_A"
+    "located in": "LOCATED_IN"
+    "located at": "LOCATED_IN"
+    "born in": "BORN_IN"
+    "lives in": "LOCATED_IN"
+    "married to": "SPOUSE_OF"
+    "spouse of": "SPOUSE_OF"
+    "parent of": "PARENT_OF"
+    "child of": "PARENT_OF"
+    "works with": "AFFILIATED_WITH"
   gleaning_enabled: true
   max_gleaning_steps: 2
   entity_linking_enabled: true
