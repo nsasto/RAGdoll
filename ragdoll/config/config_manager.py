@@ -17,8 +17,8 @@ class LLMPromptsConfig(BaseModel):
     entity_extraction: str = Field(default="entity_extraction")
     extract_relationships: str = Field(default="relationship_extraction")
     coreference_resolution: str = Field(default="coreference_resolution")
-    entity_relationship_continue_extraction: str = Field(default="entity_relationship_continue")
-    entity_relationship_gleaning_done_extraction: str = Field(default="entity_relationship_gleaning_done")
+    entity_relationship_gleaning: str = Field(default="entity_relationship_continue")
+    entity_relationship_gleaning_continue: str = Field(default="entity_relationship_gleaning_continue")
 
 
 class GraphDatabaseConfig(BaseModel):
@@ -262,4 +262,74 @@ class ConfigManager:
                 self.logger.warning(f"Error loading prompt template {prompt_name} for {config_key}: {e}")
 
         return prompt_templates
+
+    def print_graph_creation_pipeline(self, config: Dict[str, Any]) -> str:
+        """
+        Generates a formatted string describing the graph creation pipeline configuration.
+
+        Args:
+            config: Dictionary containing configuration parameters.
+
+        Returns:
+            A formatted string describing the graph creation pipeline.
+        """
+        log_string = "Graph creation pipeline:\n"
+        step_number = 1
+
+        ee_methods = config.get('entity_extraction_methods', [])
+        ee_chunking = config.get('chunking_strategy', 'none')
+
+        coref_method = config.get('coreference_resolution_method', 'none')
+        log_string += f"\t{step_number}. Coreference Resolution: method='{coref_method}'\n"
+        step_number += 1
+
+        log_string += f"\t{step_number}. Entity Extraction: chunking_strategy='{ee_chunking}', methods={ee_methods}"
+        if "ner" in ee_methods:
+            log_string += f', ner method/spacy model = {config.get("spacy_model", "en_core_web_sm")}'
+        log_string += "\n"
+        step_number += 1
+
+        linking_enabled = config.get('entity_linking_enabled', False)
+        linking_method = config.get('entity_linking_method', 'none')
+        linking_info = f"enabled={linking_enabled}, method='{linking_method}'"
+        log_string += f"\t{step_number}. Entity Linking: {linking_info}\n"
+        step_number += 1
+
+        relation_method = config.get('relationship_extraction_method', 'none')
+        log_string += f"\t{step_number}. Relationship Extraction: method='{relation_method}'\n"
+        step_number += 1
+
+        gleaning_enabled = config.get('gleaning_enabled', False)
+        max_gleaning = config.get('max_gleaning_steps', 'none') if gleaning_enabled else 'none'
+        gleaning_info = f"enabled={gleaning_enabled}, max_steps={max_gleaning}"
+        log_string += f"\t{step_number}. Gleaning: {gleaning_info}\n"
+        step_number += 1
+
+        postprocessing = config.get('postprocessing_steps', [])
+        log_string += f"\t{step_number}. Postprocessing: steps={postprocessing if postprocessing else 'none'}\n"
+        step_number += 1
+
+        log_string += "\n"
+        # Create a single formatted string for entity_types, 5 per line
+        entity_types = config.get("entity_types", [])
+        if entity_types:
+            lines = ["Configured entity_types:"]
+            for i in range(0, len(entity_types), 7):
+                lines.append("  " + ", ".join(entity_types[i:i+5]))
+            output_str = "\n\t".join(lines)
+        else:
+            output_str = "No entity_types configured."
+
+        log_string += output_str + "\n"
+        relationship_types = config.get("relationship_types", [])
+        if relationship_types:
+            lines = ["Configured relationship_types:"]
+            for i in range(0, len(relationship_types), 7):
+                lines.append("  " + ", ".join(relationship_types[i:i+5]))
+            output_str = "\n\t".join(lines)
+        else:
+            output_str = "No relationship_types configured."
+
+        log_string += output_str + "\n"
+        return log_string
 
