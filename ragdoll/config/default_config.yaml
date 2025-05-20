@@ -62,7 +62,7 @@ entity_extraction:
   chunk_size: 1000           # Can be omitted to use the chunker config
   chunk_overlap: 50          # Can be omitted to use the chunker config
   splitter_type: "markdown"  # Can be omitted to use the chunker config
-  coreference_resolution_method: "llm"  # Options: "rule_based", "llm", "none"
+  coreference_resolution_method: "rule_based"  # Options: "rule_based", "llm", "none"
   entity_extraction_methods: ["llm"] # Options: ["ner", "llm"]
   relationship_extraction_method: "llm"
   entity_types:
@@ -146,8 +146,8 @@ llm_prompts:
   entity_extraction: entity_extraction
   extract_relationships: relationship_extraction
   coreference_resolution: coreference_resolution
-  entity_relationship_continue_extraction: entity_relationship_continue
-  entity_relationship_gleaning_done_extraction: entity_relationship_gleaning_done
+  entity_relationship_gleaning: entity_relationship_gleaning
+  entity_relationship_gleaning_continue: entity_relationship_gleaning_continue
 
 llms:
   model_list:

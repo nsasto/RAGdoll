@@ -1,1 +1,0 @@
-Are you done extracting entities and relationships? Respond with 'done' or 'continue'.

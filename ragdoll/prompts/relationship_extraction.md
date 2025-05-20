@@ -10,7 +10,14 @@ You are a relationship extraction expert managed by a supervisor agent. Your tas
 2. **Identify Relationships**: Scan the `text` for explicit or implicit relationships between the listed `entities`. Consider the provided `relationship` types: HAS_ROLE, WORKS_FOR, LOCATED_IN, BORN_IN, FOUNDED, PARENT_OF, SPOUSE_OF, AFFILIATED_WITH, BELONGS_TO, CREATED, PART_OF.
 3. **Extract Triples**: For each identified relationship, extract the subject entity, the relationship type, and the object entity. Ensure that the extracted subject and object are present in the provided `entities` list.
 4. **Format as JSON**: Structure the extracted relationships as a JSON array. Each element in the array should be a JSON object with the keys: "subject", "relationship", and "object". The values for these keys should be the corresponding extracted entities and the relationship type.
-5. **Present Output**: Print the final JSON array of relationships.
+6. Your output must be EXACT valid JSON without any leading whitespace, backticks, newlines, or trailing characters. The output must strictly follow this format without deviation:
+{{"relationships":[
+  {{ "subject": "Entity1", "relationship": "relates_to", "object": "Entity2" }},
+  {{ "subject": "Entity3", "relationship": "belongs_to", "object": "Entity4" }}
+  ]
+}}
+
+5. **Available Options**: Use relationship types such as: {relationship_types}
 
 # Notes
 
@@ -24,6 +31,3 @@ Given these entities:
 
 Extract relationships between them from this text:
 {source_text}
-
-Return the relationships as a JSON array with 'subject', 'relationship', and 'object' properties.
-Use relationship types such as: {relationship_types}
