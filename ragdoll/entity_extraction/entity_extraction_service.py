@@ -630,44 +630,40 @@ class GraphCreationService:
     async def _normalize_relations(self, graph: Graph) -> Graph:
         """
         Normalizes relationship types.
-        
+
         Args:
             graph: The graph to process.
-            
+
         Returns:
             The graph with normalized relationships.
         """
         try:
             logger.debug("Normalizing relationship types")
-            
-            # Define relationship type mapping
-            # This could be moved to config
-            mapping = {
-                "works for": "works_for",
-                "is a": "is_a",
-                "is an": "is_a",
-                "located in": "located_in",
-                "located at": "located_in",
-                "born in": "born_in",
-                "lives in": "lives_in",
-                "married to": "married_to",
-                "spouse of": "spouse_of",
-                "parent of": "parent_of",
-                "child of": "child_of",
-                "works with": "works_with"
-            }
-            
+
+            # Get the mapping and relationship types from the config
+            mapping = self.config.get("relationship_type_mapping", {})
+            relationship_types = self.config.get("relationship_types", [])
+
             # Normalize edge types
             normalized_count = 0
             for edge in graph.edges:
                 edge_type_lower = edge.type.lower()
                 if edge_type_lower in mapping:
-                    edge.type = mapping[edge_type_lower]
+                    normalized_type = mapping[edge_type_lower]
+                    edge.type = normalized_type
                     normalized_count += 1
-            
+
+                    # Add the normalized type to the relationship_types list if missing
+                    if normalized_type not in relationship_types:
+                        relationship_types.append(normalized_type)
+
+            # Update the config with the updated relationship types
+            self.config["relationship_types"] = relationship_types
+
             logger.debug(f"Normalized {normalized_count} relationship types")
+            logger.debug(f"Updated relationship types: {relationship_types}")
             return graph
-            
+
         except Exception as e:
             logger.error(f"Error during relationship normalization: {e}")
             return graph
