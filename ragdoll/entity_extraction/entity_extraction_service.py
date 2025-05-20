@@ -8,6 +8,9 @@ from typing import Dict, List, Optional, Literal, Any, Union, Callable
 
 import networkx as nx
 import spacy
+
+from langchain.output_parsers import PydanticOutputParser
+
 from langchain.docstore.document import Document
 from langchain.llms.base import BaseLLM
 from langchain.text_splitter import (
@@ -20,7 +23,8 @@ from pydantic import BaseModel, Field
 from ragdoll.chunkers.chunker import Chunker  # Import the Chunker class
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.llms import get_llm, call_llm
-
+from ragdoll.utils import json_parse
+from .models import Entity, Relationship, EntityList, RelationshipList, GraphNode, GraphEdge, Graph
 import json
 
 # Configure logging
@@ -30,40 +34,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S", 
     handlers=[logging.StreamHandler()]
 )
-# # Specifically silence matplotlib logger and PngImagePlugin
-# logging.getLogger('matplotlib').setLevel(logging.ERROR)  # or logging.WARNING
-# # Specifically silence config manager
-# logging.getLogger('config_manager').setLevel(logging.WARNING)  # Silence general config manager logs
-# logging.getLogger('ragdoll.config_manager').setLevel(logging.WARNING)  # Silence ragdoll-specific config manager logs
-# logging.getLogger('ragdoll.config.config_manager').setLevel(logging.WARNING)  # Ensure fully qualified path is covered
-
 
 logger = logging.getLogger(__name__)
-
-
-class GraphNode(BaseModel):
-    """Represents a node in the knowledge graph."""
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    type: str
-    text: str
-    metadata: Dict = Field(default_factory=dict)
-
-
-class GraphEdge(BaseModel):
-    """Represents an edge/relationship in the knowledge graph."""
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    source: str
-    target: str
-    type: str
-    metadata: Dict = Field(default_factory=dict)
-    source_document_id: Optional[str] = None  # Link back to the originating document
-
-
-class Graph(BaseModel):
-    """Represents a complete knowledge graph with nodes and edges."""
-    nodes: List[GraphNode] = Field(default_factory=list)
-    edges: List[GraphEdge] = Field(default_factory=list)
-
 
 @dataclass
 class GraphCreationService:
@@ -92,9 +64,9 @@ class GraphCreationService:
         self.config = merged_config
         self.llm = None  # Will be set in the extract method
         self.chunker = Chunker(config=self.config)  # Create a Chunker instance
-        logger.debug(self._log_graph_creation_pipeline(merged_config))
-        
+        logger.debug(config_manager.print_graph_creation_pipeline(merged_config))
 
+        
         # Load spaCy model
         spacy_model = self.config.get("spacy_model", "en_core_web_sm")
         try:
@@ -109,47 +81,6 @@ class GraphCreationService:
             except Exception as download_error:
                 logger.error(f"Error downloading spaCy model: {download_error}")
                 raise
-
-    def _log_graph_creation_pipeline(self, config):
-        log_string = "Graph creation pipeline:\n"
-        step_number = 1
-
-        ee_methods = config.get('entity_extraction_methods', [])
-        ee_chunking = config.get('chunking_strategy', 'none')
-
-        coref_method = config.get('coreference_resolution_method', 'none')
-        log_string += f"\t{step_number}. Coreference Resolution: method='{coref_method}'\n"
-        step_number += 1
-
-        log_string += f"\t{step_number}. Entity Extraction: chunking_strategy='{ee_chunking}', methods={ee_methods}"
-        if "ner" in ee_methods:
-            log_string += f', ner method/spacy model = {config.get("spacy_model", "en_core_web_sm")}'
-        log_string += "\n"
-        step_number += 1
-
-        linking_enabled = config.get('entity_linking_enabled', False)
-        linking_method = config.get('entity_linking_method', 'none')
-        linking_info = f"enabled={linking_enabled}, method='{linking_method}'"
-        log_string += f"\t{step_number}. Entity Linking: {linking_info}\n"
-        step_number += 1
-
-        relation_method = config.get('relationship_extraction_method', 'none')
-        log_string += f"\t{step_number}. Relationship Extraction: method='{relation_method}'\n"
-        step_number += 1
-
-        gleaning_enabled = config.get('gleaning_enabled', False)
-        max_gleaning = config.get('max_gleaning_steps', 'none') if gleaning_enabled else 'none'
-        gleaning_info = f"enabled={gleaning_enabled}, max_steps={max_gleaning}"
-        log_string += f"\t{step_number}. Gleaning: {gleaning_info}\n"
-        step_number += 1
-
-        postprocessing = config.get('postprocessing_steps', [])
-        log_string += f"\t{step_number}. Postprocessing: steps={postprocessing if postprocessing else 'none'}\n"
-        step_number += 1
-
-        log_string += "\n"
-        return log_string
-
 
     async def _chunk_document(self, document: Document) -> List[Document]:
         """
@@ -338,55 +269,24 @@ class GraphCreationService:
             
             if not prompt_template:
                 raise ValueError("No 'entity_extraction' prompt template specified in the config")
-            logger.debug(f'Using prompt template for entity extraction with entity types {entity_types_str}')    
+            
+            #logger.debug(f'Using prompt template for entity extraction with entity types {entity_types_str}')    
             prompt = prompt_template.format(text=text, entity_types=entity_types_str)
             response = await self._call_llm(prompt)
+            logger.debug(f"LLM response: {response}")
             # Parse LLM response
-            try:
-                # Remove ```json or ``` from start/end if present
-                if response.strip().startswith("```json"):
-                    response = response.strip()[7:]
-                if response.strip().startswith("```"):
-                    response = response.strip()[3:]
-                if response.strip().endswith("```"):
-                    response = response.strip()[:-3]
-                entities = json.loads(response)
-                if not isinstance(entities, list):
-                    logger.warning(f"LLM entity extraction returned non-list: {type(entities)}")
-                    entities = []
-                    
-                # Ensure each entity has required fields
-                for entity in entities:
-                    if not isinstance(entity, dict):
-                        continue
-                    if "text" not in entity:
-                        entity["text"] = ""
-                    if "type" not in entity:
-                        entity["type"] = "UNKNOWN"
-                        
-                logger.debug(f"LLM extracted {len(entities)} entities")
-                return entities
-                
-            except json.JSONDecodeError:
-                # If JSON parsing fails, try simple extraction
-                logger.warning("Failed to parse LLM entity extraction response as JSON")
-                entity_matches = re.findall(r'([A-Z][a-zA-Z\s]+):\s*([A-Za-z\s]+)', response)
-                entities = [{"text": text, "type": ent_type} for ent_type, text in entity_matches]
-                
-                # If that also fails, split by commas or lines
-                if not entities:
-                    lines = [line.strip() for line in response.split('\n') if line.strip()]
-                    if not lines or len(lines) == 1:
-                        items = [item.strip() for item in response.split(',') if item.strip()]
-                        entities = [{"text": item, "type": "UNKNOWN"} for item in items]
-                    else:
-                        entities = [{"text": line, "type": "UNKNOWN"} for line in lines]
-                
-                logger.debug(f"LLM extracted {len(entities)} entities (fallback parsing)")
-                return entities
-                
+            # Use PydanticOutputParser
+            # parser = PydanticOutputParser(pydantic_object=EntityList)
+            # ent = parser.parse(response)
+            ent = json_parse(response, EntityList)
+            result = [e.model_dump() for e in ent.entities]
+#             
+            logger.debug(f"LLM extracted {len(result)} entities")
+            return result  # Convert to list of dicts                        
+
         except Exception as e:
-            logger.error(f"Error during LLM entity extraction: {e}")
+            logger.error(f"Error during LLM entity extraction: {e}", exc_info=True)
+            logger.error(f"LLM response that caused error: {response if 'response' in locals() else 'No response variable'}")
             return []
 
     async def _extract_relationships_llm(self, text: str, entities: List[Dict], prompt_template: str = None) -> List[Dict]:
@@ -427,7 +327,7 @@ class GraphCreationService:
             else:
                 relationship_types_str = "any relevant relationships"
             
-            logger.debug(f"Using relationship types: {relationship_types_str}")
+            #logger.debug(f"Using relationship types: {relationship_types_str}")
 
             # Use provided template or get from config
             prompt_template = prompt_template or self.config.get("prompts", {}).get("extract_relationships")
@@ -442,60 +342,19 @@ class GraphCreationService:
             )
             #logger.debug(f"First 100 characters of extract_relationships prompt:\n {prompt[:100]}\n")
             response = await self._call_llm(prompt)
-            print(response)
-            # Parse LLM response
-            try:
-                # Remove ```json or ``` from start/end if present
-                if response.strip().startswith("```json"):
-                    response = response.strip()[7:]
-                if response.strip().startswith("```"):
-                    response = response.strip()[3:]
-                if response.strip().endswith("```"):
-                    response = response.strip()[:-3]
 
-                relationships = json.loads(response)
-                if not isinstance(relationships, list):
-                    logger.warning(f"LLM relationship extraction returned non-list: {type(relationships)}")
-                    relationships = []
-                    
-                # Ensure each relationship has required fields
-                valid_relationships = []
-                for rel in relationships:
-                    if not isinstance(rel, dict):
-                        continue
-                    if "subject" in rel and "object" in rel and "relationship" in rel:
-                        valid_relationships.append(rel)
-                    else:
-                        logger.debug(f"Skipping invalid relationship: {rel}")
-                
-                logger.debug(f"LLM extracted {len(valid_relationships)} relationships")
-                return valid_relationships
-                
-            except json.JSONDecodeError:
-                # Fallback parsing for non-JSON responses
-                logger.warning("Failed to parse LLM relationship extraction response as JSON")
-                relationships = []
-                
-                # Try to extract "Subject: X, Relationship: Y, Object: Z" patterns
-                pattern = r"Subject:?\s*(.*?),\s*Relationship:?\s*(.*?),\s*Object:?\s*(.*?)(?:;|$|\n)"
-                matches = re.findall(pattern, response, re.IGNORECASE)
-                
-                for match in matches:
-                    subject = match[0].strip()
-                    relationship = match[1].strip()
-                    obj = match[2].strip()
-                    if subject and relationship and obj:
-                        relationships.append({
-                            "subject": subject,
-                            "relationship": relationship,
-                            "object": obj
-                        })
-                
-                logger.debug(f"LLM extracted {len(relationships)} relationships (fallback parsing)")
-                return relationships
+            # Parse LLM response
+            # Use PydanticOutputParser
+            # parser = PydanticOutputParser(pydantic_object=RelationshipList)
+            # rel = parser.parse(response)
+            rel = json_parse(response, RelationshipList)
+            result = [e.model_dump() for e in rel.relationships]
+
+            return result
                 
         except Exception as e:
-            logger.error(f"Error during relationship extraction: {e}")
+            logger.error(f"Error during LLM relationship extraction: {e}", exc_info=True)
+            logger.error(f"LLM response that caused error: {response if 'response' in locals() else 'No response variable'}")
             return []
 
     async def _glean_graph(self, initial_graph: Graph, text: str, history: List[Dict], prompt_template: str = None) -> Graph:
@@ -527,44 +386,39 @@ class GraphCreationService:
             for step in range(max_gleaning_steps):
                 logger.debug(f"Gleaning step {step+1}/{max_gleaning_steps}")
                 
-                # Format the current graph
-                graph_summary = f"Nodes: {len(current_graph.nodes)}, Edges: {len(current_graph.edges)}"
-                
-                # List of node texts and types
                 nodes_str = "\n".join([
-                    f"- {node.text} (Type: {node.type}, ID: {node.id})" 
+                    f"- {node.text} (Type: {node.type}, ID: {node.id})"
                     for node in current_graph.nodes
                 ])
-                
+
                 # List of relationships
                 edges_str = "\n".join([
                     f"- {self._get_node_text(current_graph, edge.source)} --[{edge.type}]--> {self._get_node_text(current_graph, edge.target)}"
                     for edge in current_graph.edges
                 ])
                 
+
                 # Use provided template or get from config
-                gleaning_prompt_template = prompt_template or self.config.get("prompts", {}).get(
-                    "entity_relationship_continue_extraction")
+                
+                gleaning_prompt_template = prompt_template or self.config.get("prompts", {}).get("entity_relationship_gleaning")
                 
                 if not gleaning_prompt_template:
-                    raise ValueError("No 'entity_relationship_continue_extraction' prompt template specified in the config")
-                    
+                    raise ValueError("No 'entity_relationship_gleaning' prompt template specified in the config")
+
                 prompt = gleaning_prompt_template.format(
-                    graph_summary=graph_summary,
+                    graph_summary=f"Nodes: {len(current_graph.nodes)}, Edges: {len(current_graph.edges)}",
                     nodes=nodes_str,
                     edges=edges_str,
                     text=text
                 )
-                
+
                 response = await self._call_llm(prompt)
                 history.append({"role": "user", "content": prompt})
                 history.append({"role": "assistant", "content": response})
-                
                 # Parse response into a Graph object
                 try:
-                    import json
-                    result = json.loads(response)
-                    
+                    result = json_parse(response) #parse to a dict
+
                     # Extract nodes
                     new_nodes = []
                     if "nodes" in result and isinstance(result["nodes"], list):
@@ -603,19 +457,9 @@ class GraphCreationService:
                 
                 # Check if we should continue gleaning
                 if step < max_gleaning_steps - 1:
-                    # Use the specific prompt for checking if gleaning is done
-                    done_prompt_template = self.config.get("prompts", {}).get(
-                        "entity_relationship_gleaning_done_extraction")
-                    
-                    if not done_prompt_template:
-                        raise ValueError("No 'entity_relationship_gleaning_done_extraction' prompt template specified in the config")
-                    
-                    response = await self._call_llm(done_prompt_template)
-                    history.append({"role": "user", "content": done_prompt_template})
-                    history.append({"role": "assistant", "content": response})
-                    
-                    if "done" in response.lower():
-                        logger.debug(f"Stopping gleaning early at step {step+1}/{max_gleaning_steps}")
+                    # Check if the previous gleaning step returned any new nodes or edges
+                    if not new_nodes and not new_edges:
+                        logger.debug(f"Stopping gleaning early at step {step+1}/{max_gleaning_steps} due to no new nodes or edges")
                         break
             
             return current_graph
@@ -881,8 +725,20 @@ class GraphCreationService:
                 # Fix: use model_dump_json instead of json() method with indent parameter
                 graph_json = graph.model_dump_json(indent=2)  # For newer pydantic versions
                 # For older pydantic versions, use: graph.json(indent=2)
-                logger.debug(f"Graph JSON: {graph_json}")
-                
+
+                nodes_str = "\n".join([
+                    f"- {node.text} (Type: {node.type}, ID: {node.id})"
+                    for node in graph.nodes
+                ])
+
+                # List of relationships
+                edges_str = "\n".join([
+                    f"- {self._get_node_text(graph, edge.source)} --[{edge.type}]--> {self._get_node_text(graph, edge.target)}"
+                    for edge in graph.edges
+                ])
+
+                logger.debug(f"\nGraph parsed from JSON:\n {nodes_str}\n{edges_str}\n")
+
                 # Optionally save to a file
                 if "output_file" in db_config:
                     with open(db_config["output_file"], "w") as f:
@@ -1211,4 +1067,3 @@ class GraphCreationService:
             
         except Exception as e:
             logger.error(f"Error merging document graph: {e}")
-
