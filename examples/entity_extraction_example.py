@@ -9,9 +9,10 @@ from langchain.docstore.document import Document
 from ragdoll.entity_extraction.entity_extraction_service import GraphCreationService
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.llms import get_llm
+from ragdoll.utils import visualize_graph
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +31,7 @@ async def main(model_name: Optional[str] = None):
     entity_extraction_config = config_manager.entity_extraction_config.model_dump()
 
     # Use the real LLM
-    model_name = model_name or "gpt-3.5-turbo" #"gpt-4o" "gpt-3.5-turbo"
+    model_name = model_name or "gpt-4o" #"gpt-4o" "gpt-3.5-turbo"
     print(f"Using get_llm with model: {model_name}")
     llm = get_llm(model_name, config_manager)
 
@@ -45,6 +46,14 @@ async def main(model_name: Optional[str] = None):
         "Obama served as a U.S. Senator from Illinois before becoming President."
     )
 
+    # Another sample text (tangentially related, not directly about Obama)
+    sample_text_2 = (
+        "Angela Merkel served as the Chancellor of Germany from 2005 to 2021. "
+        "She was born in Hamburg, West Germany. "
+        "Merkel is known for her scientific background and pragmatic leadership style. "
+        "During her tenure, she played a key role in managing the European financial crisis."
+    )
+
     print(f"\nProcessing text:\n{sample_text}\n")
 
     # Create a Langchain Document
@@ -52,10 +61,14 @@ async def main(model_name: Optional[str] = None):
         page_content=sample_text,
         metadata={"source": "example_doc_1", "id": "doc1"}
     )
+    sample_doc2 = Document(
+        page_content=sample_text_2,
+        metadata={"source": "example_doc_2", "id": "doc2"}
+    )
 
     # Extract the graph
     graph = await graph_service.extract(
-        documents=[sample_doc],
+        documents=[sample_doc, sample_doc2],
         llm=llm,
         entity_types=entity_extraction_config.get('entity_types'),
         relationship_types=entity_extraction_config.get('relationship_types')
@@ -64,42 +77,12 @@ async def main(model_name: Optional[str] = None):
     print(f"\nExtracted {len(graph.nodes)} nodes and {len(graph.edges)} edges")
 
     # Optional visualization
-    try:
-        import networkx as nx
-        import matplotlib.pyplot as plt
-
-        G = nx.DiGraph()
-        for node in graph.nodes:
-            G.add_node(node.id, label=node.text, type=node.type)
-        for edge in graph.edges:
-            G.add_edge(edge.source, edge.target, label=edge.type)
-
-        plt.figure(figsize=(12, 8))
-        pos = nx.spring_layout(G, k=0.5, seed=42)
-        nx.draw_networkx_nodes(G, pos, node_size=2000, alpha=0.8, node_color="lightblue")
-        nx.draw_networkx_edges(G, pos, width=1.5, arrowsize=20)
-        nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]['label'] for n in G.nodes}, font_size=10)
-        nx.draw_networkx_edge_labels(G, pos, edge_labels={(s, t): G.edges[s, t]["label"] for s, t in G.edges}, font_size=8)
-        plt.axis("off")
-        plt.title("Knowledge Graph Visualization", size=15)
-        plt.tight_layout()
-        plt.savefig("knowledge_graph.png", dpi=300, bbox_inches="tight")
-        print("\nGraph visualization saved as 'knowledge_graph.png'")
-
-        with open("graph_output.json", "w") as f:
-            try:
-                f.write(graph.model_dump_json(indent=2))
-            except AttributeError:
-                f.write(graph.json(indent=2))
-        print("Graph data saved as 'graph_output.json'")
-
-    except ImportError:
-        print("\nInstall networkx and matplotlib to visualize the graph: pip install networkx matplotlib")
+    visualize_graph(graph)
 
 
 if __name__ == "__main__":
 
-    logging.getLogger("ragdoll.entity_extraction").setLevel(logging.INFO)
+    logging.getLogger("ragdoll.entity_extraction").setLevel(logging.DEBUG)
     import argparse
 
     parser = argparse.ArgumentParser(description="Entity extraction example")
