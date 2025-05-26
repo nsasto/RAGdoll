@@ -221,7 +221,7 @@ class GraphCreationService:
             doc = self.nlp(text)
             entities = [
                 {
-                    "text": ent.text,
+                    "name": ent.text,  # Use 'name' instead of 'text'
                     "type": ent.label_,
                     "start_char": ent.start_char,
                     "end_char": ent.end_char
@@ -316,7 +316,7 @@ class GraphCreationService:
             logger.debug(f"Extracting relationships for {len(entities)} entities using LLM")
             
             # Format entities for prompt
-            entity_str = "\n".join([f"- {entity['text']} (Type: {entity['type']})" for entity in entities])
+            entity_str = "\n".join([f"- {entity['name']} (Type: {entity['type']})" for entity in entities])
             
             # Get relationship types from config and format them for the prompt
             relationship_types = self.config.get("relationship_types", [])
@@ -387,18 +387,18 @@ class GraphCreationService:
                 logger.debug(f"Gleaning step {step+1}/{max_gleaning_steps}")
                 
                 nodes_str = "\n".join([
-                    f"- {node.text} (Type: {node.type}, ID: {node.id})"
+                    f"- {node.name} (Type: {node.type}, ID: {node.id})"
                     for node in current_graph.nodes
                 ])
 
                 # List of relationships
                 edges_str = "\n".join([
-                    f"- {self._get_node_text(current_graph, edge.source)} --[{edge.type}]--> {self._get_node_text(current_graph, edge.target)}"
+                    f"- {self._get_node_name(current_graph, edge.source)} --[{edge.type}]--> {self._get_node_name(current_graph, edge.target)}"
                     for edge in current_graph.edges
                 ])
                 
 
-                # Use provided template or get from config
+                # name provided template or get from config
                 
                 gleaning_prompt_template = prompt_template or self.config.get("prompts", {}).get("entity_relationship_gleaning")
                 
@@ -423,11 +423,11 @@ class GraphCreationService:
                     new_nodes = []
                     if "nodes" in result and isinstance(result["nodes"], list):
                         for node_data in result["nodes"]:
-                            if isinstance(node_data, dict) and "text" in node_data and "type" in node_data:
+                            if isinstance(node_data, dict) and "name" in node_data and "type" in node_data:
                                 node_id = node_data.get("id", str(uuid.uuid4()))
                                 new_node = GraphNode(
                                     id=node_id,
-                                    text=node_data["text"],
+                                    text=node_data["name"],
                                     type=node_data["type"]
                                 )
                                 new_nodes.append(new_node)
@@ -468,11 +468,11 @@ class GraphCreationService:
             logger.error(f"Error during graph gleaning: {e}")
             return initial_graph
 
-    def _get_node_text(self, graph: Graph, node_id: str) -> str:
-        """Helper method to get node text from a node ID."""
+    def _get_node_name(self, graph: Graph, node_id: str) -> str:
+        """Helper method to get node name from a node ID."""
         for node in graph.nodes:
             if node.id == node_id:
-                return node.text
+                return node.name
         return f"[Unknown Node: {node_id}]"
 
     async def _link_entities(self, graph: Graph) -> Graph:
@@ -512,16 +512,16 @@ class GraphCreationService:
                             continue
                             
                         # Compare texts for similarity
-                        similarity = SequenceMatcher(None, node1.text.lower(), node2.text.lower()).ratio()
+                        similarity = SequenceMatcher(None, node1.name.lower(), node2.name.lower()).ratio()
                         
                         # Also check if one is contained in the other
-                        text1_lower = node1.text.lower()
-                        text2_lower = node2.text.lower()
+                        text1_lower = node1.name.lower()
+                        text2_lower = node2.name.lower()
                         contained = text1_lower in text2_lower or text2_lower in text1_lower
                         
                         # Link if similar or contained
                         if similarity > threshold or contained:
-                            logger.debug(f"Linking entities: '{node1.text}' and '{node2.text}' (similarity: {similarity:.2f})")
+                            logger.debug(f"Linking entities: '{node1.name}' and '{node2.name}' (similarity: {similarity:.2f})")
                             
                             # Update the node ID mapping
                             node_id_mapping[node2.id] = node1.id
@@ -598,17 +598,17 @@ class GraphCreationService:
             nodes_to_remove = set()
             
             # Find nodes with identical text (case insensitive)
-            text_to_id = {}
+            name_to_id = {}
             for node in graph.nodes:
-                text_lower = node.text.lower()
-                if text_lower in text_to_id:
+                name_lower = node.name.lower()
+                if name_lower in name_to_id:
                     # We've seen this text before, mark for merging
-                    primary_id = text_to_id[text_lower]
+                    primary_id = name_to_id[name_lower]
                     node_id_mapping[node.id] = primary_id
                     nodes_to_remove.add(node.id)
                 else:
                     # First time seeing this text
-                    text_to_id[text_lower] = node.id
+                    name_to_id[name_lower] = node.id
             
             # Update edges to use primary node IDs
             for edge in graph.edges:
@@ -723,19 +723,19 @@ class GraphCreationService:
                 # For older pydantic versions, use: graph.json(indent=2)
 
                 nodes_str = "\n".join([
-                    f"- {node.text} (Type: {node.type}, ID: {node.id})"
+                    f"- {node.name} (Type: {node.type}, ID: {node.id})"
                     for node in graph.nodes
                 ])
 
                 # List of relationships
                 edges_str = "\n".join([
-                    f"- {self._get_node_text(graph, edge.source)} --[{edge.type}]--> {self._get_node_text(graph, edge.target)}"
+                    f"- {self._get_node_name(graph, edge.source)} --[{edge.type}]--> {self._get_node_name(graph, edge.target)}"
                     for edge in graph.edges
                 ])
 
                 logger.debug(f"\nGraph parsed from JSON:\n {nodes_str}\n{edges_str}\n")
 
-                # Optionally save to a file
+                # name save to a file
                 if "output_file" in db_config:
                     with open(db_config["output_file"], "w") as f:
                         f.write(graph_json)
@@ -747,7 +747,7 @@ class GraphCreationService:
                 
                 # Add nodes
                 for node in graph.nodes:
-                    g.add_node(node.id, type=node.type, text=node.text, **node.metadata)
+                    g.add_node(node.id, type=node.type, name=node.name, **node.metadata)
                     
                 # Add edges
                 for edge in graph.edges:
@@ -792,7 +792,7 @@ class GraphCreationService:
                         neo4j_node = Node(
                             node.type,
                             id=node.id,
-                            text=node.text,
+                            name=node.name,
                             **node.metadata
                         )
                         neo4j_nodes[node.id] = neo4j_node
@@ -914,7 +914,7 @@ class GraphCreationService:
                             node_id = str(uuid.uuid4())
                             node = GraphNode(
                                 id=node_id,
-                                text=ent["text"],
+                                name=ent["name"],
                                 type=ent["type"],
                                 metadata={
                                     "start_char": ent.get("start_char"),
@@ -926,9 +926,9 @@ class GraphCreationService:
                             document_graph.nodes.append(node)
                             
                         # Create a mapping from entity text to node ID
-                        entity_text_to_id = {}
+                        entity_name_to_id = {}
                         for node in document_graph.nodes:
-                            entity_text_to_id[node.text.lower()] = node.id
+                            entity_name_to_id[node.name.lower()] = node.id
                             
                         # Convert relationships to GraphEdges
                         for rel in chunk_relationships:
@@ -937,19 +937,19 @@ class GraphCreationService:
                             rel_type = rel.get("relationship")
                             
                             # Try to find subject and object nodes
-                            subject_id = entity_text_to_id.get(subject_text)
-                            object_id = entity_text_to_id.get(object_text)
+                            subject_id = entity_name_to_id.get(subject_text)
+                            object_id = entity_name_to_id.get(object_text)
                             
                             # If not found by exact match, try substring matching
                             if not subject_id:
-                                for text, node_id in entity_text_to_id.items():
-                                    if subject_text in text or text in subject_text:
+                                for name, node_id in entity_name_to_id.items():
+                                    if subject_text in name or name in subject_text:
                                         subject_id = node_id
                                         break
                                         
                             if not object_id:
-                                for text, node_id in entity_text_to_id.items():
-                                    if object_text in text or text in object_text:
+                                for name, node_id in entity_name_to_id.items():
+                                    if object_text in name or name in object_text:
                                         object_id = node_id
                                         break
                             
@@ -1010,19 +1010,19 @@ class GraphCreationService:
             logger.debug(f"Merging document graph ({len(document_graph.nodes)} nodes, {len(document_graph.edges)} edges) into final graph ({len(final_graph.nodes)} nodes, {len(final_graph.edges)} edges)")
             
             # Create mapping from text to existing node IDs
-            existing_text_to_id = {node.text.lower(): node.id for node in final_graph.nodes}
+            existing_name_to_id = {node.name.lower(): node.id for node in final_graph.nodes}
             
             # Mapping from document node IDs to final graph node IDs
             node_id_mapping = {}
             
             # Add nodes to final graph, handling duplicates
             for doc_node in document_graph.nodes:
-                node_text_lower = doc_node.text.lower()
+                node_name_lower = doc_node.name.lower()
                 
                 # Check if this node text already exists in final graph
-                if node_text_lower in existing_text_to_id:
+                if node_name_lower in existing_name_to_id:
                     # Map this node to the existing one
-                    final_node_id = existing_text_to_id[node_text_lower]
+                    final_node_id = existing_name_to_id[node_name_lower]
                     node_id_mapping[doc_node.id] = final_node_id
                     
                     # Optionally merge metadata or update existing node
@@ -1030,7 +1030,7 @@ class GraphCreationService:
                 else:
                     # Add as new node to final graph
                     final_graph.nodes.append(doc_node)
-                    existing_text_to_id[node_text_lower] = doc_node.id
+                    existing_name_to_id[node_name_lower] = doc_node.id
                     node_id_mapping[doc_node.id] = doc_node.id  # Identity mapping
             
             # Add edges to final graph

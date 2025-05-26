@@ -26,7 +26,7 @@ You are a relationship and entity extraction expert managed by a supervisor agen
 
      * `"id"`: A **new unique ID** (UUID or similar format)
      * `"type"`: The entity type (e.g., PERSON, LOCATION)
-     * `"text"`: The exact text span from the source
+     * `"name"`: The exact text span from the source
      
    * Each `edge` must include:
 

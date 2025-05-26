@@ -3,8 +3,9 @@ from pydantic import BaseModel, Field
 import uuid
 
 class Entity(BaseModel):
-    text: str
+    name: str
     type: str
+    desc: Optional[str] = None
 
 class Relationship(BaseModel):
     subject: str
@@ -21,7 +22,7 @@ class GraphNode(BaseModel):
     """Represents a node in the knowledge graph."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     type: str
-    text: str
+    name: str
     metadata: Dict = Field(default_factory=dict)
 
 class GraphEdge(BaseModel):
