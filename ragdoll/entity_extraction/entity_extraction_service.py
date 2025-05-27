@@ -20,7 +20,7 @@ from langchain.text_splitter import (
     RecursiveCharacterTextSplitter,
 )
 from pydantic import BaseModel, Field
-from ragdoll.chunkers.chunker import Chunker  # Import the Chunker class
+from ragdoll.chunkers import get_text_splitter, split_documents  # Import chunker factory functions
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.llms import get_llm, call_llm
 from ragdoll.utils import json_parse
@@ -63,7 +63,7 @@ class GraphCreationService:
 
         self.config = merged_config
         self.llm = None  # Will be set in the extract method
-        self.chunker = Chunker(config=self.config)  # Create a Chunker instance
+        #self.chunker = Chunker(config=self.config)  # Create a Chunker instance
         logger.debug(config_manager.print_graph_creation_pipeline(merged_config))
 
         
@@ -97,12 +97,21 @@ class GraphCreationService:
         chunk_overlap = self.config.get("chunk_overlap", None)
         splitter_type = self.config.get("splitter_type", None)
         
-        return self.chunker.chunk_document(
-            document=document,
+        # Use the split_documents function from the factory model
+        from ragdoll.chunkers import split_documents
+        
+        # If strategy is "none", return the document unchanged
+        if strategy == "none":
+            return [document]
+        
+        # Otherwise, use the split_documents function
+        return split_documents(
+            documents=[document],
             strategy=strategy,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            splitter_type=splitter_type
+            splitter_type=splitter_type,
+            config=self.config  # Pass the current config
         )
 
     async def _resolve_coreferences(self, text: str, prompt_template: str = None) -> str:
