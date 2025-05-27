@@ -25,6 +25,7 @@ from ragdoll.config.config_manager import ConfigManager
 from ragdoll.llms import get_llm, call_llm
 from ragdoll.utils import json_parse
 from .models import Entity, Relationship, EntityList, RelationshipList, GraphNode, GraphEdge, Graph
+from .base import BaseEntityExtractor
 import json
 
 # Configure logging
@@ -38,7 +39,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 @dataclass
-class GraphCreationService:
+class GraphCreationService(BaseEntityExtractor):
     """
     Service for creating knowledge graphs from documents using a combination of
     spaCy NER and LLM-based entity and relationship extraction.
