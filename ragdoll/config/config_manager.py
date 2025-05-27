@@ -8,61 +8,17 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from ragdoll.config.base_config import IngestionConfig, LoadersConfig, EmbeddingsConfig, CacheConfig, MonitorConfig
+from ragdoll.config.base_config import (
+    IngestionConfig, 
+    LoadersConfig, 
+    EmbeddingsConfig, 
+    CacheConfig, 
+    MonitorConfig,
+    LLMPromptsConfig,
+    GraphDatabaseConfig,
+    EntityExtractionConfig
+)
 from ragdoll.prompts import get_prompt, list_prompts  # Import the prompt functions
-
-
-class LLMPromptsConfig(BaseModel):
-    """Configuration for LLM prompts"""
-    entity_extraction: str = Field(default="entity_extraction")
-    extract_relationships: str = Field(default="relationship_extraction")
-    coreference_resolution: str = Field(default="coreference_resolution")
-    entity_relationship_gleaning: str = Field(default="entity_relationship_continue")
-    entity_relationship_gleaning_continue: str = Field(default="entity_relationship_gleaning_continue")
-
-
-class GraphDatabaseConfig(BaseModel):
-    """Configuration for graph database output"""
-    output_file: str = Field(default="graph_output.json")
-    uri: str = Field(default="")
-    user: str = Field(default="")
-    password: str = Field(default="")
-
-
-class EntityExtractionConfig(BaseModel):
-    """Configuration for entity extraction and graph creation"""
-    enabled: bool = Field(default=True)
-    spacy_model: str = Field(default="en_core_web_sm")
-    chunking_strategy: str = Field(default="fixed")
-    chunk_size: int = Field(default=1000)
-    chunk_overlap: int = Field(default=50)
-    coreference_resolution_method: str = Field(default="llm")
-    entity_extraction_methods: List[str] = Field(default=["ner", "llm"])
-    relationship_extraction_method: str = Field(default="llm")
-    entity_types: List[str] = Field(default=["PERSON", "ORG", "GPE", "DATE", "LOC"])
-    relationship_types: List[str] = Field(default=["HAS_ROLE", "WORKS_FOR"])
-    relationship_type_mapping: Dict[str, str] = {
-        "works for": "WORKS_FOR",
-        "is a": "IS_A",
-        "is an": "IS_A",
-        "located in": "LOCATED_IN",
-        "located at": "LOCATED_IN",
-        "born in": "BORN_IN",
-        "lives in": "LOCATED_IN",
-        "married to": "SPOUSE_OF",
-        "spouse of": "SPOUSE_OF",
-        "parent of": "PARENT_OF",
-        "child of": "PARENT_OF",
-        "works with": "AFFILIATED_WITH"
-    }
-    gleaning_enabled: bool = Field(default=True)
-    max_gleaning_steps: int = Field(default=2)
-    entity_linking_enabled: bool = Field(default=True)
-    entity_linking_method: str = Field(default="string_similarity")
-    entity_linking_threshold: float = Field(default=0.8)
-    postprocessing_steps: List[str] = Field(default=["merge_similar_entities", "normalize_relations"])
-    output_format: str = Field(default="json")
-    graph_database_config: GraphDatabaseConfig = Field(default_factory=GraphDatabaseConfig)
 
 
 class ConfigManager:

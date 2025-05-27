@@ -44,17 +44,16 @@ ingestion:
         website: langchain_community.document_loaders.WebBaseLoader
 
 embeddings:
-  enabled: true  
-  default_client: openai
-  clients:  
-    openai:  
-      client: openai
-      model: "text-embedding-3-large"
-      dimensions: 1024
-    huggingface:      
-      model: "sentence-transformers/all-mpnet-base-v2"
-      client: huggingface
-      api_key: "your_default_api_key"
+  default_model: "text-embedding-ada-002"
+  models:
+    text-embedding-ada-002:
+      provider: "openai"
+      api_key: "#OPENAI_API_KEY"
+      model: "text-embedding-ada-002"
+      
+    all-mpnet-base-v2:
+      provider: "huggingface"
+      model_name: "sentence-transformers/all-mpnet-base-v2"
 
 entity_extraction:
   spacy_model: "en_core_web_sm"
@@ -220,3 +219,18 @@ llms:
         api_key: #GOOGLE_API_KEY
         temperature: 0.0
         max_tokens: 1024
+        
+vector_stores:
+  default_store: faiss
+  stores:
+    faiss:
+      # Default FAISS settings
+      distance_strategy: "cosine"
+    chroma:
+      # Default Chroma settings
+      collection_name: "ragdoll_documents"
+    pinecone:
+      # Default Pinecone settings
+      api_key: "os.environ/PINECONE_API_KEY"
+      environment: "os.environ/PINECONE_ENVIRONMENT"
+      index_name: "ragdoll-index"
