@@ -1,8 +1,8 @@
 add pdf extraction:
 [x] https://github.com/opendatalab/PDF-Extract-Kit - added from markitdown
-[ ] move chunking from entity to use standard chunking from config
-[ ] set default llm in entity extraction
-
+[X] move chunking from entity to use standard chunking from config
+[X] set default llm in entity extraction
+[X] make chunker a factory like others
 
 mermaid: 
 
