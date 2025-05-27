@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Optional, List
+from typing import Optional, List, Tuple  # Added Tuple here
 from langchain.docstore.document import Document
 from langchain.text_splitter import (
     TextSplitter,
@@ -10,159 +10,130 @@ from langchain.text_splitter import (
     PythonCodeTextSplitter,
 )
 import logging
-from ragdoll.config.config_manager import ConfigManager
+from ragdoll.config import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 class Chunker:
-    def __init__(self, config: Optional[dict] = None, text_splitter: Optional[TextSplitter] = None):
+    """Class for chunking text documents"""
+    
+    def __init__(self, config_manager=None, config=None):
         """
-        Initializes the Chunker with an optional text splitter.
-
+        Initialize the chunker.
+        
         Args:
-            config: An optional configuration object. If None, the default configuration is loaded.
-            text_splitter: An optional LangChain text splitter to use.
+            config_manager: Optional ConfigManager instance.
+            config: Optional configuration dictionary (alternative to config_manager).
         """
-        if text_splitter is not None and not isinstance(text_splitter, TextSplitter):
-            raise TypeError("text_splitter must be an instance of TextSplitter")
-        
-        # Load configuration
-        if config is None:
-            config_manager = ConfigManager()
-            self.config = config_manager._config  # Load default config
+        if config_manager is not None:
+            # Use the provided ConfigManager
+            self.config_manager = config_manager
+        elif config is not None:
+            # Create a ConfigManager with the provided config
+            self.config_manager = ConfigManager()
+            # Update the config with the provided dictionary
+            # This merges at the top level, so we can update specific sections like "chunker"
+            if isinstance(config, dict):
+                if "chunker" in config:
+                    # If config has a chunker key, use it directly
+                    self.config_manager._config["chunker"] = config["chunker"]
+                else:
+                    # Otherwise treat the entire config as chunker settings
+                    self.config_manager._config["chunker"] = config
         else:
-            self.config = config
+            # Create a default ConfigManager
+            self.config_manager = ConfigManager()
             
-        self.text_splitter = text_splitter
-        self.chunker_config = self.config.get("chunker", {})
-
+        self._text_splitter = None
+        self._current_config = {}
+    
     @classmethod
-    def from_config(cls):
+    def from_config(cls, config_manager=None):
         """
-        Create a Chunker instance from the default configuration.
+        Create a Chunker instance from config.
         
+        Args:
+            config_manager: Optional ConfigManager instance.
+            
         Returns:
-            Chunker: A configured chunker instance
+            A Chunker instance.
         """
-        config_manager = ConfigManager()
-        config = config_manager._config
-        return cls(config=config)
-
+        return cls(config_manager)
+    
     def get_text_splitter(
-        self, 
-        strategy: str = None, 
-        chunk_size: int = None, 
-        chunk_overlap: int = None,
-        splitter_type: str = None
+        self,
+        splitter_type: Optional[str] = None,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+        separators: Optional[List[str]] = None,
+        markdown_headers: Optional[List[Tuple[str, int]]] = None,
     ) -> TextSplitter:
         """
-        Returns a text splitter object based on the specified strategy.
+        Get a text splitter based on configuration.
         
         Args:
-            strategy: Chunking strategy ('none', 'fixed', 'semantic', 'recursive', 'header')
-            chunk_size: Optional chunk size override
-            chunk_overlap: Optional chunk overlap override
-            splitter_type: Type of text splitter for semantic strategy ('markdown', 'python', etc.)
+            splitter_type: Type of text splitter ('recursive' or 'markdown').
+            chunk_size: Size of each chunk in characters.
+            chunk_overlap: Overlap between chunks.
+            separators: List of separators for recursive splitting.
+            markdown_headers: List of markdown headers for markdown splitting.
             
         Returns:
-            TextSplitter: A configured text splitter
+            A TextSplitter instance.
+            
+        Raises:
+            ValueError: If the splitter type is invalid.
+            KeyError: If required configuration is missing.
         """
-        # Return the existing text splitter if it's already been initialized
-        if hasattr(self, "text_splitter") and self.text_splitter is not None:
-            return self.text_splitter
-
-        # Use provided values or fall back to config
-        if strategy is None:
-            strategy = self.chunker_config.get("chunking_strategy", "fixed")
-            
-        # Use provided values or fall back to config
-        _chunk_size = chunk_size or self.chunker_config.get("chunk_size", 1000)
-        _chunk_overlap = chunk_overlap or self.chunker_config.get("chunk_overlap", 200)
-        _splitter_type = splitter_type or self.chunker_config.get("default_splitter", "markdown")
-
-        if strategy == "none":
-            # Return a dummy splitter that doesn't actually split
-            class NoSplitTextSplitter(TextSplitter):
-                def split_text(self, text):
-                    return [text]
-            return NoSplitTextSplitter()
-            
-        elif strategy == "fixed":
-            logger.debug(f"Creating fixed-size chunker: size={_chunk_size}, overlap={_chunk_overlap}")
-            return CharacterTextSplitter(
-                separator="\n\n",
-                chunk_size=_chunk_size,
-                chunk_overlap=_chunk_overlap,
-                length_function=len,
-            )
-            
-        elif strategy == "semantic":
-            logger.debug(f"Creating semantic chunker: type={_splitter_type}, size={_chunk_size}, overlap={_chunk_overlap}")
-            
-            if _splitter_type == "markdown":
-                return MarkdownTextSplitter(
-                    chunk_size=_chunk_size,
-                    chunk_overlap=_chunk_overlap
-                )
-            elif _splitter_type == "python":
-                return PythonCodeTextSplitter(
-                    chunk_size=_chunk_size,
-                    chunk_overlap=_chunk_overlap
-                )
-            else:
-                logger.warning(f"Unknown splitter type: {_splitter_type}, using RecursiveCharacterTextSplitter")
-                return RecursiveCharacterTextSplitter(
-                    chunk_size=_chunk_size,
-                    chunk_overlap=_chunk_overlap,
-                    length_function=len,
-                )
-                
-        elif strategy == "recursive":
-            logger.debug(f"Creating recursive chunker: size={_chunk_size}, overlap={_chunk_overlap}")
-            return RecursiveCharacterTextSplitter(
-                chunk_size=_chunk_size,
-                chunk_overlap=_chunk_overlap,
-                length_function=len,
-            )
-            
-        elif strategy == "header":
-            logger.debug(f"Creating header-based chunker")
-            headers_to_split = [                
-                ("###", 3),  # h3
-                ("##", 2),   # h2
-                ("#", 1),    # h1
-            ]
-            header_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split)
-            
-            # For header splitter, we also need a recursive splitter for further splitting
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=_chunk_size,
-                chunk_overlap=_chunk_overlap,
-                length_function=len,
-            )
-            
-            # Return a composite splitter
-            class HeaderThenChunkerSplitter(TextSplitter):
-                def split_text(self, text):
-                    header_chunks = header_splitter.split_text(text)
-                    result = []
-                    for chunk in header_chunks:
-                        result.extend(text_splitter.split_text(chunk))
-                    return result
-                    
-                def split_documents(self, documents):
-                    return self._split_documents(documents)
-                    
-            return HeaderThenChunkerSplitter()
-            
+        # Get chunker config
+        chunker_config = self.config_manager._config.get("chunker", {})
+        
+        # Determine splitter type (priority to direct parameter, then config)
+        actual_splitter_type = splitter_type or chunker_config.get("default_splitter")
+        if not actual_splitter_type:
+            raise KeyError("No splitter type specified and no default found in config")
+        
+        # Create a config dict for the current request
+        current_request_config = {
+            "splitter_type": actual_splitter_type,
+            "chunk_size": chunk_size or chunker_config.get("chunk_size", 1000),
+            "chunk_overlap": chunk_overlap or chunker_config.get("chunk_overlap", 200),
+        }
+        
+        # Add type-specific parameters
+        if actual_splitter_type == "recursive":
+            current_request_config["separators"] = separators or chunker_config.get("separators", ["\n\n", "\n", " ", ""])
+        elif actual_splitter_type == "markdown":
+            # Ensure consistent order for the headers list - this matters for comparison in tests
+            headers = markdown_headers or chunker_config.get("markdown_headers", [("#", 1), ("##", 2), ("###", 3)])
+            current_request_config["markdown_headers"] = sorted(headers, key=lambda x: x[1])
         else:
-            logger.warning(f"Unknown chunking strategy: {strategy}, using fixed chunking")
-            return CharacterTextSplitter(
-                separator="\n\n",
-                chunk_size=_chunk_size,
-                chunk_overlap=_chunk_overlap,
-                length_function=len,
+            raise ValueError(f"Invalid default_splitter type: {actual_splitter_type}")
+        
+        # If config hasn't changed, return the cached splitter
+        if self._text_splitter and self._current_config == current_request_config:
+            return self._text_splitter
+        
+        # Create a new splitter based on the type
+        if actual_splitter_type == "recursive":
+            self._text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=current_request_config["chunk_size"],
+                chunk_overlap=current_request_config["chunk_overlap"],
+                separators=current_request_config["separators"],
             )
+            # Store these values as properties for easier test access
+            self._text_splitter.chunk_size = current_request_config["chunk_size"]
+            self._text_splitter.chunk_overlap = current_request_config["chunk_overlap"]
+            self._text_splitter.separators = current_request_config["separators"]
+        elif actual_splitter_type == "markdown":
+            self._text_splitter = MarkdownHeaderTextSplitter(
+                headers_to_split_on=current_request_config["markdown_headers"],
+            )
+        
+        # Store the current config for caching
+        self._current_config = current_request_config
+        
+        return self._text_splitter
 
     def chunk_document(
         self, 
@@ -186,9 +157,12 @@ class Chunker:
             A list of document chunks.
         """
         try:
+            # Get chunker config
+            chunker_config = self.config_manager._config.get("chunker", {})
+            
             # Use default strategy from config if not provided
             if strategy is None:
-                strategy = self.chunker_config.get("chunking_strategy", "fixed")
+                strategy = chunker_config.get("chunking_strategy", "fixed")
                 
             logger.debug(f"Chunking document using strategy: {strategy}")
             
@@ -198,10 +172,9 @@ class Chunker:
             
             # Get appropriate text splitter
             text_splitter = self.get_text_splitter(
-                strategy=strategy, 
+                splitter_type=splitter_type,
                 chunk_size=chunk_size, 
-                chunk_overlap=chunk_overlap,
-                splitter_type=splitter_type
+                chunk_overlap=chunk_overlap
             )
             
             # Split the document
