@@ -17,7 +17,7 @@ def content_extraction_service():
     logging.basicConfig(level=logging.DEBUG)
     """Create a content extraction service with mocked metrics manager."""
     service = ContentExtractionService(max_threads=2, batch_size=5)
-    logging.info(f"Loaders on ingestion service fixture: {list(service.loaders.keys())}")
+    logging.info(f"Loaders on content extraction fixture: {list(service.loaders.keys())}")
 
     # Mock the metrics manager methods to avoid errors
     if hasattr(service, 'metrics_manager') and service.metrics_manager is not None:
@@ -34,6 +34,18 @@ def clean_content_extraction_service():
     """Create a ContentExtractionService with no caching for clean testing and the correct config values."""
     service = ContentExtractionService(use_cache=False)
 
+    return service
+
+@pytest.fixture
+def ingestion_service():
+    """Create a content extraction service for ingestion tests without caching."""
+    service = ContentExtractionService(use_cache=False)
+    
+    # Mock the metrics manager methods to avoid errors
+    if hasattr(service, 'metrics_manager') and service.metrics_manager is not None:
+        service.metrics_manager.start_session = MagicMock(return_value={})
+        service.metrics_manager.end_session = MagicMock(return_value={})
+    
     return service
 # Test _build_sources method
 class TestBuildSources:
@@ -83,9 +95,9 @@ class TestBuildSources:
         assert all(s.is_file for s in sources)
         assert all(s.extension == ".txt" for s in sources)
 
-    def test_build_sources_arxiv(self, ingestion_service):
+    def test_build_sources_arxiv(self, clean_content_extraction_service):
         #Test arxiv
-        sources = ingestion_service._build_sources(
+        sources = clean_content_extraction_service._build_sources(
             ["https://arxiv.org/abs/1234.5678"]
         )
         
@@ -93,22 +105,22 @@ class TestBuildSources:
         assert not sources[0].is_file
         assert sources[0].identifier == "https://arxiv.org/abs/1234.5678"
     
-    def test_build_sources_website(self, ingestion_service):
+    def test_build_sources_website(self, clean_content_extraction_service):
         #Test website
-        sources = ingestion_service._build_sources(["https://example.com"])
+        sources = clean_content_extraction_service._build_sources(["https://example.com"])
         assert len(sources) == 1
         assert not sources[0].is_file
         assert sources[0].identifier == "https://example.com"
     
-    def test_build_sources_invalid(self, ingestion_service):
+    def test_build_sources_invalid(self, clean_content_extraction_service):
         #Test invalid source
-        sources = ingestion_service._build_sources(["nonexistent_file.txt"])
+        sources = clean_content_extraction_service._build_sources(["nonexistent_file.txt"])
         assert len(sources) == 0
 
     
 
-    def test_build_sources_https_pdf(self, ingestion_service):
-        sources = ingestion_service._build_sources(
+    def test_build_sources_https_pdf(self, clean_content_extraction_service):
+        sources = clean_content_extraction_service._build_sources(
             ["https://example.com/file.pdf"]
         )
         assert len(sources) == 1
@@ -160,7 +172,7 @@ class TestLoadSource:
         source = Source(is_file=False, identifier="1234.56789", extension="arxiv")
         
         # Test loading
-        docs = clean_ingestion_service._load_source(source)
+        docs = clean_content_extraction_service._load_source(source)
         assert docs == sample_documents
 
     def test_load_website(self, clean_content_extraction_service, sample_documents, monkeypatch):
@@ -185,25 +197,25 @@ class TestLoadSource:
         source = Source(is_file=False, identifier="https://example.com", extension="website")
         
         # Test loading
-        docs = clean_ingestion_service._load_source(source)
+        docs = clean_content_extraction_service._load_source(source)
         # Compare directly with the sample documents
         assert docs == sample_documents
 
-    def test_load_unsupported(self, ingestion_service):
+    def test_load_unsupported(self, clean_content_extraction_service):
         # Test that it raises a value error on load source
         # create a source with a file
         test_file = Path("test.unknown")
         test_file.touch()
         source = Source(is_file=True, identifier="test.unknown", extension=".unknown")
         with pytest.raises(ValueError, match=r"Unsupported source: ext=\.unknown"):            
-            ingestion_service.ingest_documents(["test.unknown"])
+            clean_content_extraction_service.ingest_documents(["test.unknown"])
 
 
 # Test ingest_documents method
 class TestIngestDocuments:
-    @patch.object(IngestionService, '_build_sources')
-    @patch.object(IngestionService, '_load_source')
-    def test_ingest_documents_success(self, mock_load_source, mock_build_sources, ingestion_service, sample_documents):
+    @patch.object(ContentExtractionService, '_build_sources')
+    @patch.object(ContentExtractionService, '_load_source')
+    def test_ingest_documents_success(self, mock_load_source, mock_build_sources, clean_content_extraction_service, sample_documents):
         # Setup mocks
         mock_build_sources.return_value = [
             Source(is_file=True, identifier="test1.txt", extension=".txt"),
@@ -212,24 +224,24 @@ class TestIngestDocuments:
         mock_load_source.return_value = sample_documents
         
         # Test ingestion
-        result = ingestion_service.ingest_documents(["test1.txt", "test2.txt"])
+        result = clean_content_extraction_service.ingest_documents(["test1.txt", "test2.txt"])
         assert len(result) == 2 * len(sample_documents)
         assert mock_load_source.call_count == 2
     
-    @patch.object(IngestionService, '_build_sources')
-    def test_ingest_documents_no_sources(self, mock_build_sources, ingestion_service):
+    @patch.object(ContentExtractionService, '_build_sources')
+    def test_ingest_documents_no_sources(self, mock_build_sources, clean_content_extraction_service):
         # Setup mock
         mock_build_sources.return_value = []
         
         # Test empty sources
         with pytest.raises(ValueError, match="No valid sources found"):
-            ingestion_service.ingest_documents(["nonexistent.txt"])
+            clean_content_extraction_service.ingest_documents(["nonexistent.txt"])
     
-    @patch.object(IngestionService, '_build_sources')
-    @patch.object(IngestionService, '_load_source')
+    @patch.object(ContentExtractionService, '_build_sources')
+    @patch.object(ContentExtractionService, '_load_source')
     def test_ingest_documents_batching(self, mock_load_source, mock_build_sources, sample_documents):
         # Create service with small batch size
-        service = IngestionService(batch_size=2, max_threads=1)
+        service = ContentExtractionService(batch_size=2, max_threads=1)
         
         # Mock metrics manager methods for this service instance too
         if hasattr(service, 'metrics_manager') and service.metrics_manager is not None:
