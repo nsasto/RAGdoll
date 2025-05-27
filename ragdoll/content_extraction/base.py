@@ -1,7 +1,7 @@
 import abc
 from typing import List, Dict, Any
 
-class BaseIngestionService(abc.ABC):
+class BaseContentExtractionService(abc.ABC):
     @abc.abstractmethod
     def ingest_documents(self, sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

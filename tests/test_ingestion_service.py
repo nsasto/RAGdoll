@@ -4,7 +4,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from langchain_community.document_loaders import TextLoader, WebBaseLoader
 from pathlib import Path
-from ragdoll.ingestion.ingestion_service import IngestionService, Source
+from ragdoll.ingestion.content_extraction import ContentExtractionService, Source
 
 # Get the directory of the current test file
 TEST_DIR = Path(__file__).parent
@@ -12,11 +12,11 @@ TEST_DATA_DIR = TEST_DIR / "test_data"
 
 # Fixtures
 @pytest.fixture
-def ingestion_service():
-    """Create an ingestion service with mocked metrics manager."""
+def content_extraction_service():
+    """Create a content extraction service with mocked metrics manager."""
     logging.basicConfig(level=logging.DEBUG)
-    """Create an ingestion service with mocked metrics manager."""
-    service = IngestionService(max_threads=2, batch_size=5)
+    """Create a content extraction service with mocked metrics manager."""
+    service = ContentExtractionService(max_threads=2, batch_size=5)
     logging.info(f"Loaders on ingestion service fixture: {list(service.loaders.keys())}")
 
     # Mock the metrics manager methods to avoid errors
@@ -30,14 +30,14 @@ def sample_documents():
     return [{"page_content": "Test content", "metadata": {"source": "test"}}]
 
 @pytest.fixture
-def clean_ingestion_service():
-    """Create an IngestionService with no caching for clean testing and the correct config values."""
-    service = IngestionService(use_cache=False)
+def clean_content_extraction_service():
+    """Create a ContentExtractionService with no caching for clean testing and the correct config values."""
+    service = ContentExtractionService(use_cache=False)
 
     return service
 # Test _build_sources method
 class TestBuildSources:
-    def test_build_sources_file(self, ingestion_service, tmp_path):
+    def test_build_sources_file(self, content_extraction_service, tmp_path):
         """Test building sources from a file."""
         
         # Create a temporary test file
@@ -45,14 +45,14 @@ class TestBuildSources:
         test_file.write_text("Test content")
         
         # Test file path input
-        sources = ingestion_service._build_sources([str(test_file.absolute())])
+        sources = content_extraction_service._build_sources([str(test_file.absolute())])
         
         assert len(sources) == 1
         assert sources[0].is_file
         assert sources[0].extension == ".txt"
         assert str(test_file.absolute()) == sources[0].identifier
 
-    def test_build_sources_glob(self, ingestion_service, tmp_path, monkeypatch):
+    def test_build_sources_glob(self, content_extraction_service, tmp_path, monkeypatch):
         """Test building sources from a glob pattern."""
         
         # Create multiple test files
@@ -73,11 +73,11 @@ class TestBuildSources:
             return []
         
         # Apply the mock
-        monkeypatch.setattr(IngestionService, '_parse_file_sources', mock_parse_file_sources)
+        monkeypatch.setattr(ContentExtractionService, '_parse_file_sources', mock_parse_file_sources)
         
         # Test with the glob pattern
         glob_pattern = str(tmp_path / "*.txt")
-        sources = ingestion_service._build_sources([glob_pattern])
+        sources = content_extraction_service._build_sources([glob_pattern])
         
         assert len(sources) == 3
         assert all(s.is_file for s in sources)
@@ -105,7 +105,7 @@ class TestBuildSources:
         sources = ingestion_service._build_sources(["nonexistent_file.txt"])
         assert len(sources) == 0
 
-
+    
 
     def test_build_sources_https_pdf(self, ingestion_service):
         sources = ingestion_service._build_sources(
@@ -118,7 +118,7 @@ class TestBuildSources:
 
 # Test _load_source method
 class TestLoadSource:
-    def test_load_text_file(self, ingestion_service, sample_documents, monkeypatch):
+    def test_load_text_file(self, clean_content_extraction_service, sample_documents, monkeypatch):
         """Test loading a text file source."""
         # Create a mock loader class and instance
         mock_loader_instance = MagicMock()
@@ -134,20 +134,20 @@ class TestLoadSource:
         monkeypatch.setattr("inspect.signature", mock_signature)
         
         # Directly set the mock in the loaders dictionary
-        ingestion_service.loaders = {".txt": mock_loader_class}
+        clean_content_extraction_service.loaders = {".txt": mock_loader_class}
         
         # Create a source
         source = Source(is_file=True, identifier="test.txt", extension=".txt")
         
         # Test loading
-        docs = ingestion_service._load_source(source)
+        docs = clean_content_extraction_service._load_source(source)
         assert docs == sample_documents
         mock_loader_class.assert_called_once_with(file_path="test.txt")
 
-    def test_load_arxiv(self, clean_ingestion_service, sample_documents, monkeypatch):
+    def test_load_arxiv(self, clean_content_extraction_service, sample_documents, monkeypatch):
         # Mock the _is_arxiv_url method to return True for our test source
-        monkeypatch.setattr(clean_ingestion_service, "_is_arxiv_url", lambda url: "1234.56789" in url)
-        
+        monkeypatch.setattr(clean_content_extraction_service, "_is_arxiv_url", lambda url: "1234.56789" in url)
+
         # Mock a loader for arxiv extension
         mock_loader_instance = MagicMock()
         mock_loader_instance.load.return_value = sample_documents
@@ -155,7 +155,7 @@ class TestLoadSource:
         
         # Set up the loader in the service
         clean_ingestion_service.loaders = {"arxiv": mock_loader_class}
-        
+
         # Create a source with the correct extension
         source = Source(is_file=False, identifier="1234.56789", extension="arxiv")
         
@@ -163,7 +163,7 @@ class TestLoadSource:
         docs = clean_ingestion_service._load_source(source)
         assert docs == sample_documents
 
-    def test_load_website(self, clean_ingestion_service, sample_documents, monkeypatch):
+    def test_load_website(self, clean_content_extraction_service, sample_documents, monkeypatch):
         """Test loading a website source."""
         # Create mock loader class and instance
         mock_loader_instance = MagicMock()
