@@ -30,3 +30,4 @@ networkx
 matplotlib
 py2neo
 faiss-cpu
+chromadb
