@@ -4,7 +4,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from langchain_community.document_loaders import TextLoader, WebBaseLoader
 from pathlib import Path
-from ragdoll.ingestion.content_extraction import ContentExtractionService, Source
+from ragdoll.content_extraction import ContentExtractionService, Source
 
 # Get the directory of the current test file
 TEST_DIR = Path(__file__).parent
@@ -154,7 +154,7 @@ class TestLoadSource:
         mock_loader_class = MagicMock(return_value=mock_loader_instance)
         
         # Set up the loader in the service
-        clean_ingestion_service.loaders = {"arxiv": mock_loader_class}
+        clean_content_extraction_service.loaders = {"arxiv": mock_loader_class}
 
         # Create a source with the correct extension
         source = Source(is_file=False, identifier="1234.56789", extension="arxiv")
@@ -179,7 +179,7 @@ class TestLoadSource:
         monkeypatch.setattr("inspect.signature", mock_signature)
         
         # Set up the loader in the service
-        clean_ingestion_service.loaders = {"website": mock_loader_class}
+        clean_content_extraction_service.loaders = {"website": mock_loader_class}
         
         # Create a source with website extension
         source = Source(is_file=False, identifier="https://example.com", extension="website")

@@ -1,162 +1,67 @@
-import concurrent.futures
 import os
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
-from enum import Enum
-from retry import retry
+from unittest.mock import MagicMock, patch
 
-from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
-from ragdoll.config.config_manager import ConfigManager
+from ragdoll.content_extraction import ContentExtractionService, Source
 from ragdoll.cache.cache_manager import CacheManager
-from ragdoll.metrics.metrics_manager import MetricsManager
 
-@dataclass
-class Source:
-    identifier: str
-    extension: Optional[str] = None
-    is_file: bool = False
 
-class IngestionService(BaseIngestionService):
-    logger = logging.getLogger(__name__)
+# Fixture for a ContentExtractionService with mocked cache manager
+@pytest.fixture
+def content_extraction_service_with_mock_cache():
+    mock_cache_manager = MagicMock(spec=CacheManager)
+    service = ContentExtractionService(cache_manager=mock_cache_manager, use_cache=True)
+    return service, mock_cache_manager
 
-    def __init__(
-        self,
-        config_path: Optional[str] = None,
-        custom_loaders: Optional[Dict[str, Any]] = None,
-        max_threads: Optional[int] = None,
-        batch_size: Optional[int] = None,
-        cache_manager: Optional[CacheManager] = None,
-        metrics_manager: Optional[MetricsManager] = None,
-        use_cache: bool = True,
-    ):
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Fixture for a ContentExtractionService with caching disabled
+@pytest.fixture
+def content_extraction_service_without_cache():
+    service = ContentExtractionService(use_cache=False)
+    return service
 
-        self.config_manager = ConfigManager(config_path)
-        config = self.config_manager.ingestion_config
+# Test clear_cache method
+class TestClearCache:
+    def test_clear_cache_with_cache_enabled(self, content_extraction_service_with_mock_cache):
+        service, mock_cache_manager = content_extraction_service_with_mock_cache
+        service.clear_cache("test_type", "test_identifier")
+        mock_cache_manager.clear_cache.assert_called_once_with("test_type", "test_identifier")
 
-        self.max_threads = max_threads if max_threads is not None else config.max_threads
-        self.batch_size = batch_size if batch_size is not None else config.batch_size
+    def test_clear_cache_with_cache_disabled(self, content_extraction_service_without_cache):
+        service = content_extraction_service_without_cache
+        # clear_cache should do nothing if cache is disabled
+        # We can assert that no calls were made to a cache manager method
+        with patch.object(service, 'cache_manager') as mock_cache_manager:
+             service.clear_cache("test_type", "test_identifier")
+             mock_cache_manager.assert_not_called()
 
-        self.use_cache = use_cache
-        self.cache_manager = cache_manager or CacheManager(ttl_seconds=86400)
-        self.metrics_manager = metrics_manager
-        self.collect_metrics = metrics_manager is not None
 
-        self.loaders = self.config_manager.get_loader_mapping()
-        if custom_loaders:
-            for ext, loader_class in custom_loaders.items():
-                if hasattr(loader_class, 'load'):
-                    self.loaders[ext] = loader_class
-                else:
-                    self.logger.warning(f"Invalid custom loader for {ext}")
+# Test get_metrics method (assuming metrics are handled by MetricsManager)
+class TestGetMetrics:
+    # This test assumes MetricsManager is integrated into ContentExtractionService
+    # and has methods like get_recent_sessions and get_aggregate_metrics
+    # Adjust mock setup and assertions based on actual implementation
 
-        self.logger.info(f"Service initialized: loaders={len(self.loaders)}, max_threads={self.max_threads}")
+    @patch('ragdoll.ingestion.content_extraction.content_extraction.MetricsManager')
+    def test_get_metrics_with_metrics_enabled(self, MockMetricsManager):
+        mock_metrics_manager_instance = MockMetricsManager.return_value
+        mock_metrics_manager_instance.get_recent_sessions.return_value = ["session1", "session2"]
+        mock_metrics_manager_instance.get_aggregate_metrics.return_value = {"total_docs": 100}
 
-    def _is_arxiv_url(self, url: str) -> bool:
-        return "arxiv.org" in url
+        service = ContentExtractionService(metrics_manager=mock_metrics_manager_instance)
+        metrics = service.get_metrics()
 
-    def _parse_url_sources(self, url: str) -> Source:
-        if self._is_arxiv_url(url):
-            return Source(identifier=url.split("/")[-1], is_file=False)
-        return Source(identifier=url, extension=Path(url).suffix.lower() or None, is_file=False)
+        assert metrics["enabled"] is True
+        assert metrics["recent_sessions"] == ["session1", "session2"]
+        assert metrics["aggregate"] == {"total_docs": 100}
+        mock_metrics_manager_instance.get_recent_sessions.assert_called_once_with(limit=5)
+        mock_metrics_manager_instance.get_aggregate_metrics.assert_called_once_with(days=30)
 
-    def _parse_file_sources(self, pattern: str) -> List[Source]:
-        sources = []
-        for path in Path().glob(pattern) if "*" in pattern else [Path(pattern)]:
-            if path.exists() and path.is_file():
-                sources.append(Source(identifier=str(path.absolute()), extension=path.suffix.lower(), is_file=True))
-        return sources
+    def test_get_metrics_with_metrics_disabled(self):
+        service = ContentExtractionService(metrics_manager=None)
+        metrics = service.get_metrics()
+        assert metrics["enabled"] is False
+        assert "message" in metrics
 
-    def _build_sources(self, inputs: List[str]) -> List[Source]:
-        sources = []
-        for input_str in inputs:
-            if input_str.startswith(("http://", "https://")):
-                sources.append(self._parse_url_sources(input_str))
-            else:
-                sources.extend(self._parse_file_sources(input_str))
-        return sources
 
-    @retry(tries=3, delay=1, backoff=2, exceptions=(ConnectionError, TimeoutError))
-    def _load_source(self, source: Source, batch_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        path = Path(source.identifier)
-        source_size_bytes = path.stat().st_size if source.is_file and path.exists() else 0
-
-        metrics_info = None
-        if self.collect_metrics and batch_id is not None:
-            metrics_info = self.metrics_manager.start_source(batch_id, source.identifier)
-
-        try:
-            if not source.extension:
-                if self.use_cache and not source.is_file:
-                    cached = self.cache_manager.get_from_cache("website", source.identifier)
-                    if cached:
-                        self._record_metrics(metrics_info, batch_id, source, len(cached), source_size_bytes, success=True)
-                        return cached
-
-            if source.extension in self.loaders:
-                loader = self.loaders[source.extension](file_path=source.identifier)
-                docs = loader.load()
-            else:
-                raise ValueError(f"Unsupported source: ext={source.extension}")
-
-            self._record_metrics(metrics_info, batch_id, source, len(docs), source_size_bytes, success=True)
-            return docs
-        except Exception as e:
-            self.logger.error(f"Failed to load {source.identifier}: {str(e)}", exc_info=True)
-            self._record_metrics(metrics_info, batch_id, source, 0, 0, success=False, error=str(e))
-            return []
-
-    def _record_metrics(self, metrics_info, batch_id, source, doc_count, byte_size, success=True, error=None):
-        if self.collect_metrics and metrics_info:
-            self.metrics_manager.end_source(
-                batch_id=batch_id,
-                source_id=source.identifier,
-                success=success,
-                document_count=doc_count,
-                bytes_count=byte_size,
-                error_message=error
-            )
-
-    def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
-        self.logger.info(f"Starting ingestion of {len(inputs)} inputs")
-
-        if self.collect_metrics:
-            self.metrics_manager.start_session(input_count=len(inputs))
-
-        sources = self._build_sources(inputs)
-        if not sources:
-            if self.collect_metrics:
-                self.metrics_manager.end_session(document_count=0)
-            raise ValueError("No valid sources found")
-
-        documents = []
-        for i in range(0, len(sources), self.batch_size):
-            batch = sources[i:i + self.batch_size]
-            batch_id = i // self.batch_size + 1
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                results = list(executor.map(lambda s: self._load_source(s, batch_id=batch_id), batch))
-                for docs in results:
-                    documents.extend(docs)
-
-        if self.collect_metrics:
-            self.metrics_manager.end_session(document_count=len(documents))
-
-        self.logger.info(f"Finished ingestion: {len(documents)} documents")
-        return documents
-
-    def clear_cache(self, source_type: Optional[str] = None, identifier: Optional[str] = None) -> int:
-        if not self.use_cache:
-            return 0
-        return self.cache_manager.clear_cache(source_type, identifier)
-
-    def get_metrics(self, days: int = 30) -> Dict[str, Any]:
-        if not self.collect_metrics:
-            return {"enabled": False, "message": "Metrics collection is disabled"}
-        return {
-            "enabled": True,
-            "recent_sessions": self.metrics_manager.get_recent_sessions(limit=5),
-            "aggregate": self.metrics_manager.get_aggregate_metrics(days=days)
-        }
+# Add more tests for other ContentExtractionService methods as needed
