@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from retry import retry
 
-from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
+from ragdoll.content_extraction.base import BaseContentExtractionService
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.cache.cache_manager import CacheManager
 from ragdoll.metrics.metrics_manager import MetricsManager
@@ -19,7 +19,7 @@ class Source:
     extension: Optional[str] = None
     is_file: bool = False
 
-class IngestionService(BaseIngestionService):
+class ContentExtractionService(BaseContentExtractionService):
     logger = logging.getLogger(__name__)
 
     def __init__(
