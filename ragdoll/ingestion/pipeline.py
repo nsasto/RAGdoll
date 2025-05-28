@@ -33,6 +33,7 @@ class IngestionOptions:
     vector_store_options: Dict[str, Any] = None
     graph_store_options: Dict[str, Any] = None
     entity_extraction_options: Dict[str, Any] = None
+    llm: Any = None  # Add LLM parameter to options
 
 class IngestionPipeline:
     """
@@ -80,9 +81,18 @@ class IngestionPipeline:
         
         # Initialize entity extractor if needed
         if self.options.extract_entities:
+            extraction_options = self.options.entity_extraction_options or {}
+            # Pass LLM if provided in options
+            if hasattr(self.options, 'llm') and self.options.llm is not None:
+                extraction_options['llm'] = self.options.llm
+            
+            # Instead of passing to extract method, set it in the config
+            extraction_options['config'] = extraction_options.get('config', {})
+            extraction_options['config']['chunking_strategy'] = "none"
+            
             self.entity_extractor = entity_extractor or get_entity_extractor(
                 config_manager=self.config_manager,
-                **(self.options.entity_extraction_options or {})
+                **extraction_options
             )
         else:
             self.entity_extractor = None
@@ -174,22 +184,103 @@ class IngestionPipeline:
         """Extract documents from various sources."""
         # If sources are already Document objects, return them directly
         if all(isinstance(source, Document) for source in sources):
+            logger.info(f"Sources are already Document objects, returning directly")
             return sources
-            
+        
         # Otherwise extract documents using content extraction service
         try:
-            return self.content_extraction_service.ingest_documents([str(s) for s in sources])
+            # This will be a list of document lists
+            nested_documents = self.content_extraction_service.ingest_documents([str(s) for s in sources])
+            
+            # Flatten the list while preserving source information
+            flattened_documents = []
+            for doc_list in nested_documents:
+                if isinstance(doc_list, list):
+                    flattened_documents.extend(doc_list)
+                else:
+                    # Sometimes might get a single document instead of a list
+                    flattened_documents.append(doc_list)
+                
+            logger.info(f"Content extraction returned {len(flattened_documents)} documents from {len(nested_documents)} sources")
+        
+            # Validate all documents
+            valid_documents = []
+            for i, doc in enumerate(flattened_documents):
+                if not isinstance(doc, Document):
+                    logger.error(f"Extraction returned non-Document at index {i}: {type(doc)}")
+                    continue
+                
+                if not isinstance(doc.page_content, str):
+                    logger.error(f"Document at index {i} has non-string content: {type(doc.page_content)}")
+                    # Try to fix if it's a nested Document
+                    if isinstance(doc.page_content, Document):
+                        nested_doc = doc.page_content
+                        logger.warning(f"Fixing nested Document detected at index {i}")
+                        # Create new document with nested content and combined metadata
+                        combined_metadata = {**doc.metadata, **nested_doc.metadata}
+                        valid_documents.append(Document(
+                            page_content=nested_doc.page_content,
+                            metadata=combined_metadata
+                        ))
+                    continue
+                
+                valid_documents.append(doc)
+            
+            return valid_documents
         except Exception as e:
-            logger.error(f"Error extracting documents: {str(e)}")
+            logger.error(f"Error extracting documents: {str(e)}", exc_info=True)
             self.stats["errors"].append(f"Document extraction error: {str(e)}")
             return []
     
     def _chunk_documents(self, documents: List[Document]) -> List[Document]:
         """Split documents into chunks."""
+        if not documents:
+            return []
+        
+        # Fix any nested Document objects before chunking
+        fixed_documents = []
+        for i, doc in enumerate(documents):
+            try:
+                if not isinstance(doc, Document):
+                    logger.error(f"Non-Document object found at position {i}: {type(doc)}")
+                    continue
+                    
+                if not isinstance(doc.page_content, str):
+                    logger.error(f"Document at position {i} has non-string page_content: {type(doc.page_content)}")
+                    # Fix nested Document
+                    if isinstance(doc.page_content, Document):
+                        nested_doc = doc.page_content
+                        logger.warning(f"Fixing nested Document detected at position {i}")
+                        # Create new document with nested content and combined metadata
+                        combined_metadata = {**doc.metadata, **nested_doc.metadata}
+                        fixed_documents.append(Document(
+                            page_content=nested_doc.page_content,
+                            metadata=combined_metadata
+                        ))
+                    continue
+                
+                # If we got here, document seems OK
+                fixed_documents.append(doc)
+            except Exception as e:
+                logger.error(f"Error examining document at position {i}: {e}")
+        
+        # If we fixed any documents, log it
+        if len(fixed_documents) != len(documents):
+            logger.info(f"Fixed {len(documents) - len(fixed_documents)} problematic documents, proceeding with {len(fixed_documents)}")
+        
         try:
-            return split_documents(documents, text_splitter=self.text_splitter)
+            # Check what text_splitter we're using
+            logger.info(f"Using text splitter: {self.text_splitter.__class__.__name__}")
+            
+            # Use your chunkers factory split_documents function with fixed documents
+            chunked_docs = split_documents(
+                fixed_documents,
+                text_splitter=self.text_splitter,
+                **(self.options.chunking_options or {})
+            )
+            return chunked_docs
         except Exception as e:
-            logger.error(f"Error chunking documents: {str(e)}")
+            logger.error(f"Error chunking documents: {str(e)}", exc_info=True)
             self.stats["errors"].append(f"Document chunking error: {str(e)}")
             return []
     
@@ -207,6 +298,7 @@ class IngestionPipeline:
     
     async def _process_chunk_batch(self, batch: List[Document]) -> None:
         """Process a single batch of chunks."""
+        print(f"Processing batch of {len(batch)} chunks:\n{batch}\n")
         # Step 1: Add to vector store if enabled
         if self.vector_store and not self.options.skip_vector_store:
             try:
@@ -220,8 +312,16 @@ class IngestionPipeline:
         # Step 2: Extract entities and update graph store if enabled
         if self.entity_extractor and not self.options.skip_graph_store:
             try:
-                # Extract entities and relationships
-                graph = await self.entity_extractor.extract(batch)
+                # Use the LLM from options if available
+                llm_to_use = self.options.llm if hasattr(self.options, 'llm') and self.options.llm is not None else None
+                
+                # Extract entities and relationships - pass the actual batch of documents
+                # The issue was here - you were passing the batch name instead of the batch itself
+                graph = await self.entity_extractor.extract(
+                    documents=batch,  # Explicitly name the parameter to be clear
+                    llm=llm_to_use,
+                    #chunking_strategy="none"  # Explicitly prevent double chunking
+                )
                 
                 # Update stats
                 self.stats["entities_extracted"] += len(graph.nodes)
@@ -234,7 +334,7 @@ class IngestionPipeline:
                     self.stats["graph_entries_added"] += len(graph.nodes) + len(graph.edges)
                     logger.info(f"Added graph data to graph store")
             except Exception as e:
-                logger.error(f"Error in entity extraction or graph storage: {str(e)}")
+                logger.error(f"Error in entity extraction or graph storage: {str(e)}", exc_info=True)
                 self.stats["errors"].append(f"Entity extraction error: {str(e)}")
 
 # Simple function to create and use an ingestion pipeline

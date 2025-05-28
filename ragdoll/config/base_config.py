@@ -17,6 +17,8 @@ class ChunkerConfig(BaseConfig):
     chunk_size: int = Field(default=1000, description="Size of each chunk in characters")
     chunk_overlap: int = Field(default=200, description="Overlap between chunks")
     separator: str = Field(default="\n\n", description="Separator to use when splitting text")
+    default_splitter: str = Field(default="recursive", description="Default splitting strategy to use")
+    chunking_strategy: str = Field(default="markdown", description="Chunking strategy - 'none', 'recursive', 'character', 'markdown', 'code', or 'token'")
 
 class ClientConfig(BaseConfig):
     """Configuration for a specific embedding client."""
@@ -137,6 +139,7 @@ class EntityExtractionConfig(BaseModel):
     chunk_overlap: int = Field(default=50)
     coreference_resolution_method: str = Field(default="llm")
     entity_extraction_methods: List[str] = Field(default=["ner", "llm"])
+    llm: str = Field(default=None, description="Name of the language model to use")
     relationship_extraction_method: str = Field(default="llm")
     entity_types: List[str] = Field(default=["PERSON", "ORG", "GPE", "DATE", "LOC"])
     relationship_types: List[str] = Field(default=["HAS_ROLE", "WORKS_FOR"])
