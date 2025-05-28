@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from retry import retry
 
-from ragdoll.content_extraction.base import BaseContentExtractionService
+from ragdoll.ingestion.base import BaseContentExtractionService
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.cache.cache_manager import CacheManager
 from ragdoll.metrics.metrics_manager import MetricsManager
