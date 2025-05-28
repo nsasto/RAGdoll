@@ -7,10 +7,10 @@ monitor:
   collect_metrics: true
 
 chunker:
-  default_splitter: markdown
+  default_splitter: recursive
   chunk_size: 1000
   chunk_overlap: 200
-  chunking_strategy: "fixed"  # Options: none, fixed, semantic, recursive, header
+  chunking_strategy: "markdown"  # Options: 'none', 'recursive', 'character', 'markdown', 'code', 'token'
   enabled: true
 
 ingestion:
