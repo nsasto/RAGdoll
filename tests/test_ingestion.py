@@ -4,7 +4,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from langchain_community.document_loaders import TextLoader, WebBaseLoader
 from pathlib import Path
-from ragdoll.content_extraction import ContentExtractionService, Source
+from ragdoll.ingestion import ContentExtractionService, Source
 
 # Get the directory of the current test file
 TEST_DIR = Path(__file__).parent
