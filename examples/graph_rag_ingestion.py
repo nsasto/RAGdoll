@@ -9,10 +9,19 @@ sys.path.append(str(Path(__file__).parent.parent))
 from ragdoll.ingestion.pipeline import ingest_documents, IngestionOptions
 
 async def main():
+    # Get the absolute path to the test file
+    test_data_dir = Path(__file__).parent.parent / "tests" / "test_data"
+    docx_file = test_data_dir / "test_docx.docx"
+    
+    # Verify the file exists
+    if not docx_file.exists():
+        print(f"Error: File not found at {docx_file}")
+        return
+        
     # Sources can be file paths, URLs, or other identifiers
-    sources = [
-        "../test/test_data/test_docx.docx",
-    ]
+    sources = [str(docx_file)]
+    
+    print(f"Processing file: {sources[0]}")
     
     # Configure options for the ingestion process
     options = IngestionOptions(
