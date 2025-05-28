@@ -31,7 +31,7 @@ import json
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="[%(module)s][%(levelname)s] %(asctime)s %(message)s",
+    format="[%(name)s][%(levelname)s] %(asctime)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S", 
     handlers=[logging.StreamHandler()]
 )
