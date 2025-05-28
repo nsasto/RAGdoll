@@ -79,8 +79,7 @@ class IngestionConfig(BaseConfig):
     retry_attempts: int = Field(default=3, description="Number of retry attempts for failed ingestion")
     retry_delay: int = Field(default=1, description="Delay between retries in seconds")
     retry_backoff: int = Field(default=2, description="Backoff multiplier for retries")
-    loaders: LoadersConfig = Field(default_factory=LoadersConfig, 
-                                               description="Loaders configuration")
+    loaders: LoadersConfig = Field(default_factory=LoadersConfig, description="Loaders configuration")
     
 
 class LLMPromptsConfig(BaseModel):
