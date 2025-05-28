@@ -25,19 +25,19 @@ ingestion:
         .jsonl: langchain_community.document_loaders.JSONLoader
         .yaml: langchain_community.document_loaders.JSONLoader
         .csv: langchain_community.document_loaders.CSVLoader
-        .epub: langchain_markitdown.loaders.EpubLoader
-        .xlsx: langchain_markitdown.loaders.XlsxLoader
-        .html: langchain_markitdown.loaders.HtmlLoader
-        .bmp: langchain_markitdown.loaders.ImageLoader
-        .jpeg: langchain_markitdown.loaders.ImageLoader
-        .jpg: langchain_markitdown.loaders.ImageLoader
-        .png: langchain_markitdown.loaders.ImageLoader
-        .tiff: langchain_markitdown.loaders.ImageLoader
+        .epub: langchain_markitdown.EpubLoader
+        .xlsx: langchain_markitdown.XlsxLoader
+        .html: langchain_markitdown.HtmlLoader
+        .bmp: langchain_markitdown.ImageLoader
+        .jpeg: langchain_markitdown.ImageLoader
+        .jpg: langchain_markitdown.ImageLoader
+        .png: langchain_markitdown.ImageLoader
+        .tiff: langchain_markitdown.ImageLoader
         .md: langchain_community.document_loaders.TextLoader
         .pdf: langchain_community.document_loaders.PyMuPDFLoader
-        .pptx: langchain_markitdown.loaders.PptxLoader
-        .docx: langchain_markitdown.loaders.DocxLoader
-        .xml: langchain_markitdown.loaders.RssLoader
+        .pptx: langchain_markitdown.PptxLoader
+        .docx: langchain_markitdown.DocxLoader
+        .xml: langchain_markitdown.RssLoader
         .txt: langchain_community.document_loaders.TextLoader
         .rtf: langchain_community.document_loaders.RtfLoader
         arxiv: langchain_community.retrievers.ArxivRetriever
