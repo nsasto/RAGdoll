@@ -66,9 +66,15 @@ def get_text_splitter(
                 chunker_config = config
     
     # Determine splitter type (priority: parameter > config > default)
-    actual_splitter_type = splitter_type or chunker_config.get("splitter_type")
+    # First check explicit splitter_type, then chunking_strategy (if it's a valid splitter type),
+    # then default_splitter, and finally fall back to "recursive"
+    actual_splitter_type = splitter_type
     if not actual_splitter_type:
-        actual_splitter_type = chunker_config.get("default_splitter", "recursive")
+        chunking_strategy = chunker_config.get("chunking_strategy")
+        if chunking_strategy in ["recursive", "character", "markdown", "code", "token"]:
+            actual_splitter_type = chunking_strategy
+        else:
+            actual_splitter_type = chunker_config.get("default_splitter", "recursive")
     
     # Get chunk parameters with appropriate defaults
     actual_chunk_size = chunk_size or chunker_config.get("chunk_size", 1000)
@@ -123,20 +129,14 @@ def get_text_splitter(
         return splitter
         
     elif actual_splitter_type == "markdown":
-        # Create or get markdown headers
-        headers = markdown_headers or chunker_config.get("markdown_headers", [
-            ("#", 1), ("##", 2), ("###", 3), ("####", 4)
-        ])
-        # Sort headers by level for consistency
-        sorted_headers = sorted(headers, key=lambda x: x[1])
-        cache_key_parts.append(f"headers={len(sorted_headers)}")
-        
         cache_key = ":".join(cache_key_parts)
         if cache_key in _splitter_cache:
             return _splitter_cache[cache_key]
             
-        splitter = MarkdownHeaderTextSplitter(
-            headers_to_split_on=sorted_headers,
+        # Use MarkdownTextSplitter instead of MarkdownHeaderTextSplitter
+        splitter = MarkdownTextSplitter(
+            chunk_size=actual_chunk_size,
+            chunk_overlap=actual_chunk_overlap,
             **kwargs
         )
         _splitter_cache[cache_key] = splitter
@@ -234,6 +234,7 @@ def split_documents(
     config_manager = None,
     config: Dict[str, Any] = None,
     strategy: str = None,
+    text_splitter = None,
     **kwargs
 ) -> List[Document]:
     """
@@ -247,6 +248,7 @@ def split_documents(
         config_manager: Optional ConfigManager instance
         config: Optional configuration dictionary
         strategy: Optional chunking strategy. If 'none', returns documents unchanged
+        text_splitter: Optional pre-initialized text splitter to use directly
         **kwargs: Additional arguments for the text splitter
         
     Returns:
@@ -255,6 +257,36 @@ def split_documents(
     if not documents:
         return []
     
+    # First, fix any nested Document objects
+    valid_documents = []
+    for i, doc in enumerate(documents):
+        if not isinstance(doc, Document):
+            logger.error(f"Non-Document object found at position {i}: {type(doc)}")
+            continue
+            
+        if not isinstance(doc.page_content, str):
+            logger.error(f"Document at position {i} has non-string page_content: {type(doc.page_content)}")
+            # Fix nested Document
+            if isinstance(doc.page_content, Document):
+                nested_doc = doc.page_content
+                logger.warning(f"Fixing nested Document detected at position {i}")
+                # Create new document with nested content and combined metadata
+                combined_metadata = {**doc.metadata, **nested_doc.metadata}
+                valid_documents.append(Document(
+                    page_content=nested_doc.page_content,
+                    metadata=combined_metadata
+                ))
+            continue
+        
+        # If we got here, document seems OK
+        valid_documents.append(doc)
+    
+    if len(valid_documents) != len(documents):
+        logger.info(f"Fixed {len(documents) - len(valid_documents)} problematic documents, proceeding with {len(valid_documents)} valid documents")
+    
+    # Use valid_documents instead of original documents
+    documents = valid_documents
+    
     # Check if chunking should be skipped
     chunker_config = {}
     if config_manager is not None:
@@ -262,33 +294,39 @@ def split_documents(
     elif config is not None and isinstance(config, dict):
         chunker_config = config.get("chunker", config)
         
-    actual_strategy = strategy or chunker_config.get("chunking_strategy", "fixed")
+    actual_strategy = strategy or chunker_config.get("chunking_strategy", "markdown")
     
     if actual_strategy == "none":
         logger.debug("No chunking strategy applied")
         return documents
     
-    # Get the splitter and apply it
+    # Get or use the text splitter
     try:
-        text_splitter = get_text_splitter(
-            splitter_type=splitter_type,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            config_manager=config_manager,
-            config=config,
-            **kwargs
-        )
-        
-        # Special handling for markdown splitters which don't have split_documents
-        if isinstance(text_splitter, MarkdownHeaderTextSplitter):
-            return split_markdown_documents(documents, text_splitter)
-        # Otherwise use the standard split_documents method
+        # If a text splitter is provided directly, use it
+        if text_splitter is not None:
+            logger.debug(f"Using provided text splitter: {text_splitter.__class__.__name__}")
+        # Otherwise create a new one using the factory
         else:
-            result = text_splitter.split_documents(documents)
-            logger.debug(f"Split {len(documents)} documents into {len(result)} chunks")
-            return result
+            # If the strategy is a valid splitter type, use it as the splitter_type
+            splitter_to_use = splitter_type
+            if not splitter_to_use and actual_strategy in ["recursive", "character", "markdown", "code", "token"]:
+                splitter_to_use = actual_strategy
+                
+            text_splitter = get_text_splitter(
+                splitter_type=splitter_to_use,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                config_manager=config_manager,
+                config=config,
+                **kwargs
+            )
+        
+        # Use the standard split_documents method for all splitter types
+        result = text_splitter.split_documents(documents)
+            
+        logger.debug(f"Split {len(documents)} documents into {len(result)} chunks")
+        return result
     
     except Exception as e:
         logger.error(f"Error during document chunking: {e}")
         return documents  # Return original documents on error
-

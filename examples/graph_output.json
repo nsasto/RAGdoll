@@ -1,343 +1,102 @@
 {
   "nodes": [
     {
-      "id": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "type": "PERSON",
-      "name": "Barack Obama",
+      "id": "ea139ddc-3e8b-441d-bec8-804df6130436",
+      "type": "organization",
+      "name": "AI",
       "metadata": {
         "start_char": null,
         "end_char": null,
-        "source_document_id": "example_doc_1",
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
         "chunk_idx": 0
       }
     },
     {
-      "id": "9c6cd3fd-7124-4e05-87a8-6eb4c03783a7",
-      "type": "ORDINAL",
-      "name": "44th",
+      "id": "8f41dc6a-e237-461a-8330-27ec74336065",
+      "type": "location",
+      "name": "India",
       "metadata": {
         "start_char": null,
         "end_char": null,
-        "source_document_id": "example_doc_1",
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
         "chunk_idx": 0
       }
     },
     {
-      "id": "38a0540a-c425-4019-9bff-9c6ac086c06d",
-      "type": "ROLE",
-      "name": "President",
+      "id": "43e550c1-df73-4c6b-85d8-8c6b0a657a11",
+      "type": "organization",
+      "name": "GPT-2",
       "metadata": {
         "start_char": null,
         "end_char": null,
-        "source_document_id": "example_doc_1",
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
         "chunk_idx": 0
       }
     },
     {
-      "id": "a7d6cb56-fc34-4dc9-ab5d-ba61974e1d92",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "United States",
+      "id": "37a33597-bcf3-4dcd-8f73-fff2ab777de4",
+      "type": "organization",
+      "name": "GPT-3",
       "metadata": {
         "start_char": null,
         "end_char": null,
-        "source_document_id": "example_doc_1",
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
         "chunk_idx": 0
       }
     },
     {
-      "id": "590bb231-f379-4f95-931e-308dd47f3685",
-      "type": "LOCATION",
-      "name": "Honolulu",
+      "id": "4fa34bbf-6409-4c3f-95ac-1b2357f7e513",
+      "type": "date",
+      "name": "2019",
       "metadata": {
         "start_char": null,
         "end_char": null,
-        "source_document_id": "example_doc_1",
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
         "chunk_idx": 0
       }
     },
     {
-      "id": "fbd398ec-2606-43a2-8e23-e9975c7f70a3",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "Hawaii",
+      "id": "de9260b2-97e2-49b6-8690-77064195dd5b",
+      "type": "date",
+      "name": "2020",
       "metadata": {
         "start_char": null,
         "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "913283df-2307-45aa-b45e-000bb07e1665",
-      "type": "PERSON",
-      "name": "Michelle Obama",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "3ddcac23-6db7-41fb-937a-db79ac41190d",
-      "type": "PERSON",
-      "name": "Malia Ann Obama",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "6ad41b0e-df43-45d7-84f3-455206d9d29f",
-      "type": "PERSON",
-      "name": "Sasha Obama",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "ca3f0f0f-0341-4a60-bcce-dbfdba43f41c",
-      "type": "ROLE",
-      "name": "U.S. Senator",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "c6a9a017-d1d1-4ec8-9c20-c28f5f9d7952",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "Illinois",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "16b47d40-622d-448e-954d-790a96139c8b",
-      "type": "PERSON",
-      "name": "Angela Merkel",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "4d0c383e-13e9-46b6-802b-264f86755058",
-      "type": "ROLE",
-      "name": "Chancellor",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "fcf6278a-6c4b-4619-a8ba-976e0b236c19",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "Germany",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "f914b8d4-51b1-4381-b842-ca3cafd8807f",
-      "type": "DATE",
-      "name": "2005 to 2021",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "9fc6fd4d-1358-4174-9b65-a502620f144a",
-      "type": "LOCATION",
-      "name": "Hamburg",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "db791fe4-233d-4e98-88e5-05b664fc4a61",
-      "type": "EVENT",
-      "name": "European financial crisis",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
         "chunk_idx": 0
       }
     }
   ],
   "edges": [
     {
-      "id": "09eacb3e-f063-4e9d-aa82-6e636412fea6",
-      "source": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "target": "9c6cd3fd-7124-4e05-87a8-6eb4c03783a7",
-      "type": "HAS_ROLE",
+      "id": "94fee1f3-d4ac-450a-a55c-a06d4c27a6aa",
+      "source": "ea139ddc-3e8b-441d-bec8-804df6130436",
+      "target": "8f41dc6a-e237-461a-8330-27ec74336065",
+      "type": "located_in",
       "metadata": {
         "chunk_idx": 0
       },
-      "source_document_id": "example_doc_1"
+      "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx"
     },
     {
-      "id": "604073c7-3e5c-4eda-8c7a-50394f1354b2",
-      "source": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "target": "38a0540a-c425-4019-9bff-9c6ac086c06d",
-      "type": "HAS_ROLE",
+      "id": "98b266b6-69e8-4f21-8276-600db02d8262",
+      "source": "43e550c1-df73-4c6b-85d8-8c6b0a657a11",
+      "target": "4fa34bbf-6409-4c3f-95ac-1b2357f7e513",
+      "type": "FOUNDED",
       "metadata": {
         "chunk_idx": 0
       },
-      "source_document_id": "example_doc_1"
+      "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx"
     },
     {
-      "id": "897037b4-6749-467a-ad49-b5bfdbcf8514",
-      "source": "38a0540a-c425-4019-9bff-9c6ac086c06d",
-      "target": "a7d6cb56-fc34-4dc9-ab5d-ba61974e1d92",
-      "type": "PART_OF",
+      "id": "bfd032cf-3d75-448a-87ae-cd8ce0689868",
+      "source": "37a33597-bcf3-4dcd-8f73-fff2ab777de4",
+      "target": "de9260b2-97e2-49b6-8690-77064195dd5b",
+      "type": "FOUNDED",
       "metadata": {
         "chunk_idx": 0
       },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "42149533-9a15-4887-98cc-55ed96f73c4b",
-      "source": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "target": "590bb231-f379-4f95-931e-308dd47f3685",
-      "type": "BORN_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "0cb41772-db97-4165-b3b4-6ca609b654a3",
-      "source": "590bb231-f379-4f95-931e-308dd47f3685",
-      "target": "fbd398ec-2606-43a2-8e23-e9975c7f70a3",
-      "type": "LOCATED_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "83b80eb7-d4dd-4170-8373-bc2d7eba7784",
-      "source": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "target": "913283df-2307-45aa-b45e-000bb07e1665",
-      "type": "SPOUSE_OF",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "30e983a8-bcda-4121-b181-6c2285b0ccfd",
-      "source": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "target": "3ddcac23-6db7-41fb-937a-db79ac41190d",
-      "type": "PARENT_OF",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "a4f21897-b46f-44eb-b0dd-d3afac44cb1c",
-      "source": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "target": "6ad41b0e-df43-45d7-84f3-455206d9d29f",
-      "type": "PARENT_OF",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "b66ae24c-19b2-408a-9304-f35bde35652f",
-      "source": "e8819809-cb13-4214-8861-b82b67af32bd",
-      "target": "ca3f0f0f-0341-4a60-bcce-dbfdba43f41c",
-      "type": "HAS_ROLE",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "491f01b1-1aa8-40b3-a7b3-b93ef9d456da",
-      "source": "ca3f0f0f-0341-4a60-bcce-dbfdba43f41c",
-      "target": "c6a9a017-d1d1-4ec8-9c20-c28f5f9d7952",
-      "type": "PART_OF",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "e874a2b1-eb88-4e48-9db5-8dfc5ca858b0",
-      "source": "16b47d40-622d-448e-954d-790a96139c8b",
-      "target": "4d0c383e-13e9-46b6-802b-264f86755058",
-      "type": "HAS_ROLE",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "acb188aa-b9ce-47ee-bde7-403b66f7ab5e",
-      "source": "16b47d40-622d-448e-954d-790a96139c8b",
-      "target": "fcf6278a-6c4b-4619-a8ba-976e0b236c19",
-      "type": "WORKS_FOR",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "a2ddf430-6c7f-45a5-9770-3c4b22955333",
-      "source": "16b47d40-622d-448e-954d-790a96139c8b",
-      "target": "9fc6fd4d-1358-4174-9b65-a502620f144a",
-      "type": "BORN_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "b7672258-c35e-4a9e-a744-9972851107b0",
-      "source": "9fc6fd4d-1358-4174-9b65-a502620f144a",
-      "target": "fcf6278a-6c4b-4619-a8ba-976e0b236c19",
-      "type": "LOCATED_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "7ddfd128-76f1-4dbc-b72b-f6a58a9778a9",
-      "source": "16b47d40-622d-448e-954d-790a96139c8b",
-      "target": "db791fe4-233d-4e98-88e5-05b664fc4a61",
-      "type": "MANAGES",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
+      "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx"
     }
   ]
 }

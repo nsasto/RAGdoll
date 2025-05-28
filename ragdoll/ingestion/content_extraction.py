@@ -47,7 +47,6 @@ class ContentExtractionService(BaseContentExtractionService):
 
         self.collect_metrics = collect_metrics if collect_metrics is not None else monitor_config.enabled
         self.metrics_manager = metrics_manager if metrics_manager is not None else MetricsManager()
-       
 
         self.loaders = self.config_manager.get_loader_mapping()
         self.logger.debug(f"Available loaders: {list(self.loaders.keys())}")

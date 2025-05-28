@@ -27,6 +27,7 @@ from ragdoll.utils import json_parse
 from .models import Entity, Relationship, EntityList, RelationshipList, GraphNode, GraphEdge, Graph
 from .base import BaseEntityExtractor
 import json
+#from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 
 # Configure logging
 logging.basicConfig(
@@ -45,12 +46,13 @@ class GraphCreationService(BaseEntityExtractor):
     spaCy NER and LLM-based entity and relationship extraction.
     """
     
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None, llm: Optional[Union[str, Callable[[str], str]]] = None):
         """
         Initialize the GraphCreationService with configuration options.
 
         Args:
             config: Dictionary containing configuration parameters.
+            llm: Optional LLM instance or model name.
         """
         config_manager = ConfigManager()
         default_config = config_manager.entity_extraction_config.model_dump()  # Get default config as a dict
@@ -62,13 +64,16 @@ class GraphCreationService(BaseEntityExtractor):
         else:
             merged_config = default_config
 
-        self.config = merged_config
-        self.llm = None  # Will be set in the extract method
-        #self.chunker = Chunker(config=self.config)  # Create a Chunker instance
-        logger.debug(config_manager.print_graph_creation_pipeline(merged_config))
-
+        # Just store the LLM in config - don't initialize it yet
+        if llm is not None:
+            merged_config["llm"] = llm
         
-        # Load spaCy model
+        self.config = merged_config
+        # Don't set self.llm here - we'll access it from config when needed
+    
+        logger.debug(config_manager.print_graph_creation_pipeline(merged_config))
+        
+        # Load spaCy model (still needed at init time)
         spacy_model = self.config.get("spacy_model", "en_core_web_sm")
         try:
             self.nlp = spacy.load(spacy_model)
@@ -93,25 +98,24 @@ class GraphCreationService(BaseEntityExtractor):
         Returns:
             A list of document chunks.
         """
-        strategy = self.config.get("chunking_strategy", "none")
+        chunking_strategy = self.config.get("chunking_strategy", "markdown")
         chunk_size = self.config.get("chunk_size", None)
         chunk_overlap = self.config.get("chunk_overlap", None)
-        splitter_type = self.config.get("splitter_type", None)
         
         # Use the split_documents function from the factory model
         from ragdoll.chunkers import split_documents
         
         # If strategy is "none", return the document unchanged
-        if strategy == "none":
+        if chunking_strategy == "none":
             return [document]
         
-        # Otherwise, use the split_documents function
+        logger.info(f"Chunking document with strategy: '{chunking_strategy}', size: {chunk_size}, overlap: {chunk_overlap}")
+        # Otherwise, use the split_documents function with the chunking_strategy as the strategy
         return split_documents(
             documents=[document],
-            strategy=strategy,
+            strategy=chunking_strategy,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            splitter_type=splitter_type,
             config=self.config  # Pass the current config
         )
 
@@ -840,7 +844,7 @@ class GraphCreationService(BaseEntityExtractor):
     async def extract(
         self, 
         documents: List[Document], 
-        llm: Union[str, Callable[[str], str]], 
+        llm: Union[str, Callable[[str], str]] = None,  # Make llm optional
         entity_types: Optional[List[str]] = None,
         relationship_types: Optional[List[str]] = None
     ) -> Graph:
@@ -850,26 +854,50 @@ class GraphCreationService(BaseEntityExtractor):
         Args:
             documents: List of Document objects
             llm: Either a model type ('default', 'reasoning', 'vision') or a callable function that takes a prompt and returns a response
+                 If None, uses the LLM provided during initialization
             entity_types: List of entity types to extract. If None, uses config.
             relationship_types: List of relationship types to extract. If None, uses config.
             
         Returns:
             Graph object with nodes and edges
         """
-        # If a string (model type) is provided, get the LangChain model
-        if isinstance(llm, str):
-            llm_model = get_llm(llm)
-            if llm_model is None:
-                raise ValueError(f"Failed to initialize LangChain model: {llm}")
+        # Only set LLM if one was provided to the extract method
+        if llm is not None:
+            # If a string (model type) is provided, get the LangChain model
+            if isinstance(llm, str):
+                llm_model = get_llm(llm)
+                if llm_model is None:
+                    raise ValueError(f"Failed to initialize LLM model: {llm}")
 
-            # Wrap the LangChain model in a callable function
-            async def llm_fn(prompt: str) -> str:
-                return llm_model.invoke(prompt)  # Use .invoke() for ChatModels
+                # Wrap the LangChain model in a callable function
+                async def llm_fn(prompt: str) -> str:
+                    return llm_model.invoke(prompt)  # Use .invoke() for ChatModels
 
-            self.llm = llm_fn
-        else:
-            # Otherwise, use the provided callable directly
-            self.llm = llm
+                self.llm = llm_fn
+            else:
+                # Otherwise, use the provided callable directly
+                self.llm = llm
+        # If no LLM passed to method, check the config
+        elif "llm" in self.config and self.config["llm"] is not None:
+            config_llm = self.config["llm"]
+            
+            if isinstance(config_llm, str):
+                # Config has a model name string
+                llm_model = get_llm(config_llm)
+                if llm_model is None:
+                    raise ValueError(f"Failed to initialize LLM model from config: {config_llm}")
+                    
+                async def llm_fn(prompt: str) -> str:
+                    return llm_model.invoke(prompt)
+                    
+                self.llm = llm_fn
+            else:
+                # Config already has a callable
+                self.llm = config_llm
+                        
+        # Check if we have a valid LLM to work with
+        if self.llm is None:
+            raise ValueError("No LLM provided. Either pass an LLM to extract() or initialize the service with an LLM.")
         
         # Update config with passed arguments
         if entity_types:
