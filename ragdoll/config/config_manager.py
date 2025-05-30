@@ -151,16 +151,17 @@ class ConfigManager:
         """
         loaders_config = self.ingestion_config.loaders
         result = {}
+        
+        # Log the raw file_mappings from config
+        self.logger.info(f"Raw file mappings from config: {loaders_config.file_mappings if loaders_config else 'None'}")
+        
         if loaders_config and loaders_config.file_mappings:
-            self.logger.debug(f"Loaders {loaders_config.file_mappings}")
             for ext, class_path in loaders_config.file_mappings.items():
-
                 self.logger.debug(f"Loading: {ext}, {class_path}")
                 
                 try:
                     # Split into module path and class name
                     module_path, class_name = class_path.rsplit(".", 1)
-
                     self.logger.debug(f"Loading module: {module_path}, Class: {class_name}")
 
                     # Import the module
@@ -175,14 +176,16 @@ class ConfigManager:
                         continue
 
                     loader_class = getattr(module, class_name)
+                    
+                    # Add detailed logging about the class being loaded
+                    self.logger.info(f"For extension {ext}: Loaded {loader_class.__name__} from {loader_class.__module__}")
 
                     # Add to result
                     result[ext] = loader_class
-                    self.logger.debug(f"Loaded loader for extension {ext}: {class_path}")
 
                 except ImportError:
                     # Handle module not found
-                    self.logger.info(
+                    self.logger.warning(
                         f"Module {module_path} for extension {ext} could not be imported."
                         f" This extension will not be supported."
                     )
@@ -192,7 +195,10 @@ class ConfigManager:
                         f"Error loading loader for extension {ext}: {e}"
                     )
 
-        self.logger.info(f"Loaded {len(result)} file extension loaders")
+        # Log the final mapping
+        for ext, loader in result.items():
+            self.logger.info(f"Final loader mapping: {ext} -> {loader.__name__} from {loader.__module__}")
+        
         return result
 
     def get_source_loader_mapping(self) -> Dict[str, Type]:
