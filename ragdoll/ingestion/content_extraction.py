@@ -101,41 +101,51 @@ class ContentExtractionService(BaseContentExtractionService):
                 if self.use_cache and not source.is_file:
                     cached = self.cache_manager.get_from_cache("website", source.identifier)
                     if cached:
+                        self.logger.info(f"Using cached content for {source.identifier}")
                         self._record_metrics(metrics_info, batch_id, source, len(cached), source_size_bytes, success=True)
                         return cached
 
             if source.extension in self.loaders:
                 loader_class = self.loaders[source.extension]
                 
+                # Log which loader is being used for which file
+                self.logger.info(f"Using {loader_class.__name__} from {loader_class.__module__} for {source.identifier} (extension: {source.extension})")
+                
                 constructor_params = inspect.signature(loader_class.__init__).parameters
 
-                if "file_path" in constructor_params or "path" in constructor_params or "web_path" in constructor_params or len(constructor_params) == 1 :
+                if "file_path" in constructor_params or "path" in constructor_params or "web_path" in constructor_params or len(constructor_params) == 1:
                     if source.extension == "website":
+                        self.logger.info(f"Initializing website loader for {source.identifier}")
                         loader = loader_class(source.identifier)
                         docs = loader.load()
                     else:
                         if "file_path" in constructor_params:
-                            loader = loader_class(file_path = source.identifier)
+                            self.logger.info(f"Initializing loader with file_path={source.identifier}")
+                            loader = loader_class(file_path=source.identifier)
                         elif "path" in constructor_params:
-                             loader = loader_class(path = source.identifier)
+                            self.logger.info(f"Initializing loader with path={source.identifier}")
+                            loader = loader_class(path=source.identifier)
                         elif "web_path" in constructor_params:
-                             loader = loader_class(web_path = source.identifier)
+                            self.logger.info(f"Initializing loader with web_path={source.identifier}")
+                            loader = loader_class(web_path=source.identifier)
                         else:
-                             loader = loader_class(source.identifier)
+                            self.logger.info(f"Initializing loader with positional argument: {source.identifier}")
+                            loader = loader_class(source.identifier)
                         docs = loader.load()
                 else:
+                    self.logger.info(f"Initializing loader with no arguments")
                     loader = loader_class()
-
+                    docs = loader.load()
                 
-                docs = loader.load()
+                self.logger.info(f"Loader {loader_class.__name__} returned {len(docs)} documents from {source.identifier}")
                 self._record_metrics(metrics_info, batch_id, source, len(docs), source_size_bytes, success=True)
                 return docs
             else:
+                self.logger.error(f"Unsupported source: No loader found for extension {source.extension}")
                 raise ValueError(f"Unsupported source: ext={source.extension}")
 
         except Exception as e:
-            
-            raise ValueError(f"Failed to load {source.identifier}: {str(e)}")
+            self.logger.error(f"Failed to load {source.identifier}: {str(e)}")
             self._record_metrics(metrics_info, batch_id, source, 0, 0, success=False, error=str(e))
             return []
 
