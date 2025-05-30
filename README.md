@@ -1,8 +1,6 @@
 
 ![Ragdoll](img/github-header-image.png)
 
-
-![Latest GitHub release](https://img.shields.io/github/v/release/nsasto/RAGdoll?sort=semver)
 [![PyPI version](https://img.shields.io/pypi/v/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
 
 
