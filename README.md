@@ -1,4 +1,10 @@
+
 ![Ragdoll](img/github-header-image.png)
+
+
+![Latest GitHub release](https://img.shields.io/github/v/release/nsasto/RAGdoll?sort=semver)
+[![PyPI version](https://img.shields.io/pypi/v/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
+
 
 # 🧭 Project Overview 
 
@@ -16,6 +22,10 @@ the default LLM and embedding model is OpenAI but there are also options to run 
 ## 🎛 Project Setup
 
 To set up the project on your local machine, follow these steps:
+
+`pip install python-ragdoll`
+
+or to get the latest build:
 
 2. Clone the repository to your local machine.
 3. Install the required dependencies using `pip install -r requirements.txt`.
