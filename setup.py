@@ -33,7 +33,7 @@ install_requires = [
 
 setup(
     name="python-ragdoll",
-    version="1.2.0",
+    version="1.2.1",
     description="A set of helper classes that abstract some of the more common tasks of a typical RAG process including document loading/web scraping.",
     author="Nathan Sasto",
     packages=find_packages(),
