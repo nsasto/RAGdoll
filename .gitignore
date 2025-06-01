@@ -61,6 +61,16 @@ Thumbs.db
 # Environment variables
 .venv
 .vscode/launch.json
+.vscode/settings.json
+
+# Models
+*/models/* 
+*/examples/c**.*
+
+#data
+.data/
+.data
+*/data/*
 
 # Ignore Python package metadata
 *.egg-info/
