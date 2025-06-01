@@ -1,0 +1,236 @@
+cache:
+  enabled: true
+  cache_ttl: 3600
+
+monitor:
+  enabled: false
+  collect_metrics: true
+
+chunker:
+  default_splitter: recursive
+  chunk_size: 1000
+  chunk_overlap: 200
+  chunking_strategy: "markdown"  # Options: 'none', 'recursive', 'character', 'markdown', 'code', 'token'
+  enabled: true
+
+ingestion:
+  max_threads: 10
+  batch_size: 100
+  retry_attempts: 3
+  retry_delay: 1
+  retry_backoff: 2
+  loaders:
+    file_mappings:
+        .json: langchain_community.document_loaders.JSONLoader
+        .jsonl: langchain_community.document_loaders.JSONLoader
+        .yaml: langchain_community.document_loaders.JSONLoader
+        .csv: langchain_community.document_loaders.CSVLoader
+        .epub: langchain_markitdown.EpubLoader
+        .xlsx: langchain_markitdown.XlsxLoader
+        .html: langchain_markitdown.HtmlLoader
+        .bmp: langchain_markitdown.ImageLoader
+        .jpeg: langchain_markitdown.ImageLoader
+        .jpg: langchain_markitdown.ImageLoader
+        .png: langchain_markitdown.ImageLoader
+        .tiff: langchain_markitdown.ImageLoader
+        .md: langchain_community.document_loaders.TextLoader
+        .pdf: langchain_community.document_loaders.PyMuPDFLoader
+        .pptx: langchain_markitdown.PptxLoader
+        .docx: langchain_markitdown.DocxLoader
+        .xml: langchain_markitdown.RssLoader
+        .txt: langchain_community.document_loaders.TextLoader
+        .rtf: langchain_community.document_loaders.RtfLoader
+        arxiv: langchain_community.retrievers.ArxivRetriever
+        website: langchain_community.document_loaders.WebBaseLoader
+
+embeddings:
+  default_model: "text-embedding-ada-002"
+  models:
+    text-embedding-ada-002:
+      provider: "openai"
+      api_key: "#OPENAI_API_KEY"
+      model: "text-embedding-ada-002"
+      
+    all-mpnet-base-v2:
+      provider: "huggingface"
+      model_name: "sentence-transformers/all-mpnet-base-v2"
+
+entity_extraction:
+  spacy_model: "en_core_web_sm"
+  chunking_strategy: "none"  # Use 'default' to use the chunker config or 'none' to disable chunking
+  chunk_size: 1000           # Can be omitted to use the chunker config
+  chunk_overlap: 50          # Can be omitted to use the chunker config
+  splitter_type: "markdown"  # Can be omitted to use the chunker config
+  coreference_resolution_method: "rule_based"  # Options: "rule_based", "llm", "none"
+  entity_extraction_methods: ["llm"] # Options: ["ner", "llm"]
+  relationship_extraction_method: "llm"
+  entity_types:
+    - "PERSON"                # Individual people
+    - "ORGANIZATION"          # Companies, institutions, etc. (more explicit than ORG)
+    - "GEO_POLITICAL_ENTITY"  # Countries, cities, states (more explicit than GPE)
+    - "DATE"                  # Calendar dates, days, years
+    - "LOCATION"              # Specific places, broader than GPE (e.g., mountains, rivers)
+    - "PRODUCT"               # Tangible goods and services
+    - "EVENT"                 # Happenings, occurrences
+    - "WORK_OF_ART"           # Books, paintings, music, etc.
+    - "LAW"                   # Statutes, regulations, legal documents
+    - "ROLE"                  # Titles, positions held by people
+    - "NORP"                  # Nationalities or religious or political groups
+    - "FACILITY"              # Buildings, airports, highways, bridges, etc.
+    - "LANGUAGE"              # Spoken and written languages
+    - "PERCENT"               # Percentage values
+    - "MONEY"                 # Monetary values, including currency
+    - "QUANTITY"              # Measurements of distance, weight, etc.
+    - "ORDINAL"               # Positions in a sequence ("first", "second")
+    - "CARDINAL"              # Numeric values that are not quantities
+    - "TIME"                  # Specific times of day
+    - "CONCEPT"               # Abstract ideas or notions (e.g., "justice", "democracy")
+    - "DOMAIN"                # Fields of knowledge or activity (e.g., "medicine", "technology")
+    - "SUBSTANCE"             # Materials or chemical compounds (e.g., "water", "gold")
+    - "DISEASE"               # Illnesses and medical conditions
+    - "ANIMAL"                # Living creatures other than humans
+    - "PLANT"                 # Living vegetation
+    - "VEHICLE"               # Means of transportation (e.g., "car", "airplane")
+    - "DEVICE"                # Electronic or mechanical appliances (e.g., "smartphone", "engine")
+    - "SOFTWARE"              # Computer programs and applications
+    - "GAME"                  # Recreational activities with rules
+    - "FOOD"                  # Edible substances
+    - "DRINK"                 # Potable liquids
+    - "MUSICAL_INSTRUMENT"    # Devices used to create music
+    - "MEDIA"                 # Forms of communication (e.g., "newspaper", "television")
+    - "SYMBOL"                # Signs or marks that represent something else (e.g., "$", "π")
+    - "IDEOLOGY"              # Systems of beliefs or ideas
+    - "ETHNICITY"             # Cultural heritage and ancestry
+    - "RELIGION"              # Systems of faith and worship
+    - "ACADEMIC_DISCIPLINE"   # Fields of study (e.g., "physics", "history")
+  relationship_types:
+    - "HAS_ROLE"
+    - "WORKS_FOR"
+    - "LOCATED_IN"
+    - "BORN_IN"
+    - "FOUNDED"
+    - "PARENT_OF"
+    - "SPOUSE_OF"
+    - "AFFILIATED_WITH"
+    - "BELONGS_TO"
+    - "CREATED"
+    - "PART_OF"
+    - "IS_A"
+    - "HAS_MEMBER"
+    - "CONTAINS"
+    - "USES"
+    - "PRODUCES"
+    - "IS_RELATED_TO"
+    - "HAS_ATTRIBUTE"
+    - "HAS_CAUSE"
+    - "HAS_EFFECT"
+    - "MANAGES"
+    - "OWNS"
+    - "COMPETES_WITH"
+    - "ACQUIRED"
+    - "LOCATED_NEAR"
+    - "CONNECTED_TO"
+  relationship_type_mapping:
+    "works for": "WORKS_FOR"
+    "is a": "IS_A"
+    "is an": "IS_A"
+    "located in": "LOCATED_IN"
+    "located at": "LOCATED_IN"
+    "born in": "BORN_IN"
+    "lives in": "LOCATED_IN"
+    "married to": "SPOUSE_OF"
+    "spouse of": "SPOUSE_OF"
+    "parent of": "PARENT_OF"
+    "child of": "PARENT_OF"
+    "works with": "AFFILIATED_WITH"
+  gleaning_enabled: true
+  max_gleaning_steps: 2
+  entity_linking_enabled: true
+  entity_linking_method: "string_similarity"
+  entity_linking_threshold: 0.8
+  postprocessing_steps: ["merge_similar_entities", "normalize_relations"]
+  output_format: "json"
+  graph_database_config:
+    output_file: "graph_output.json"
+
+# References to prompt files (without .md extension)
+llm_prompts:
+  entity_extraction: entity_extraction
+  extract_relationships: relationship_extraction
+  coreference_resolution: coreference_resolution
+  entity_relationship_gleaning: entity_relationship_gleaning
+  entity_relationship_gleaning_continue: entity_relationship_gleaning_continue
+
+llms:
+  model_list:
+    - model_name: basic_model
+      provider: openai
+      params:
+        model: gpt-3.5-turbo
+        api_key: #OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: default_model
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: #OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: reasoning_model
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: #OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: vision_model
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: #OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: gpt-3.5-turbo
+      provider: openai
+      params:
+        model: gpt-3.5-turbo
+        api_key: #OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: gpt-4o
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: #OPENAI_API_KEY
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: claude-3-5-sonnet
+      provider: anthropic
+      params:
+        model: claude-3-5-sonnet-latest
+        api_key: #ANTHROPIC_API_KEY
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: gemini-1.5-pro
+      provider: google
+      params:
+        model: gemini-1.5-pro
+        api_key: #GOOGLE_API_KEY
+        temperature: 0.0
+        max_tokens: 1024
+        
+vector_stores:
+  default_store: faiss
+  stores:
+    faiss:
+      # Default FAISS settings
+      distance_strategy: "cosine"
+    chroma:
+      # Default Chroma settings
+      collection_name: "ragdoll_documents"
+    pinecone:
+      # Default Pinecone settings
+      api_key: "os.environ/PINECONE_API_KEY"
+      environment: "os.environ/PINECONE_ENVIRONMENT"
+      index_name: "ragdoll-index"

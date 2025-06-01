@@ -6,6 +6,9 @@ pandas>=2.2.3
 colored>=2.2.4
 colorlog>=6.8.2
 pyperclip>=1.8.2
+requests
+retry
+bs4
 
 # LangChain ecosystem
 langchain>=0.3.23
@@ -14,15 +17,27 @@ langchain-text-splitters>=0.3.8
 langchain_community>=0.3.21
 langchain_openai>=0.3.12
 langchain-google-community>=2.0.7
+langchain-anthropic
+langchain-google-genai
+langchain-huggingface
+langchain-markitdown>=0.1.6
 
 # Document processing
 lxml>=5.1.0
 PyMuPDF>=1.25.5
-langchain-markitdown>=0.1.6
 docx>=0.2.4
+pdfminer-six
+pdf2image
+Pillow
+pytesseract
 
 # ML/AI dependencies
 openai>=1.71.0
 google-api-python-client>=2.166.0
 sentence_transformers>=4.1.0
 faiss-cpu>=1.11.0
+spacy
+networkx
+matplotlib
+py2neo
+chromadb

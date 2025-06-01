@@ -1,0 +1,102 @@
+{
+  "nodes": [
+    {
+      "id": "ea139ddc-3e8b-441d-bec8-804df6130436",
+      "type": "organization",
+      "name": "AI",
+      "metadata": {
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "chunk_idx": 0
+      }
+    },
+    {
+      "id": "8f41dc6a-e237-461a-8330-27ec74336065",
+      "type": "location",
+      "name": "India",
+      "metadata": {
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "chunk_idx": 0
+      }
+    },
+    {
+      "id": "43e550c1-df73-4c6b-85d8-8c6b0a657a11",
+      "type": "organization",
+      "name": "GPT-2",
+      "metadata": {
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "chunk_idx": 0
+      }
+    },
+    {
+      "id": "37a33597-bcf3-4dcd-8f73-fff2ab777de4",
+      "type": "organization",
+      "name": "GPT-3",
+      "metadata": {
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "chunk_idx": 0
+      }
+    },
+    {
+      "id": "4fa34bbf-6409-4c3f-95ac-1b2357f7e513",
+      "type": "date",
+      "name": "2019",
+      "metadata": {
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "chunk_idx": 0
+      }
+    },
+    {
+      "id": "de9260b2-97e2-49b6-8690-77064195dd5b",
+      "type": "date",
+      "name": "2020",
+      "metadata": {
+        "start_char": null,
+        "end_char": null,
+        "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "chunk_idx": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "94fee1f3-d4ac-450a-a55c-a06d4c27a6aa",
+      "source": "ea139ddc-3e8b-441d-bec8-804df6130436",
+      "target": "8f41dc6a-e237-461a-8330-27ec74336065",
+      "type": "located_in",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx"
+    },
+    {
+      "id": "98b266b6-69e8-4f21-8276-600db02d8262",
+      "source": "43e550c1-df73-4c6b-85d8-8c6b0a657a11",
+      "target": "4fa34bbf-6409-4c3f-95ac-1b2357f7e513",
+      "type": "FOUNDED",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx"
+    },
+    {
+      "id": "bfd032cf-3d75-448a-87ae-cd8ce0689868",
+      "source": "37a33597-bcf3-4dcd-8f73-fff2ab777de4",
+      "target": "de9260b2-97e2-49b6-8690-77064195dd5b",
+      "type": "FOUNDED",
+      "metadata": {
+        "chunk_idx": 0
+      },
+      "source_document_id": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx"
+    }
+  ]
+}
