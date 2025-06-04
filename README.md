@@ -1,6 +1,9 @@
 ![Ragdoll](img/github-header-image.png)
-
-[![PyPI version](https://img.shields.io/pypi/v/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
+ 
+[![Build](https://github.com/nsasto/RAGdoll/actions/workflows/python-publish.yml/badge.svg)](https://github.com/nsasto/RAGdoll/actions)
+[![License](https://img.shields.io/github/license/nsasto/RAGdoll)](https://github.com/nsasto/RAGdoll/blob/main/LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/nsasto/RAGdoll)](https://github.com/nsasto/RAGdoll/commits)
+ [![PyPI version](https://img.shields.io/pypi/v/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/) 
 
 # RAGdoll: A Flexible and Extensible RAG Framework
 
