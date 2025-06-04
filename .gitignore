@@ -74,3 +74,6 @@ Thumbs.db
 
 # Ignore Python package metadata
 *.egg-info/
+#IDE settings
+.vscode
+.idx
