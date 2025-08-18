@@ -61,3 +61,5 @@ Thumbs.db
 # Environment variables
 .venv
 .vscode/launch.json
+
+/ragdoll_v1
