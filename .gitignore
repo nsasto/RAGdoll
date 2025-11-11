@@ -70,3 +70,6 @@ Thumbs.db
 
 #admin scripts
 scripts/
+
+#build metadata
+*.egg-info/
