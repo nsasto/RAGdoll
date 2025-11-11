@@ -449,58 +449,33 @@
         btn.addEventListener("click", async () => {
           const nextState = !Boolean(approvalState[taskId]);
           btn.disabled = true;
-          try {
-            await toggleApproval(taskId, nextState);
-          } finally {
-            btn.disabled = false;
-          }
+          await copyApprovalCommand(taskId, nextState);
+          btn.disabled = false;
         });
         return btn;
       }
 
-      async function toggleApproval(taskId, approved) {
+      async function copyApprovalCommand(taskId, approved) {
+        const command = buildApprovalCommand(taskId, approved);
         try {
-          await persistApproval(taskId, approved);
-          approvalState[taskId] = approved;
-          renderTasks(currentTasks, approvalState);
+          await navigator.clipboard.writeText(command);
           setStatus(
-            `${approved ? "Approved" : "Unapproved"} ${taskId}.`,
+            `Copied approval command for ${taskId}. Run it in a terminal, then reload tasks.`,
             "success"
           );
-        } catch (err) {
-          console.error(err);
-          const fallback = buildApprovalCommand(taskId, approved);
-          try {
-            await navigator.clipboard.writeText(fallback);
-            setStatus(
-              "Automatic update failed; fallback command copied to clipboard.",
-              "error"
-            );
-          } catch {
-            setStatus(
-              `Automatic update failed. Run manually:\n${fallback}`,
-              "error"
-            );
-          }
+        } catch {
+          setStatus(
+            `Copy blocked. Run manually:\n${command}`,
+            "error"
+          );
         }
-      }
-
-      async function persistApproval(taskId, approved) {
-        const url = approvalFileUrl(taskId);
-        const payload = JSON.stringify({ approved }, null, 2);
-        const res = await fetch(url, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-        });
-        if (!res.ok) {
-          throw new Error(`Unable to update approval (${res.status})`);
-        }
+        approvalState[taskId] = approved;
+        renderTasks(currentTasks, approvalState);
       }
 
       function buildApprovalCommand(taskId, approved) {
         const boolLiteral = approved ? "True" : "False";
-        return `python -c "import json, pathlib; pathlib.Path(r'.codex/approvals/tasks/${taskId}.approved.json').write_text(json.dumps({'approved': ${boolLiteral}}, indent=2))"`;
+        return `python -c "import json, pathlib; p = pathlib.Path(r'.codex/approvals/tasks/${taskId}.approved.json'); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps({'approved': ${boolLiteral}}, indent=2))"`;
       }
 
       function approvalFileUrl(taskId) {
