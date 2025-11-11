@@ -20,6 +20,7 @@ dist/
 
 # Log files
 *.log
+/logs
 
 # Package files
 *.jar
@@ -63,3 +64,9 @@ Thumbs.db
 .vscode/launch.json
 
 /ragdoll_v1
+
+# codex rules
+.codex
+
+#admin scripts
+scripts/
