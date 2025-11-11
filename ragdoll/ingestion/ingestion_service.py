@@ -2,6 +2,7 @@ import concurrent.futures
 import os
 import logging
 import inspect
+from glob import glob
 from pathlib import Path 
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
@@ -71,10 +72,19 @@ class IngestionService(BaseIngestionService):
         return Source(identifier=url, extension=extension, is_file=False)
 
     def _parse_file_sources(self, pattern: str) -> List[Source]:
-        sources = []
-        for path in Path().glob(pattern) if "*" in pattern else [Path(pattern)]:
+        sources: List[Source] = []
+        has_wildcard = any(token in pattern for token in ("*", "?", "["))
+        matched_paths = [Path(p) for p in glob(pattern, recursive=True)] if has_wildcard else [Path(pattern)]
+
+        for path in matched_paths:
             if path.exists() and path.is_file():
-                sources.append(Source(identifier=str(path.absolute()), extension=path.suffix.lower(), is_file=True))
+                sources.append(
+                    Source(
+                        identifier=str(path.absolute()),
+                        extension=path.suffix.lower(),
+                        is_file=True,
+                    )
+                )
         return sources
 
     def _build_sources(self, inputs: List[str]) -> List[Source]:
@@ -97,46 +107,91 @@ class IngestionService(BaseIngestionService):
 
         try:
             if not source.extension:
-                if self.use_cache and not source.is_file:
-                    cached = self.cache_manager.get_from_cache("website", source.identifier)
-                    if cached:
-                        self._record_metrics(metrics_info, batch_id, source, len(cached), source_size_bytes, success=True)
-                        return cached
+                self.logger.warning("Skipping source %s without extension", source.identifier)
+                self._record_metrics(metrics_info, batch_id, source, 0, source_size_bytes, success=False, error="Missing extension")
+                return []
 
-            if source.extension in self.loaders:
-                loader_class = self.loaders[source.extension]
-                
-                constructor_params = inspect.signature(loader_class.__init__).parameters
-
-                if "file_path" in constructor_params or "path" in constructor_params or "web_path" in constructor_params or len(constructor_params) == 1 :
-                    if source.extension == "website":
-                        loader = loader_class(source.identifier)
-                        docs = loader.load()
-                    else:
-                        if "file_path" in constructor_params:
-                            loader = loader_class(file_path = source.identifier)
-                        elif "path" in constructor_params:
-                             loader = loader_class(path = source.identifier)
-                        elif "web_path" in constructor_params:
-                             loader = loader_class(web_path = source.identifier)
-                        else:
-                             loader = loader_class(source.identifier)
-                        docs = loader.load()
-                else:
-                    loader = loader_class()
-
-                
-                docs = loader.load()
-                self._record_metrics(metrics_info, batch_id, source, len(docs), source_size_bytes, success=True)
-                return docs
-            else:
+            loader_class = self.loaders.get(source.extension)
+            if loader_class is None:
                 raise ValueError(f"Unsupported source: ext={source.extension}")
 
+            docs = self._load_with_class(loader_class, source)
+            normalized_docs = self._normalize_documents(docs)
+
+            self._record_metrics(metrics_info, batch_id, source, len(normalized_docs), source_size_bytes, success=True)
+            return normalized_docs
+
         except Exception as e:
-            
-            raise ValueError(f"Failed to load {source.identifier}: {str(e)}")
-            self._record_metrics(metrics_info, batch_id, source, 0, 0, success=False, error=str(e))
+            error_message = str(e)
+            self._record_metrics(metrics_info, batch_id, source, 0, source_size_bytes, success=False, error=error_message)
+            raise ValueError(f"Failed to load {source.identifier}: {error_message}")
+
+    def _load_with_class(self, loader_class, source: Source):
+        loader = self._instantiate_loader(loader_class, source)
+        load_callable = getattr(loader, "load", None)
+
+        if callable(load_callable):
+            return load_callable()
+
+        retrieve_callable = getattr(loader, "get_relevant_documents", None)
+        if callable(retrieve_callable):
+            return retrieve_callable(source.identifier)
+
+        raise ValueError(f"Loader {loader_class} does not provide a load method")
+
+    def _instantiate_loader(self, loader_class, source: Source):
+        try:
+            constructor_params = inspect.signature(loader_class.__init__).parameters
+        except (TypeError, ValueError):
+            constructor_params = {}
+
+        accepts_kwargs = any(
+            param.kind == inspect.Parameter.VAR_KEYWORD for param in constructor_params.values()
+        )
+
+        if source.is_file:
+            if "file_path" in constructor_params or accepts_kwargs:
+                return loader_class(file_path=source.identifier)
+            if "path" in constructor_params:
+                return loader_class(path=source.identifier)
+
+        if source.extension == "website":
+            if "web_path" in constructor_params or accepts_kwargs:
+                return loader_class(web_path=source.identifier)
+            if "url" in constructor_params:
+                return loader_class(url=source.identifier)
+            return loader_class(source.identifier)
+
+        if len(constructor_params) <= 1:
+            return loader_class()
+
+        return loader_class(source.identifier)
+
+    def _normalize_documents(self, docs: Any) -> List[Dict[str, Any]]:
+        if not docs:
             return []
+
+        normalized: List[Dict[str, Any]] = []
+        for doc in docs:
+            if isinstance(doc, dict):
+                page_content = doc.get("page_content", "")
+                metadata = doc.get("metadata", {}) or {}
+            elif hasattr(doc, "page_content"):
+                page_content = getattr(doc, "page_content", "")
+                metadata = getattr(doc, "metadata", {}) or {}
+            else:
+                page_content = str(doc)
+                metadata = {}
+
+            if not isinstance(metadata, dict):
+                try:
+                    metadata = dict(metadata)
+                except (TypeError, ValueError):
+                    metadata = {"value": metadata}
+
+            normalized.append({"page_content": page_content, "metadata": metadata})
+
+        return normalized
 
     def _record_metrics(self, metrics_info, batch_id, source, doc_count, byte_size, success=True, error=None):
         if self.collect_metrics and metrics_info:

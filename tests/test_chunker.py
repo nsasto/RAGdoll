@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch
 from ragdoll.chunkers.chunker import Chunker
-from langchain.text_splitter import (
+from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
     MarkdownHeaderTextSplitter,
     TextSplitter,

@@ -30,9 +30,13 @@ def sample_documents():
     return [{"page_content": "Test content", "metadata": {"source": "test"}}]
 
 @pytest.fixture
-def clean_ingestion_service():
-    """Create an IngestionService with no caching for clean testing and the correct config values."""
+def clean_ingestion_service(sample_documents):
+    """Create an IngestionService with no caching and mocked network loaders."""
     service = IngestionService(use_cache=False)
+
+    mock_loader_instance = MagicMock()
+    mock_loader_instance.load.return_value = sample_documents
+    service.loaders["website"] = MagicMock(return_value=mock_loader_instance)
 
     return service
 # Test _build_sources method
