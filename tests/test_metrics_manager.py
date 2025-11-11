@@ -6,6 +6,8 @@ import shutil
 from pathlib import Path
 
 import pytest
+
+pytestmark = pytest.mark.unit
 from ragdoll.metrics.metrics_manager import MetricsManager
 
 class TestMetricsManager:
