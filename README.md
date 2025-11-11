@@ -94,6 +94,58 @@ RAGdoll provides default implementations for most components, allowing you to qu
 *   **`OpenAILLM`**: A default OpenAI LLM.
 * **`BaseGraphStore`**: A BaseGraphStore, it needs to be implemented.
 
+### System Diagram
+
+For a visual walkthrough of how the ingestion, knowledge build, and query-time pieces connect, see the architecture diagram below (also available in `docs/architecture.md`):
+
+```mermaid
+graph TD
+    %% Ingestion + Chunking
+    subgraph Ingestion
+        A["Input sources<br/>(files, URLs, loaders)"] --> B["Loader pipeline"]
+        B --> C["Chunking Service<br/>(BaseChunkingService + plugins)"]
+    end
+    C --> D["Chunks (GTChunk)"]
+
+    %% Knowledge Construction
+    subgraph Knowledge_Build
+        D --> E["Information Extraction<br/>(entities & relations)"]
+        E --> F["Knowledge Graph Upsert<br/>(policy interface)"]
+        E --> G["Embedding Pipeline<br/>(single pass)"]
+        G --> H["VectorStoreAdapter<br/>(dynamic class e.g. Chroma/Hnswlib)"]
+        F --> I(("Graph Storage<br/>(IGraphStorage, Neo4j, etc.)"))
+        H --> J(("Vector DB"))
+    end
+
+    %% Query + Reasoning
+    subgraph Query_Runtime
+        Q["User Query"] --> R["State Manager<br/>(retrieval orchestration)"]
+        R --> H
+        R --> I
+        R --> S["Context Assembly<br/>(chunks + KG facts)"]
+        S --> T["Prompt Builder"]
+        T --> U["LLM Provider<br/>(BaseLLM adapters)"]
+        U --> V["Answer"]
+    end
+
+    style A fill:#ccf,stroke:#333,stroke-width:2px
+    style B fill:#ccf,stroke:#333,stroke-width:2px
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#fef3c7,stroke:#333,stroke-width:2px
+    style E fill:#f9f,stroke:#333,stroke-width:2px
+    style F fill:#f9f,stroke:#333,stroke-width:2px
+    style G fill:#f9f,stroke:#333,stroke-width:2px
+    style H fill:#d1fae5,stroke:#333,stroke-width:2px
+    style I fill:#dbeafe,stroke:#333,stroke-width:2px
+    style J fill:#dbeafe,stroke:#333,stroke-width:2px
+    style Q fill:#fde68a,stroke:#333,stroke-width:2px
+    style R fill:#f9f,stroke:#333,stroke-width:2px
+    style S fill:#fef3c7,stroke:#333,stroke-width:2px
+    style T fill:#f9f,stroke:#333,stroke-width:2px
+    style U fill:#e0e7ff,stroke:#333,stroke-width:2px
+    style V fill:#ccf,stroke:#333,stroke-width:2px
+```
+
 ## Extensibility
 
 RAGdoll is designed to be highly extensible. You can easily create custom components by following these steps:
