@@ -49,7 +49,7 @@ embeddings:
   models:
     text-embedding-ada-002:
       provider: "openai"
-      api_key: "#OPENAI_API_KEY"
+      api_key: "os.environ/OPENAI_API_KEY"
       model: "text-embedding-ada-002"
     all-mpnet-base-v2:
       provider: "huggingface"
@@ -168,42 +168,42 @@ llms:
       provider: openai
       params:
         model: gpt-3.5-turbo
-        api_key: "#OPENAI_API_KEY"
+        api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 1024
     - model_name: default_model
       provider: openai
       params:
         model: gpt-4o
-        api_key: "#OPENAI_API_KEY"
+        api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 8192
     - model_name: reasoning_model
       provider: openai
       params:
         model: gpt-4o
-        api_key: "#OPENAI_API_KEY"
+        api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 8192
     - model_name: vision_model
       provider: openai
       params:
         model: gpt-4o
-        api_key: "#OPENAI_API_KEY"
+        api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 8192
     - model_name: gpt-3.5-turbo
       provider: openai
       params:
         model: gpt-3.5-turbo
-        api_key: "#OPENAI_API_KEY"
+        api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 1024
     - model_name: gpt-4o
       provider: openai
       params:
         model: gpt-4o
-        api_key: "#OPENAI_API_KEY"
+        api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 8192
     - model_name: claude-3-5-sonnet
