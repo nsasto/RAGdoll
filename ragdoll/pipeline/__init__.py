@@ -11,10 +11,12 @@ from ragdoll import settings
 from ragdoll.config import Config
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.embeddings import get_embedding_model
-from ragdoll.entity_extraction import get_entity_extractor
+from ragdoll.entity_extraction import EntityExtractionService
 from ragdoll.vector_stores import vector_store_from_config
 from ragdoll.graph_stores import get_graph_store
 from ragdoll.ingestion import DocumentLoaderService
+from ragdoll.llms import get_llm
+from langchain_core.language_models import BaseLanguageModel
 
 logger = logging.getLogger("ragdoll.pipeline")
 
@@ -79,15 +81,19 @@ class IngestionPipeline:
 
         if self.options.extract_entities:
             extraction_options = self.options.entity_extraction_options or {}
-            if self.options.llm is not None:
-                extraction_options["llm"] = self.options.llm
+            config_overrides = extraction_options.get("config", {})
+            entity_config = self.config_manager.entity_extraction_config.model_dump()
+            entity_config.update(config_overrides)
 
-            extraction_options["config"] = extraction_options.get("config", {})
-            extraction_options["config"]["chunking_strategy"] = "none"
+            llm_override = extraction_options.get("llm") or self.options.llm
+            if llm_override and not isinstance(llm_override, BaseLanguageModel):
+                llm_override = get_llm(llm_override, self.config_manager)
 
-            self.entity_extractor = entity_extractor or get_entity_extractor(
-                config_manager=self.config_manager,
-                **extraction_options,
+            self.entity_extractor = entity_extractor or EntityExtractionService(
+                config=entity_config,
+                llm=llm_override,
+                text_splitter=self.text_splitter,
+                chunk_documents=False,
             )
         else:
             self.entity_extractor = None

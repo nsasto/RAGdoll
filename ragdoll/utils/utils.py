@@ -2,8 +2,6 @@ from typing import Type, Optional
 from pydantic import BaseModel, ValidationError
 import json
 import re
-import networkx as nx
-import matplotlib.pyplot as plt
 
 def fix_json(s: str) -> str:
     """
@@ -117,6 +115,13 @@ def visualize_graph(graph, output_image_path="knowledge_graph.png", output_json_
         output_image_path: Path to save the graph visualization image.
         output_json_path: Path to save the graph data as JSON.
     """
+    try:
+        import networkx as nx
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("\nInstall networkx and matplotlib to visualize the graph: pip install networkx matplotlib")
+        return
+
     try:
         # Create a directed graph
         G = nx.DiGraph()

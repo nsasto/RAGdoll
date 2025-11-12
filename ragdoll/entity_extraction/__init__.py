@@ -12,17 +12,10 @@ from .models import (
     Graph,
 )
 from .base import BaseEntityExtractor
+from .entity_extraction_service import EntityExtractionService, GraphCreationService
+from .graph_persistence import GraphPersistenceService
 
 logger = logging.getLogger("ragdoll.entity_extraction")
-
-try:
-    from .entity_extraction_service import GraphCreationService
-except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
-    GraphCreationService = None  # type: ignore[assignment]
-    logger.warning(
-        "GraphCreationService could not be imported (missing optional dependency): %s",
-        exc,
-    )
 
 def get_entity_extractor(
     extractor_type: str = None,
@@ -64,21 +57,11 @@ def get_entity_extractor(
     logger.info(f"Creating entity extractor of type: {actual_extractor_type}")
     
     # Create the appropriate extractor instance
-    if actual_extractor_type == "graph_creation_service":
-        if GraphCreationService is None:
-            raise ImportError(
-                "GraphCreationService is unavailable. Install optional dependencies like 'spacy' to enable it."
-            )
-        return GraphCreationService(config=merged_config)
-    else:
+    if actual_extractor_type != "graph_creation_service":
         logger.warning(
-            f"Unknown extractor type: {actual_extractor_type}, defaulting to GraphCreationService"
+            f"Unknown extractor type: {actual_extractor_type}, defaulting to EntityExtractionService"
         )
-        if GraphCreationService is None:
-            raise ImportError(
-                "GraphCreationService is unavailable. Install optional dependencies like 'spacy' to enable it."
-            )
-        return GraphCreationService(config=merged_config)
+    return EntityExtractionService(config=merged_config)
 
 __all__ = [
     "BaseEntityExtractor",  # Export the base class
@@ -89,6 +72,8 @@ __all__ = [
     "GraphNode",
     "GraphEdge",
     "Graph",
+    "EntityExtractionService",
     "GraphCreationService",
+    "GraphPersistenceService",
     "get_entity_extractor",
 ]

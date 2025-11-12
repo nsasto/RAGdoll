@@ -6,7 +6,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from langchain_core.documents import Document
-from ragdoll.entity_extraction.entity_extraction_service import GraphCreationService
+from ragdoll.entity_extraction.entity_extraction_service import EntityExtractionService
 from ragdoll.config import Config
 from ragdoll.llms import get_llm
 from ragdoll.utils import visualize_graph
@@ -36,7 +36,7 @@ async def main(model_name: Optional[str] = None):
     llm = get_llm(model_name, config_manager)
 
     # Create the service
-    graph_service = GraphCreationService(entity_extraction_config)
+    graph_service = EntityExtractionService(config=entity_extraction_config)
 
     # Define sample text
     sample_text = (
@@ -67,9 +67,7 @@ async def main(model_name: Optional[str] = None):
     # Extract the graph
     graph = await graph_service.extract(
         documents=[sample_doc, sample_doc2],
-        llm=llm,
-        entity_types=entity_extraction_config.get("entity_types"),
-        relationship_types=entity_extraction_config.get("relationship_types"),
+        llm_override=llm,
     )
 
     print(f"\nExtracted {len(graph.nodes)} nodes and {len(graph.edges)} edges")
