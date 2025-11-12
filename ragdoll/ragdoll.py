@@ -1,102 +1,123 @@
-from typing import Optional, List, Dict
-from langchain_core.llms import LLM
-from ragdoll.ingestion.ingestion_service import IngestionService
-from ragdoll.llms.openai_llm import MyOpenAI
-from ragdoll.loaders.base_loader import BaseLoader
-from ragdoll.chunkers.base_chunker import BaseChunker
-from ragdoll.embeddings.base_embeddings import BaseEmbeddings
-from ragdoll.vector_stores.base_vector_store import BaseVectorStore
-from ragdoll.vector_stores.factory import vector_store_from_config
-from ragdoll.llms.base_llm import BaseLLM
-from ragdoll.tools.search_tools import SearchInternetTool, SuggestedSearchTermsTool
-from ragdoll.graph_stores.base_graph_store import BaseGraphStore
+from __future__ import annotations
 
-from ragdoll.config import Config
-from ragdoll.config.config_manager import ConfigManager
+from typing import Any, Iterable, List, Optional, Sequence
+
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+
+from ragdoll.config import ConfigManager
+from ragdoll.ingestion import ContentExtractionService
+from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
+from ragdoll.embeddings import get_embedding_model
+from ragdoll.llms import get_llm
+
 
 class Ragdoll:
+    """
+    Thin orchestration layer that wires together ingestion, embeddings,
+    vector storage, and optional LLM answering.
+
+    The goal is to provide a stable public entry point that relies only on the
+    modules that actually exist in RAGdoll 2.x.
+    """
+
     def __init__(
         self,
-        
-        loader: Optional[BaseLoader] = None,
-        chunker: Optional[BaseChunker] = None,
-        embeddings: Optional[BaseEmbeddings] = None,
+        *,
+        config_path: Optional[str] = None,
+        ingestion_service: Optional[ContentExtractionService] = None,
         vector_store: Optional[BaseVectorStore] = None,
-        llm: Optional[LLM] = None,  # Optional LLM instance passed in
-        graph_store: Optional[BaseGraphStore] = None,
-    ):
-        self.config = Config()
-        self.config_manager = ConfigManager()
+        embedding_model: Optional[Embeddings] = None,
+        llm: Optional[Any] = None,
+    ) -> None:
+        self.config_manager = ConfigManager(config_path)
 
-        # Use the provided LLM or create a default one
-        if llm:
-            self.llm = llm
+        self.ingestion_service = ingestion_service or ContentExtractionService(
+            config_path=config_path
+        )
+
+        self.embedding_model = embedding_model or get_embedding_model(
+            config_manager=self.config_manager
+        )
+
+        if vector_store is not None:
+            self.vector_store = vector_store
         else:
-            self.llm = MyOpenAI()
-        # Instantiate tools
-        self.search_tool = SearchInternetTool(self.config)
-        self.suggest_terms_tool = SuggestedSearchTermsTool(self.config, self.llm)
-
-
-        self.loader = loader 
-        self.chunker = chunker
-        self.embeddings = embeddings
-        self.vector_store = vector_store
-        self.graph_store = graph_store
-
-        # Default implementations
-        if self.loader is None:
-            from ragdoll.loaders.directory_loader import DirectoryLoader
-            self.loader = DirectoryLoader()
-        
-        if self.chunker is None:
-            from ragdoll.chunkers.recursive_character_text_splitter import MyRecursiveCharacterTextSplitter
-            self.chunker = MyRecursiveCharacterTextSplitter()
-        
-        if self.embeddings is None:
-            from ragdoll.embeddings.openai_embeddings import MyOpenAIEmbeddings
-            self.embeddings = MyOpenAIEmbeddings()
-
-        if self.vector_store is None:
             vector_config = self.config_manager.vector_store_config
+            if self.embedding_model is None:
+                raise ValueError(
+                    "An embedding model is required to build the default vector store."
+                )
             self.vector_store = vector_store_from_config(
-                vector_config,
-                embedding=self.embeddings,
+                vector_config, embedding=self.embedding_model
             )
-        
-        if graph_store is None:
-            from ragdoll.graph_stores.networkx_graph_store import MyNetworkxGraphStore
-            self.graph_store = MyNetworkxGraphStore()
 
+        self.llm = llm or get_llm(config_manager=self.config_manager)
 
+    def ingest_data(self, sources: Sequence[str]) -> List[Document]:
+        """
+        Load documents from the provided sources and index them in the vector store.
+        """
+        raw_documents = self.ingestion_service.ingest_documents(list(sources))
+        documents = self._to_documents(raw_documents)
+        if documents:
+            self.vector_store.add_documents(documents)
+        return documents
 
-    def ingest_data(self, sources):
-        """Ingests data from a list of sources."""
-        service = IngestionService()
-        return service.ingest_documents(sources)
+    def query(self, question: str, *, k: int = 4) -> dict:
+        """
+        Retrieve context from the vector store, optionally call the configured LLM,
+        and return both the answer (if available) and the supporting documents.
+        """
+        hits = self.vector_store.similarity_search(question, k=k)
 
-    def run(self, prompt: str) -> str:
-        """Run the LLM with the given prompt."""
-        response = self.llm._call(prompt) 
-        return response
-    
-    def run_index_pipeline(self, query: str, **kwargs) :
-        """Run the entire process, taking a query as input."""
-        
-        # 1. Get suggested search terms
-        suggested_terms = self.suggest_terms_tool.run(query=query, num_suggestions=3)
-        
-        # 2. Search the internet using the suggested terms
-        all_results = []
-        for term in suggested_terms:
-            results = self.search_tool.run(query=term, num_results=3)
-            all_results.extend(results)
-        search_results = all_results
-        
-        # ... rest of the pipeline using the search_results ...
-        print(f"Search Results: {search_results}") # For debugging - remove in production
-        # ... rest of the pipeline ...
-        
-        return  # Or return something meaningful from the pipeline
-        
-        
+        answer: Optional[str] = None
+        if self.llm and hasattr(self.llm, "invoke") and hits:
+            prompt = self._build_prompt(question, hits)
+            response = self.llm.invoke(prompt)  # type: ignore[attr-defined]
+            answer = getattr(response, "content", response)
+            if isinstance(answer, str):
+                answer = answer.strip()
+            else:
+                answer = str(answer)
+
+        return {"answer": answer, "documents": hits}
+
+    @staticmethod
+    def _to_documents(documents: Iterable[Any]) -> List[Document]:
+        """Normalize loader output into LangChain Document objects."""
+        normalized: List[Document] = []
+        for doc in documents:
+            if isinstance(doc, Document):
+                normalized.append(doc)
+                continue
+
+            if isinstance(doc, dict):
+                page_content = doc.get("page_content", "")
+                metadata = doc.get("metadata", {}) or {}
+            else:
+                page_content = str(doc)
+                metadata = {}
+
+            normalized.append(Document(page_content=page_content, metadata=metadata))
+        return normalized
+
+    @staticmethod
+    def _build_prompt(question: str, documents: Sequence[Document]) -> str:
+        """Create a lightweight prompt that includes retrieved context."""
+        context_sections = []
+        for idx, doc in enumerate(documents, start=1):
+            metadata = doc.metadata or {}
+            source = metadata.get("source") or metadata.get("path") or "unknown"
+            context_sections.append(
+                f"Document {idx} (source: {source}):\n{doc.page_content}"
+            )
+
+        context_blob = "\n\n".join(context_sections)
+        return (
+            "You are a concise assistant that answers questions strictly using the "
+            "provided context.\n\n"
+            f"Context:\n{context_blob}\n\n"
+            f"Question: {question}\n"
+            "Answer:"
+        )
