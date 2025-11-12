@@ -55,3 +55,10 @@ embeddings:
       client: huggingface
       model: "sentence-transformers/all-mpnet-base-v2"
       api_key: "your_default_api_key"     
+
+vector_store:
+  enabled: true
+  store_type: chroma
+  params:
+    collection_name: ragdoll
+    persist_directory: ".ragdoll/chroma"
