@@ -114,7 +114,7 @@ RAGdoll 2.0 embraces LangChain's ecosystem for maximum flexibility and maintaina
 - **Decision**: Use LangChain `Embeddings` objects directly instead of creating custom embedding classes
 - **Rationale**: LangChain provides robust, well-tested embedding implementations. Creating custom wrappers adds unnecessary complexity and maintenance burden.
 - **Benefits**: Immediate access to all LangChain embedding providers (OpenAI, HuggingFace, etc.), automatic updates, consistent APIs.
-- **Implementation**: `RagdollEmbeddings` acts as a factory that returns configured LangChain embedding instances.
+- **Implementation**: `ragdoll.embeddings.get_embedding_model` reads your config and returns a ready-to-use LangChain embedding instance.
 
 ### Vector Stores: LangChain VectorStore Interface
 

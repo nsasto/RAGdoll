@@ -1,91 +1,109 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pytest import fixture
-from unittest.mock import patch, MagicMock
-from ragdoll.embeddings.embeddings import RagdollEmbeddings
+
+from ragdoll.embeddings import get_embedding_model
 
 
-@fixture
-def mock_config_manager():
-    with patch("ragdoll.embeddings.embeddings.ConfigManager") as MockConfigManager:
-        yield MockConfigManager
+@pytest.fixture
+def config_manager():
+    manager = MagicMock()
+    manager._config = {}
+    return manager
 
-def test_initialization_with_config():
-    config = {"embeddings": {"default_model": "openai", "openai": {"model": "test-model"}}}
-    embeddings = RagdollEmbeddings(config=config)
-    assert embeddings.config == config
 
-def test_initialization_without_config(mock_config_manager):
-    mock_config = {"embeddings": {"default_model": "openai"}}
-    mock_config_manager.return_value._config = mock_config
-    embeddings = RagdollEmbeddings()
-    assert embeddings.config == mock_config
+def test_get_embedding_model_uses_models_section(config_manager):
+    config_manager._config = {
+        "embeddings": {
+            "default_model": "custom-openai",
+            "models": {
+                "custom-openai": {
+                    "provider": "openai",
+                    "model": "text-embedding-3-large",
+                    "dimensions": 1024,
+                }
+            },
+        }
+    }
+    with patch("ragdoll.embeddings._initialize_model_by_provider") as mock_provider:
+        sentinel = object()
+        mock_provider.return_value = sentinel
+        result = get_embedding_model(config_manager=config_manager)
+        assert result is sentinel
+        mock_provider.assert_called_once_with(
+            "openai",
+            {"model": "text-embedding-3-large", "dimensions": 1024},
+        )
 
-def test_from_config(mock_config_manager):
-    mock_config = {"embeddings": {"default_model": "huggingface"}}
-    mock_config_manager.return_value._config = mock_config
-    embeddings = RagdollEmbeddings.from_config()
-    assert embeddings.config == mock_config
 
-def test_get_embeddings_model_pre_initialized(mock_config_manager):
-    mock_config = {"embeddings": {"default_model": "openai"}}
-    mock_config_manager.return_value._config = mock_config
-    mock_model = MagicMock()
-    embeddings = RagdollEmbeddings(embeddings_model=mock_model)
-    assert embeddings.get_embeddings_model() == mock_model
-            
+def test_get_embedding_model_falls_back_to_openai_section(config_manager):
+    config_manager._config = {
+        "embeddings": {
+            "default_model": "openai",
+            "openai": {"model": "text-embedding-3-small", "dimensions": 256},
+        }
+    }
+    with patch("ragdoll.embeddings._create_openai_embeddings") as mock_openai:
+        sentinel = object()
+        mock_openai.return_value = sentinel
+        result = get_embedding_model(config_manager=config_manager)
+        assert result is sentinel
+        mock_openai.assert_called_once_with(
+            {"model": "text-embedding-3-small", "dimensions": 256}
+        )
 
-def test_get_embeddings_model_openai_from_config(mock_config_manager):
-    with patch("ragdoll.embeddings.embeddings.OpenAIEmbeddings") as MockOpenAIEmbeddings:
-        mock_config = {"embeddings": {"default_model": "openai", "openai": {"model": "test-openai-model", "dimensions": 128}}}
-        mock_config_manager.return_value._config = mock_config
-        embeddings = RagdollEmbeddings()
-        embeddings.get_embeddings_model()
-        MockOpenAIEmbeddings.assert_called_once_with(model="test-openai-model", dimensions=128)
 
-def test_get_embeddings_model_huggingface_from_config(mock_config_manager):
-    with patch("ragdoll.embeddings.embeddings.HuggingFaceEmbeddings") as MockHuggingFaceEmbeddings:
-        mock_config = {"embeddings": {"default_model": "huggingface", "huggingface": {"model_name": "test-hf-model"}}}
-        mock_config_manager.return_value._config = mock_config
-        embeddings = RagdollEmbeddings()
-        embeddings.get_embeddings_model()
-        MockHuggingFaceEmbeddings.assert_called_once_with(model_name="test-hf-model")
+def test_get_embedding_model_falls_back_to_huggingface_section(config_manager):
+    config_manager._config = {
+        "embeddings": {
+            "default_model": "huggingface",
+            "huggingface": {"model_name": "sentence-transformers/all-mpnet-base-v2"},
+        }
+    }
+    with patch("ragdoll.embeddings._create_huggingface_embeddings") as mock_hf:
+        sentinel = object()
+        mock_hf.return_value = sentinel
+        result = get_embedding_model(config_manager=config_manager)
+        assert result is sentinel
+        mock_hf.assert_called_once_with(
+            {"model_name": "sentence-transformers/all-mpnet-base-v2"}
+        )
 
-def test_get_embeddings_model_default(mock_config_manager):
-    with patch("ragdoll.embeddings.embeddings.OpenAIEmbeddings") as MockOpenAIEmbeddings:
-        mock_config = {"embeddings": {}}
-        mock_config_manager.return_value._config = mock_config
-        embeddings = RagdollEmbeddings()
-        embeddings.get_embeddings_model()
-        MockOpenAIEmbeddings.assert_called_once()
 
-def test_get_embeddings_model_invalid_model_type(mock_config_manager):
-    with patch("ragdoll.embeddings.embeddings.OpenAIEmbeddings") as MockOpenAIEmbeddings:
-        mock_config = {"embeddings": {"default_model": "invalid"}}
-        mock_config_manager.return_value._config = mock_config
-        embeddings = RagdollEmbeddings()
-        embeddings.get_embeddings_model()
-        MockOpenAIEmbeddings.assert_called_once()
+def test_get_embedding_model_accepts_direct_provider():
+    with patch("ragdoll.embeddings._initialize_model_by_provider") as mock_provider:
+        sentinel = object()
+        mock_provider.return_value = sentinel
+        result = get_embedding_model(provider="fake", size=42)
+        assert result is sentinel
+        mock_provider.assert_called_once_with("fake", {"size": 42})
 
-def test_get_embeddings_model_openai_no_params(mock_config_manager):
-    with patch("ragdoll.embeddings.embeddings.OpenAIEmbeddings") as MockOpenAIEmbeddings:
-        mock_config = {"embeddings": {"default_model": "openai"}}
-        mock_config_manager.return_value._config = mock_config
-        embeddings = RagdollEmbeddings()
-        embeddings.get_embeddings_model()
-        MockOpenAIEmbeddings.assert_called_once()
 
-def test_get_embeddings_model_huggingface_no_params(mock_config_manager):
-    with patch("ragdoll.embeddings.embeddings.HuggingFaceEmbeddings") as MockHuggingFaceEmbeddings:
-        mock_config = {"embeddings": {"default_model": "huggingface"}}
-        mock_config_manager.return_value._config = mock_config
-        embeddings = RagdollEmbeddings()
-        embeddings.get_embeddings_model()
-        MockHuggingFaceEmbeddings.assert_called_once()
+def test_get_embedding_model_inferrs_provider_from_name(config_manager):
+    config_manager._config = {"embeddings": {}}
+    with patch("ragdoll.embeddings._create_openai_embeddings") as mock_openai:
+        sentinel = object()
+        mock_openai.return_value = sentinel
+        result = get_embedding_model(
+            model_name="text-embedding-3-large",
+            config_manager=config_manager,
+            temperature=0.3,
+        )
+        assert result is sentinel
+        mock_openai.assert_called_once_with({"temperature": 0.3})
 
-def test_get_embeddings_model_default_openai_params(mock_config_manager):
-    with patch("ragdoll.embeddings.embeddings.OpenAIEmbeddings") as MockOpenAIEmbeddings:
-        mock_config = {"embeddings": {"default_model": "openai", "openai": {}}}
-        mock_config_manager.return_value._config = mock_config
-        embeddings = RagdollEmbeddings()
-        embeddings.get_embeddings_model()
-        MockOpenAIEmbeddings.assert_called_once_with(model="text-embedding-3-large")
+
+def test_get_embedding_model_inferrs_huggingface_from_path(config_manager):
+    config_manager._config = {"embeddings": {}}
+    with patch("ragdoll.embeddings._create_huggingface_embeddings") as mock_hf:
+        sentinel = object()
+        mock_hf.return_value = sentinel
+        result = get_embedding_model(
+            model_name="sentence-transformers/all-mpnet-base-v2",
+            config_manager=config_manager,
+            normalize=True,
+        )
+        assert result is sentinel
+        mock_hf.assert_called_once_with(
+            {"model_name": "sentence-transformers/all-mpnet-base-v2", "normalize": True}
+        )

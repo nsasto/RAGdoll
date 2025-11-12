@@ -25,8 +25,7 @@ Embeddings convert text chunks into vector representations for similarity search
 
 ## Key Components
 
-- `embeddings.py`: Core embedding logic.
-- `__init__.py`: Module exports.
+- `ragdoll/embeddings/__init__.py`: Contains `get_embedding_model` plus provider-specific helpers.
 - Example: `examples/embeddings.ipynb` shows embedding usage.
 
 ## Features
@@ -39,48 +38,33 @@ Embeddings convert text chunks into vector representations for similarity search
 
 ## How It Works
 
-1. **Initialization**: The embeddings class is initialized with a configuration and optional embedding model.
-2. **Model Selection**: Selects the embedding backend (OpenAI, HuggingFace) based on config.
-3. **Embedding Generation**: Converts text or documents into vectors for storage and retrieval.
+1. **Configuration**: `ConfigManager` loads the `embeddings` block from `default_config.yaml` (or your custom config).
+2. **Model Selection**: `get_embedding_model` chooses a provider based on the `default_model` entry or an explicit `model_name`.
+3. **Instantiation**: Provider-specific helpers (OpenAI, HuggingFace, Google Vertex, Cohere, Fake) return a LangChain `Embeddings` object.
+4. **Usage**: The returned object exposes LangChain’s standard `embed_documents`/`embed_query` methods.
 
 ---
 
 ## Public API and Function Documentation
 
-### `RagdollEmbeddings`
+### `get_embedding_model(model_name: Optional[str] = None, config_manager: Optional[ConfigManager] = None, provider: Optional[str] = None, **kwargs)`
 
-#### Constructor
+Return a LangChain `Embeddings` instance based on configuration or explicit parameters.
 
-```python
-RagdollEmbeddings(config: Optional[dict] = None, embeddings_model: Optional[OpenAIEmbeddings] = None)
-```
+- `model_name`: Optional alias that maps to the `embeddings.models` config section.
+- `config_manager`: Provide your own `ConfigManager` instance; otherwise the default configuration is loaded.
+- `provider`: Skip config lookup and directly specify `"openai"`, `"huggingface"`, `"google"`, `"cohere"`, or `"fake"`.
+- `**kwargs`: Extra keyword arguments forwarded to the provider helper (and ultimately to the LangChain class).
 
-Initializes the embeddings class with a config and optional model. If no config is provided, loads the default config.
-
-#### `from_config()`
-
-Class method to instantiate from the default configuration.
-
-#### `get_embeddings_model() -> OpenAIEmbeddings | HuggingFaceEmbeddings`
-
-Returns the configured embedding model instance.
-
-#### `_create_openai_embeddings(model_params: Dict[str, Any]) -> OpenAIEmbeddings`
-
-Creates an OpenAIEmbeddings model with parameters from config.
-
-#### `_create_huggingface_embeddings(model_params: Dict[str, Any]) -> HuggingFaceEmbeddings`
-
-Creates a HuggingFaceEmbeddings model with parameters from config.
+Helper functions such as `_create_openai_embeddings`, `_create_huggingface_embeddings`, `_create_google_embeddings`, `_create_cohere_embeddings`, and `_create_fake_embeddings` encapsulate the provider-specific constructor logic. They can be reused when extending the module.
 
 ---
 
 ## Usage Example
 
 ```python
-from ragdoll.embeddings.embeddings import RagdollEmbeddings
-emb = RagdollEmbeddings.from_config()
-model = emb.get_embeddings_model()
+from ragdoll.embeddings import get_embedding_model
+model = get_embedding_model()  # Uses the default model defined in config
 vectors = model.embed_documents(["text1", "text2"])
 ```
 
@@ -88,8 +72,9 @@ vectors = model.embed_documents(["text1", "text2"])
 
 ## Extending Embeddings
 
-- Implement new embedding backends by adding methods to `RagdollEmbeddings`.
-- Add new model types and configuration options as needed.
+- Add a new provider helper (e.g., `_create_bespoke_embeddings`) inside `ragdoll/embeddings/__init__.py`.
+- Register the provider in `_initialize_model_by_provider` and update `default_config.yaml` with the necessary parameters.
+- Reference the new provider via the `embeddings.models` config block.
 
 ---
 
