@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Literal, Any, Union, Callable
 
-import networkx as nx
 import spacy
 
 from langchain_core.output_parsers import PydanticOutputParser
@@ -37,6 +36,7 @@ from .models import (
     Graph,
 )
 from .base import BaseEntityExtractor
+from .graph_persistence import GraphPersistenceService
 import json
 
 # from langchain_core.language_models import BaseChatModel, BaseLanguageModel
@@ -108,6 +108,24 @@ class GraphCreationService(BaseEntityExtractor):
             except Exception as download_error:
                 logger.error(f"Error downloading spaCy model: {download_error}")
                 raise
+
+        graph_db_config = self.config.get("graph_database_config", {}) or {}
+        output_format = graph_db_config.get(
+            "output_format", self.config.get("output_format", "custom_graph_object")
+        )
+        output_path = graph_db_config.get("output_file") or graph_db_config.get(
+            "output_path"
+        )
+        neo4j_config = {
+            key: graph_db_config.get(key)
+            for key in ("uri", "user", "password")
+            if graph_db_config.get(key)
+        }
+        self.graph_persistence = GraphPersistenceService(
+            output_format=output_format,
+            output_path=output_path,
+            neo4j_config=neo4j_config or None,
+        )
 
     async def _chunk_document(self, document: Document) -> List[Document]:
         """
@@ -828,148 +846,15 @@ class GraphCreationService(BaseEntityExtractor):
         return await call_llm(self.llm, prompt)
 
     async def _store_graph(self, graph: Graph):
-        """
-        Stores the graph in a configured graph database or format.
-
-        Args:
-            graph: The graph to store.
-        """
-        db_config = self.config.get("graph_database_config")
-        if not db_config:
-            logger.debug("No graph database configuration, skipping storage")
+        """Persist the graph using the configured persistence service."""
+        if not self.graph_persistence:
+            logger.debug("Graph persistence not configured; skipping storage")
             return
 
         try:
-            output_format = self.config.get("output_format", "custom_graph_object")
-            logger.info(
-                f"Storing graph with {len(graph.nodes)} nodes and {len(graph.edges)} edges in format: {output_format}"
-            )
-
-            if output_format == "custom_graph_object":
-                # This is a placeholder for custom storage logic
-                logger.debug(f"Graph object ready for custom storage")
-
-            elif output_format == "json":
-                import json
-
-                # Fix: use model_dump_json instead of json() method with indent parameter
-                graph_json = graph.model_dump_json(
-                    indent=2
-                )  # For newer pydantic versions
-                # For older pydantic versions, use: graph.json(indent=2)
-
-                nodes_str = "\n".join(
-                    [
-                        f"- {node.name} (Type: {node.type}, ID: {node.id})"
-                        for node in graph.nodes
-                    ]
-                )
-
-                # List of relationships
-                edges_str = "\n".join(
-                    [
-                        f"- {self._get_node_name(graph, edge.source)} --[{edge.type}]--> {self._get_node_name(graph, edge.target)}"
-                        for edge in graph.edges
-                    ]
-                )
-
-                logger.debug(f"\nGraph parsed from JSON:\n {nodes_str}\n{edges_str}\n")
-
-                # name save to a file
-                if "output_file" in db_config:
-                    with open(db_config["output_file"], "w") as f:
-                        f.write(graph_json)
-                    logger.info(f"Graph saved to {db_config['output_file']}")
-
-            elif output_format == "networkx":
-                # Convert to networkx graph
-                g = nx.DiGraph()
-
-                # Add nodes
-                for node in graph.nodes:
-                    g.add_node(node.id, type=node.type, name=node.name, **node.metadata)
-
-                # Add edges
-                for edge in graph.edges:
-                    g.add_edge(
-                        edge.source,
-                        edge.target,
-                        type=edge.type,
-                        source_document_id=edge.source_document_id,
-                        **edge.metadata,
-                    )
-
-                logger.debug(f"NetworkX graph created: {g}")
-
-                # Optionally save to a file
-                if "output_file" in db_config:
-                    import pickle
-
-                    with open(db_config["output_file"], "wb") as f:
-                        pickle.dump(g, f)
-                    logger.info(f"NetworkX graph saved to {db_config['output_file']}")
-
-            elif output_format == "neo4j":
-                # Example Neo4j storage using py2neo
-                if (
-                    "uri" not in db_config
-                    or "user" not in db_config
-                    or "password" not in db_config
-                ):
-                    logger.error("Missing Neo4j connection parameters")
-                    return
-
-                try:
-                    from py2neo import Graph as Neo4jGraph, Node, Relationship
-
-                    # Connect to Neo4j
-                    neo4j_graph = Neo4jGraph(
-                        db_config["uri"],
-                        auth=(db_config["user"], db_config["password"]),
-                    )
-
-                    # Create transaction
-                    tx = neo4j_graph.begin()
-
-                    # Create nodes
-                    neo4j_nodes = {}
-                    for node in graph.nodes:
-                        neo4j_node = Node(
-                            node.type, id=node.id, name=node.name, **node.metadata
-                        )
-                        neo4j_nodes[node.id] = neo4j_node
-                        tx.create(neo4j_node)
-
-                    # Create relationships
-                    for edge in graph.edges:
-                        if edge.source in neo4j_nodes and edge.target in neo4j_nodes:
-                            source_node = neo4j_nodes[edge.source]
-                            target_node = neo4j_nodes[edge.target]
-                            relationship = Relationship(
-                                source_node,
-                                edge.type,
-                                target_node,
-                                id=edge.id,
-                                source_document_id=edge.source_document_id,
-                                **edge.metadata,
-                            )
-                            tx.create(relationship)
-
-                    # Commit transaction
-                    tx.commit()
-                    logger.info(f"Graph stored in Neo4j at {db_config['uri']}")
-
-                except ImportError:
-                    logger.error(
-                        "py2neo not installed. Install with: pip install py2neo"
-                    )
-                except Exception as neo4j_error:
-                    logger.error(f"Neo4j storage error: {neo4j_error}")
-            else:
-                logger.warning(f"Unsupported output format: {output_format}")
-
-        except Exception as e:
-            logger.error(f"Error storing graph: {e}")
+            self.graph_persistence.save(graph)
+        except Exception as error:
+            logger.error("Error storing graph: %s", error)
 
     async def extract(
         self,
