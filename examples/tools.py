@@ -1,8 +1,8 @@
-"""Examples for the search tools in ragdoll/tools/search_tools.py."""
+﻿"""Examples for the search tools in ragdoll/tools/search_tools.py."""
 
 import logging
 from ragdoll.config import Config  # Assuming Config is in ragdoll.config
-from ragdoll.config.config_manager import ConfigManager  # Assuming ConfigManager is in ragdoll.config.config_manager
+from ragdoll.config import Config  # Assuming ConfigManager is in ragdoll.config.config_manager
 from ragdoll.tools.search_tools import SearchInternetTool, SuggestedSearchTermsTool
 from langchain_openai import OpenAI  # Import OpenAI LLM
 
@@ -10,7 +10,7 @@ from langchain_openai import OpenAI  # Import OpenAI LLM
 load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 # Create a configuration manager
-config_manager = ConfigManager()
+config_manager = Config()
 config = config_manager._config #access the loaded config as a dictionary
 logger.setLevel(config.get("log_level",logging.INFO)) # Set logging level if needed
 logging.basicConfig(level=config.get("log_level",logging.INFO)) # Set logging level if needed

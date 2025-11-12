@@ -89,16 +89,13 @@ def mock_config_manager():
 # Test 1: Fix test_get_graph_store_with_config_manager
 def test_get_graph_store_with_config_manager(mock_config_manager):
     """Test getting a graph store using a config manager."""
-    with patch("ragdoll.graph_stores.ConfigManager", return_value=mock_config_manager):
-        # The error is that json is imported inside the _create_json_graph_store function
-        # not at the module level, so we need to mock it there
+    with patch("ragdoll.graph_stores.settings.get_config_manager", return_value=mock_config_manager):
         with patch("ragdoll.graph_stores._create_json_graph_store") as mock_create:
             mock_store = MagicMock(spec=GraphStoreWrapper)
             mock_store.store_type = "json"
             mock_store.config = {"output_file": "test_output.json"}
             mock_create.return_value = mock_store
-            
-            # Test with default store type from config
+
             graph_store = get_graph_store()
             assert graph_store is not None
             assert graph_store.store_type == "json"

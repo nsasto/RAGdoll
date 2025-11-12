@@ -1,12 +1,12 @@
 import logging
-from ragdoll.config.config_manager import ConfigManager
+from ragdoll.config import Config
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 
 
-# Create a ConfigManager instance (assuming default_config.yaml is in the same directory)
-config_manager = ConfigManager()
+# Create a Config instance (assuming default_config.yaml is in the same directory)
+config_manager = Config()
 
 # 1. Accessing the Ingestion Configuration
 ingestion_config = config_manager.ingestion_config

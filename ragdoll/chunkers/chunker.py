@@ -6,7 +6,7 @@ from langchain_text_splitters import (
     TextSplitter,
 )
 
-from ragdoll.config.config_manager import ConfigManager  # Import ConfigManager
+from ragdoll import settings
 
 
 class Chunker(ABC):
@@ -25,16 +25,14 @@ class Chunker(ABC):
         if text_splitter is not None and not isinstance(text_splitter, TextSplitter):
             raise TypeError("text_splitter must be an instance of TextSplitter")
         if config is None:
-            config_manager = ConfigManager()
-            self.config = config_manager._config  # Load default config
+            self.config = settings.get_config_manager()._config
         else:
             self.config = config
         self.text_splitter = text_splitter
 
     @classmethod
     def from_config(cls):
-        config_manager = ConfigManager()
-        config = config_manager._config
+        config = settings.get_config_manager()._config
         return cls(config=config)
 
     def get_text_splitter(

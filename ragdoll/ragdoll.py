@@ -5,7 +5,8 @@ from typing import Any, Iterable, List, Optional, Sequence
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 
-from ragdoll.config import ConfigManager
+from ragdoll import settings
+from ragdoll.config import Config
 from ragdoll.ingestion import ContentExtractionService
 from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 from ragdoll.embeddings import get_embedding_model
@@ -30,10 +31,12 @@ class Ragdoll:
         embedding_model: Optional[Embeddings] = None,
         llm: Optional[Any] = None,
     ) -> None:
-        self.config_manager = ConfigManager(config_path)
+        self.config_manager = (
+            Config(config_path) if config_path else settings.get_config_manager()
+        )
 
         self.ingestion_service = ingestion_service or ContentExtractionService(
-            config_path=config_path
+            config_manager=self.config_manager
         )
 
         self.embedding_model = embedding_model or get_embedding_model(

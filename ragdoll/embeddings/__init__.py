@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any, Optional, Union, List
 
 from langchain_core.embeddings import Embeddings
-from ragdoll.config import ConfigManager
+from ragdoll import settings
 
 # Import embedding models for direct access in tests
 from langchain_openai import OpenAIEmbeddings
@@ -35,10 +35,7 @@ def get_embedding_model(
         An initialized embedding model, or None if an error occurs
     """
     if config_manager is None:
-        try:
-            config_manager = ConfigManager()
-        except ImportError:
-            logger.warning("ConfigManager not found. Using provided parameters only.")
+        config_manager = settings.get_config_manager()
 
     # If provider is directly specified, skip config and use direct initialization
     if provider:

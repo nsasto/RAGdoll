@@ -12,7 +12,8 @@ from langchain_core.tools import BaseTool
 from langchain_google_community import GoogleSearchAPIWrapper
 from pydantic import BaseModel, Field
 
-from ragdoll.config import ConfigManager
+from ragdoll import settings
+from ragdoll.config import Config
 from ragdoll.prompts import get_prompt
 
 
@@ -87,7 +88,7 @@ class SuggestedSearchTermsTool(BaseTool):
         self,
         llm: LLM,
         *,
-        config_manager: Optional[ConfigManager] = None,
+        config_manager: Optional[Config] = None,
         prompt_key: str = DEFAULT_PROMPT_KEY,
         log_level: int = logging.INFO,
     ) -> None:
@@ -124,13 +125,13 @@ class SuggestedSearchTermsTool(BaseTool):
     def _resolve_prompt(
         self,
         prompt_key: str,
-        config_manager: Optional[ConfigManager],
+        config_manager: Optional[Config],
     ) -> str:
-        if config_manager:
-            templates = config_manager.get_default_prompt_templates()
-            template = templates.get(prompt_key)
-            if template:
-                return template
+        manager = config_manager or settings.get_config_manager()
+        templates = manager.get_default_prompt_templates()
+        template = templates.get(prompt_key)
+        if template:
+            return template
 
         try:
             return get_prompt(prompt_key)

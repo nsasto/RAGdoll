@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from enum import Enum
 from retry import retry
 
+from ragdoll import settings
+from ragdoll.config import Config
 from ragdoll.ingestion.base import BaseIngestionService
-from ragdoll.config.config_manager import ConfigManager
 from ragdoll.cache.cache_manager import CacheManager
 from ragdoll.metrics.metrics_manager import MetricsManager
 
@@ -35,12 +36,21 @@ class IngestionService(BaseIngestionService):
         metrics_manager: Optional[MetricsManager] = None,
         use_cache: bool = True,
         collect_metrics: bool = False,
+        config_manager: Optional[Config] = None,
     ):
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
         )
 
-        self.config_manager = ConfigManager(config_path)
+        if config_manager is not None and config_path is not None:
+            raise ValueError("Provide either config_manager or config_path, not both.")
+
+        if config_manager is not None:
+            self.config_manager = config_manager
+        elif config_path is not None:
+            self.config_manager = Config(config_path)
+        else:
+            self.config_manager = settings.get_config_manager()
         config = self.config_manager.ingestion_config
         monitor_config = self.config_manager.monitor_config
 
@@ -53,7 +63,8 @@ class IngestionService(BaseIngestionService):
         self.batch_size = batch_size if batch_size is not None else config.batch_size
 
         self.use_cache = use_cache
-        self.cache_manager = cache_manager or CacheManager(ttl_seconds=86400)
+        ttl = self.config_manager.cache_config.cache_ttl
+        self.cache_manager = cache_manager or CacheManager(ttl_seconds=ttl)
         self.metrics_manager = metrics_manager
         self.collect_metrics = metrics_manager is not None
 

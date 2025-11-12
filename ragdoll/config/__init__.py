@@ -7,7 +7,7 @@ configuration schemas for various system components and a ConfigManager
 class for handling configuration files.
 """
 
-from ragdoll.config.config_manager import ConfigManager
+from ragdoll.config.config_manager import ConfigManager as Config
 from ragdoll.config.base_config import (
     # Base configs
     BaseConfig,
@@ -27,7 +27,7 @@ from ragdoll.config.base_config import (
 
 __all__ = [
     # Main config manager
-    "ConfigManager",
+    "Config",
     # Base config classes
     "BaseConfig",
     # Component config classes

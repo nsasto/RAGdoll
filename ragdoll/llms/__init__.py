@@ -9,6 +9,8 @@ import logging
 import importlib.util
 from typing import Dict, Any, Optional, Union
 from langchain_core.language_models import BaseChatModel, BaseLanguageModel
+from ragdoll import settings
+from ragdoll.config import Config
 from .utils import call_llm
 
 logger = logging.getLogger("ragdoll.llms")
@@ -42,19 +44,10 @@ def _set_api_key_from_config(provider: Optional[str], config: Dict[str, Any]) ->
         elif provider == "google":
             os.environ["GOOGLE_API_KEY"] = api_key
 
-def _load_default_config():
-    """Loads the default ConfigManager instance."""
-    try:
-        from ragdoll.config.config_manager import ConfigManager
-        return ConfigManager()
-    except ImportError:
-        logger.warning("ConfigManager not found. Ensure 'ragdoll' is installed for automatic config loading.")
-        return None
-    except Exception as e:
-        logger.error(f"Failed to load default ConfigManager: {e}")
-        return None
-
-def get_llm(model_name_or_config: Union[str, Dict[str, Any]] = None, config_manager=None) -> Optional[Union[BaseChatModel, BaseLanguageModel]]:
+def get_llm(
+    model_name_or_config: Union[str, Dict[str, Any]] = None,
+    config_manager: Optional[Config] = None,
+) -> Optional[Union[BaseChatModel, BaseLanguageModel]]:
     """
     Get a LangChain model based on a model name (from config) or a direct configuration.
     Automatically loads the default config if config_manager is not provided.
@@ -79,10 +72,7 @@ def get_llm(model_name_or_config: Union[str, Dict[str, Any]] = None, config_mana
         return None
 
     if config_manager is None:
-        config_manager = _load_default_config()
-        if config_manager is None:
-            logger.warning("No ConfigManager provided and default loading failed. Cannot load LLM.")
-            return None
+        config_manager = settings.get_config_manager()
 
     llm_config = config_manager._config.get("llms", {})
     default_model_name = llm_config.get("default_model")
@@ -170,12 +160,9 @@ if __name__ == "__main__":
 
     # Example with custom config file
     try:
-        from ragdoll.config.config_manager import ConfigManager
-        custom_config_manager = ConfigManager(config_path="path/to/your/custom_config.yaml")  # Replace with actual path
+        custom_config_manager = Config(config_path="path/to/your/custom_config.yaml")  # Replace with actual path
         claude = get_llm("claude-3-5-sonnet", custom_config_manager)
         if claude:
             print(f"Loaded with custom config: {claude}")
-    except ImportError:
-        print("ConfigManager not available for custom config example.")
     except FileNotFoundError:
         print("Custom config file not found for example.")

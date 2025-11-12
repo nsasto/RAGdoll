@@ -1,4 +1,4 @@
-"""
+﻿"""
 Example demonstrating RAGdoll's embeddings functionality.
 
 This script shows how to:
@@ -37,7 +37,7 @@ print_divider()
 
 # Load configuration
 print("📝 Loading configuration...")
-config_manager = ConfigManager()
+config_manager = Config()
 
 # Sample text to embed
 text_to_embed = "This is an example sentence that we will convert to a vector embedding."
@@ -148,4 +148,5 @@ except Exception as e:
 
 print_divider()
 print("🏁 Examples completed!")
+
 

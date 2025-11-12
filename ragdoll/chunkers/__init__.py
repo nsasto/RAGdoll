@@ -19,7 +19,7 @@ from langchain_text_splitters import (
     TokenTextSplitter,
 )
 
-from ragdoll.config import ConfigManager
+from ragdoll import settings
 
 logger = logging.getLogger("ragdoll.chunkers")
 
@@ -65,6 +65,8 @@ def get_text_splitter(
                 chunker_config = config["chunker"]
             else:
                 chunker_config = config
+    else:
+        chunker_config = settings.get_config_manager()._config.get("chunker", {})
 
     # Determine splitter type (priority: parameter > config > default)
     # First check explicit splitter_type, then chunking_strategy (if it's a valid splitter type),

@@ -1,4 +1,4 @@
-# examples/entity_extraction_example.py
+﻿# examples/entity_extraction_example.py
 
 import asyncio
 import logging
@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from langchain_core.documents import Document
 from ragdoll.entity_extraction.entity_extraction_service import GraphCreationService
-from ragdoll.config.config_manager import ConfigManager
+from ragdoll.config import Config
 from ragdoll.llms import get_llm
 from ragdoll.utils import visualize_graph
 
@@ -27,7 +27,7 @@ async def main(model_name: Optional[str] = None):
     load_dotenv(override=True)
 
     # Get configuration
-    config_manager = ConfigManager()
+    config_manager = Config()
     entity_extraction_config = config_manager.entity_extraction_config.model_dump()
 
     # Use the real LLM
@@ -93,3 +93,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(main(model_name=args.model))
+

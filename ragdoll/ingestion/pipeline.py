@@ -6,13 +6,14 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 from langchain.schema import Document
+from ragdoll import settings
+from ragdoll.config import Config
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.embeddings import get_embedding_model
 from ragdoll.entity_extraction import get_entity_extractor
 from ragdoll.vector_stores import get_vector_store
 from ragdoll.graph_stores import get_graph_store
 from ragdoll.ingestion import ContentExtractionService
-from ragdoll.config import ConfigManager
 
 logger = logging.getLogger("ragdoll.ingestion")
 
@@ -45,7 +46,7 @@ class IngestionPipeline:
     
     def __init__(
         self,
-        config_manager: Optional[ConfigManager] = None,
+        config_manager: Optional[Config] = None,
         content_extraction_service: Optional[ContentExtractionService] = None,
         text_splitter = None,
         embedding_model = None,
@@ -59,7 +60,7 @@ class IngestionPipeline:
         
         Components can be pre-initialized or will be created using factories.
         """
-        self.config_manager = config_manager or ConfigManager()
+        self.config_manager = config_manager or settings.get_config_manager()
         self.options = options or IngestionOptions()
         
         # Initialize content extraction (for loading documents)
@@ -355,11 +356,14 @@ async def ingest_documents(
         Dictionary containing ingestion statistics
     """
     # Create config manager if config provided
-    config_manager = ConfigManager(config) if config else None
+    custom_config_manager = None
+    if config:
+        custom_config_manager = Config(None)
+        custom_config_manager._config.update(config)
     
     # Create pipeline
     pipeline = IngestionPipeline(
-        config_manager=config_manager,
+        config_manager=custom_config_manager,
         options=options or IngestionOptions()
     )
     

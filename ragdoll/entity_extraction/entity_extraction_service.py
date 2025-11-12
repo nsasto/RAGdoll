@@ -24,7 +24,7 @@ from ragdoll.chunkers import (
     get_text_splitter,
     split_documents,
 )  # Import chunker factory functions
-from ragdoll.config.config_manager import ConfigManager
+from ragdoll import settings
 from ragdoll.llms import get_llm, call_llm
 from ragdoll.utils import json_parse
 from .models import (
@@ -71,7 +71,7 @@ class GraphCreationService(BaseEntityExtractor):
             config: Dictionary containing configuration parameters.
             llm: Optional LLM instance or model name.
         """
-        config_manager = ConfigManager()
+        config_manager = settings.get_config_manager()
         default_config = (
             config_manager.entity_extraction_config.model_dump()
         )  # Get default config as a dict

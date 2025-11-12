@@ -1,13 +1,28 @@
 from typing import Dict, Any, Optional
 import logging
+
+from ragdoll import settings
 from .models import (
-    Entity, Relationship, EntityList, RelationshipList, 
-    GraphNode, GraphEdge, Graph
+    Entity,
+    Relationship,
+    EntityList,
+    RelationshipList,
+    GraphNode,
+    GraphEdge,
+    Graph,
 )
 from .base import BaseEntityExtractor
-from .entity_extraction_service import GraphCreationService
 
 logger = logging.getLogger("ragdoll.entity_extraction")
+
+try:
+    from .entity_extraction_service import GraphCreationService
+except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+    GraphCreationService = None  # type: ignore[assignment]
+    logger.warning(
+        "GraphCreationService could not be imported (missing optional dependency): %s",
+        exc,
+    )
 
 def get_entity_extractor(
     extractor_type: str = None,
@@ -37,6 +52,8 @@ def get_entity_extractor(
                 extraction_config = config["entity_extraction"]
             else:
                 extraction_config = config
+    else:
+        extraction_config = settings.get_config_manager()._config.get("entity_extraction", {})
     
     # Merge kwargs into extraction_config (kwargs take priority)
     merged_config = {**extraction_config, **kwargs}
@@ -48,9 +65,19 @@ def get_entity_extractor(
     
     # Create the appropriate extractor instance
     if actual_extractor_type == "graph_creation_service":
+        if GraphCreationService is None:
+            raise ImportError(
+                "GraphCreationService is unavailable. Install optional dependencies like 'spacy' to enable it."
+            )
         return GraphCreationService(config=merged_config)
     else:
-        logger.warning(f"Unknown extractor type: {actual_extractor_type}, defaulting to GraphCreationService")
+        logger.warning(
+            f"Unknown extractor type: {actual_extractor_type}, defaulting to GraphCreationService"
+        )
+        if GraphCreationService is None:
+            raise ImportError(
+                "GraphCreationService is unavailable. Install optional dependencies like 'spacy' to enable it."
+            )
         return GraphCreationService(config=merged_config)
 
 __all__ = [

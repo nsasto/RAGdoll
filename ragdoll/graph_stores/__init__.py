@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, Optional, Union, List
 import uuid
 
-from ragdoll.config import ConfigManager
+from ragdoll import settings
 from ragdoll.config.base_config import GraphDatabaseConfig
 from ragdoll.entity_extraction.models import Graph, GraphNode, GraphEdge
 
@@ -46,21 +46,11 @@ def get_graph_store(
     
     # If no explicit config provided, try to load from config_manager
     if db_config is None:
-        if config_manager is None:
-            try:
-                config_manager = ConfigManager()
-            except ImportError:
-                logger.warning("ConfigManager not found. Using provided parameters only.")
-                config_manager = None
-        
-        # If config_manager exists, load graph store settings from config
-        if config_manager:
-            # Get any graph database configs from the config
-            entity_extraction_config = config_manager._config.get("entity_extraction", {})
-            graph_db_dict = entity_extraction_config.get("graph_database_config", {})
-            
-            # Create GraphDatabaseConfig from the dictionary
-            db_config = GraphDatabaseConfig(**graph_db_dict)
+        config_manager = config_manager or settings.get_config_manager()
+
+        entity_extraction_config = config_manager._config.get("entity_extraction", {})
+        graph_db_dict = entity_extraction_config.get("graph_database_config", {})
+        db_config = GraphDatabaseConfig(**graph_db_dict)
     
     # If still no config, create a default one
     if db_config is None:

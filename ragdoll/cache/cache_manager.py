@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
-from ragdoll.config.config_manager import ConfigManager
+from ragdoll import settings
 
 
 class CacheManager:
@@ -19,8 +19,7 @@ class CacheManager:
         Args:
             cache_dir: Directory to store the cache. If None, uses ~/.ragdoll/cache/
         """
-        config_manager = ConfigManager()
-        cache_config = config_manager.cache_config
+        cache_config = settings.get_cache_config()
 
         if cache_dir is None:
             cache_dir = os.path.join(os.path.expanduser("~"), ".ragdoll", "cache")
