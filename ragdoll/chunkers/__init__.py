@@ -19,12 +19,13 @@ from langchain_text_splitters import (
     TokenTextSplitter,
 )
 
-from ragdoll import settings
-
 logger = logging.getLogger("ragdoll.chunkers")
 
 # Cache for text splitters to avoid recreation with same parameters
 _splitter_cache = {}
+
+
+from ragdoll import settings
 
 
 def get_text_splitter(
