@@ -8,9 +8,19 @@ from dataclasses import dataclass
 from enum import Enum
 from retry import retry
 
-from ragdoll.ingestion.base import BaseIngestionService
+import concurrent.futures
+import logging
+import inspect
+from glob import glob
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from enum import Enum
+from retry import retry
+
 from ragdoll import settings
 from ragdoll.config import Config
+from ragdoll.ingestion.base import BaseIngestionService
 from ragdoll.cache.cache_manager import CacheManager
 from ragdoll.metrics.metrics_manager import MetricsManager
 
@@ -95,8 +105,15 @@ class ContentExtractionService(BaseIngestionService):
         return Source(identifier=url, extension=extension, is_file=False)
 
     def _parse_file_sources(self, pattern: str) -> List[Source]:
-        sources = []
-        for path in Path().glob(pattern) if "*" in pattern else [Path(pattern)]:
+        sources: List[Source] = []
+        has_wildcard = any(token in pattern for token in ("*", "?", "["))
+        matched_paths = (
+            [Path(p) for p in glob(pattern, recursive=True)]
+            if has_wildcard
+            else [Path(pattern)]
+        )
+
+        for path in matched_paths:
             if path.exists() and path.is_file():
                 sources.append(
                     Source(
@@ -158,8 +175,12 @@ class ContentExtractionService(BaseIngestionService):
                 loader_class = self.loaders[source.extension]
 
                 # Log which loader is being used for which file
+                loader_name = getattr(loader_class, "__name__", repr(loader_class))
+                loader_module = getattr(
+                    loader_class, "__module__", type(loader_class).__module__
+                )
                 self.logger.info(
-                    f"Using {loader_class.__name__} from {loader_class.__module__} for {source.identifier} (extension: {source.extension})"
+                    f"Using {loader_name} from {loader_module} for {source.identifier} (extension: {source.extension})"
                 )
 
                 constructor_params = inspect.signature(loader_class.__init__).parameters
@@ -204,7 +225,7 @@ class ContentExtractionService(BaseIngestionService):
                     docs = loader.load()
 
                 self.logger.info(
-                    f"Loader {loader_class.__name__} returned {len(docs)} documents from {source.identifier}"
+                    f"Loader {loader_name} returned {len(docs)} documents from {source.identifier}"
                 )
                 self._record_metrics(
                     metrics_info,
