@@ -46,8 +46,16 @@ class MonitorConfig(BaseConfig):
     )
 
 class VectorStoreConfig(BaseConfig):
-    """Configuration for vector stores"""
-    store_type: str = Field(default="chroma", description="Type of vector store")
+    """Configuration for LangChain vector stores."""
+
+    store_type: str = Field(
+        default="chroma",
+        description="Registry key or dotted path to a LangChain VectorStore",
+    )
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional keyword arguments for the vector store constructor.",
+    )
 
 class LLMConfig(BaseConfig):
     """Configuration for language models"""

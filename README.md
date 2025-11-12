@@ -4,12 +4,11 @@
 
 Welcome to Ragdoll 2.0! This release marks a significant overhaul of the Ragdoll project, focusing on enhanced flexibility, extensibility, and maintainability. We've completely refactored the core architecture to make it easier than ever to adapt Ragdoll to your specific needs and integrate it with the broader LangChain ecosystem. This document outlines the major changes and improvements you'll find in this exciting new version.
 
-
-# 🧭 Project Overview 
+# 🧭 Project Overview
 
 RAGdoll 2 is an extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. RAGdoll is designed to be flexible and fast, without any third party dependencies. It's also designed to accomodate a broad array of file types without any initial dependency on third party hosted services using [langchain-markitdown](https://github.com/nsasto/langchain-markitdown). The loaders can easily be swapped out with any compatible lanchain loader when ready for production.
 
-Note that RAGdoll 2 is a complete overhaul of the initial RAGdoll project and is not backwards compatible in any respect. 
+Note that RAGdoll 2 is a complete overhaul of the initial RAGdoll project and is not backwards compatible in any respect.
 
 ## What's New
 
@@ -17,22 +16,19 @@ Note that RAGdoll 2 is a complete overhaul of the initial RAGdoll project and is
 
 This version of RAGdoll introduces several key features that improve the flexibility and usability of the framework:
 
--   **Caching:** RAGdoll now supports caching, allowing you to store and reuse results from previous operations. This can significantly speed up the execution of your RAG applications by avoiding redundant computations.
-    
--   **Auto Loader Selection**: RAGdoll now includes loaders for multiple file types (not only pdf). The loader defaults to Langchain-Markitdown loaders, but can be configured to use any Lanchain compatible loader. 
-    
--   **Monitoring:** A new monitoring capability has been added to RAGdoll. This allows you to track and understand the performance and behavior of your RAG applications over time.
-    
-<CODE_BLOCK>
-    # Enable monitoring in config
-    monitor:
-      enabled: true
-</CODE_BLOCK>
+- **Caching:** RAGdoll now supports caching, allowing you to store and reuse results from previous operations. This can significantly speed up the execution of your RAG applications by avoiding redundant computations.
+- **Auto Loader Selection**: RAGdoll now includes loaders for multiple file types (not only pdf). The loader defaults to Langchain-Markitdown loaders, but can be configured to use any Lanchain compatible loader.
+- **Monitoring:** A new monitoring capability has been added to RAGdoll. This allows you to track and understand the performance and behavior of your RAG applications over time.
 
+<CODE_BLOCK> # Enable monitoring in config
+monitor:
+enabled: true
+</CODE_BLOCK>
 
 ## Quick Start Guide
 
 Here's a quick example of how to get started with RAGdoll:
+
 ```python
 from ragdoll.ragdoll import Ragdoll
 from ragdoll.config import Config
@@ -47,23 +43,27 @@ result = ragdoll.run("What is the capital of France?")
 # Print the result
 print(result)
 ```
+
 ## Installation
 
 To install RAGdoll, follow these steps:
 
 1.  **Clone the Repository:**
+
 ```
 bash
     git clone <repository_url>
     cd RAGdoll
 ```
+
 2.  **Install Dependencies:**
+
 ```
 bash
     pip install -e .
 ```
-This will install the required dependencies, including Langchain and Pydantic.
-3. **Install extra dependencies**: if you need some specific models or libraries, install them here as well.
+
+This will install the required dependencies, including Langchain and Pydantic. 3. **Install extra dependencies**: if you need some specific models or libraries, install them here as well.
 
 ## Architecture
 
@@ -71,13 +71,13 @@ RAGdoll's architecture is built around modular components and abstract base clas
 
 ### Modules
 
-*   **`loaders`:** Responsible for loading data from various sources (e.g., directories, JSON files, web pages). 
-*   **`chunkers`:** Handles the splitting of large text documents into smaller chunks.
-*   **`embeddings`:** Provides an interface for embedding models, allowing you to generate vector representations of text.
-*   **`vector_stores`:** Manages the storage and retrieval of vector embeddings.
-*   **`llms`:** Provides an interface to interact with different large language models.
-*   **`graph_stores`:** Manages the storage and querying of knowledge graphs.
-*   **`chains`:** Defines different types of chains, like retrieval QA.
+- **`loaders`:** Responsible for loading data from various sources (e.g., directories, JSON files, web pages).
+- **`chunkers`:** Handles the splitting of large text documents into smaller chunks.
+- **`embeddings`:** Provides an interface for embedding models, allowing you to generate vector representations of text.
+- **`vector_stores`:** Manages the storage and retrieval of vector embeddings.
+- **`llms`:** Provides an interface to interact with different large language models.
+- **`graph_stores`:** Manages the storage and querying of knowledge graphs.
+- **`chains`:** Defines different types of chains, like retrieval QA.
 
 ### Abstract Base Classes
 
@@ -87,12 +87,32 @@ Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseEmbedd
 
 RAGdoll provides default implementations for most components, allowing you to quickly get started without having to write everything from scratch:
 
-*   **`Lanchain-Markitdown`:** A default loader for most major file types.
-*   **`RecursiveCharacterTextSplitter`:** A default text splitter.
-*   **`OpenAIEmbeddings`:** Default embeddings that use OpenAI's API.
-*   **`MyChroma`:** A default Chroma vector store.
-*   **`OpenAILLM`**: A default OpenAI LLM.
-* **`BaseGraphStore`**: A BaseGraphStore, it needs to be implemented.
+- **`Lanchain-Markitdown`:** A default loader for most major file types.
+- **`RecursiveCharacterTextSplitter`:** A default text splitter.
+- **`OpenAIEmbeddings`:** Default embeddings that use OpenAI's API.
+- **`LangChain VectorStore factory`:** Plug-and-play wrapper for any LangChain vector store (Chroma, FAISS, etc.); see `docs/vector_stores.md`.
+- **`OpenAILLM`**: A default OpenAI LLM.
+- **`BaseGraphStore`**: A BaseGraphStore, it needs to be implemented.
+
+## Key Design Decisions
+
+RAGdoll 2.0 embraces LangChain's ecosystem for maximum flexibility and maintainability:
+
+### Embeddings: LangChain Embeddings Objects
+
+- **Decision**: Use LangChain `Embeddings` objects directly instead of creating custom embedding classes
+- **Rationale**: LangChain provides robust, well-tested embedding implementations. Creating custom wrappers adds unnecessary complexity and maintenance burden.
+- **Benefits**: Immediate access to all LangChain embedding providers (OpenAI, HuggingFace, etc.), automatic updates, consistent APIs.
+- **Implementation**: `RagdollEmbeddings` acts as a factory that returns configured LangChain embedding instances.
+
+### Vector Stores: LangChain VectorStore Interface
+
+- **Decision**: Accept any LangChain `VectorStore` object directly instead of requiring custom adapters
+- **Rationale**: LangChain supports 40+ vector stores with consistent interfaces. Custom adapters create maintenance overhead and limit ecosystem integration.
+- **Benefits**: Plug-and-play compatibility with any LangChain vector store (Chroma, FAISS, Pinecone, Weaviate, etc.), zero adapter code needed, future-proof with LangChain updates.
+- **Implementation**: `BaseVectorStore` wraps LangChain `VectorStore` objects and delegates operations.
+
+This design maximizes ecosystem compatibility while keeping RAGdoll's core orchestration logic clean and focused.
 
 ### System Diagram
 
@@ -158,11 +178,12 @@ RAGdoll is designed to be highly extensible. You can easily create custom compon
 
 RAGdoll uses Pydantic to manage its configuration. This allows for:
 
-*   **Data Validation:** Automatic validation of configuration values.
-*   **Type Hints:** Clear type definitions for configuration settings.
-*   **Default Values:** Convenient default values for configuration options.
+- **Data Validation:** Automatic validation of configuration values.
+- **Type Hints:** Clear type definitions for configuration settings.
+- **Default Values:** Convenient default values for configuration options.
 
 You can create a `Config` object and pass it to the `Ragdoll` class.
+
 ```python
 from ragdoll.ragdoll import Ragdoll
 from ragdoll.config import Config
@@ -171,6 +192,7 @@ config = Config(vector_store_path="./my_vector_db", chunk_size=500)
 # Create a Ragdoll instance
 ragdoll = Ragdoll(config=config)
 ```
+
 ## Contributing
 
 Contributions to RAGdoll are welcome! To contribute:
