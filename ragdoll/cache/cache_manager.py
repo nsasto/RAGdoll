@@ -91,7 +91,7 @@ class CacheManager:
             documents = cache_data.get("documents", [])
 
             # Convert dictionaries back to Document objects if needed
-            from langchain.schema import Document
+            from langchain_core.documents import Document
 
             result_docs = []
             for doc_dict in documents:

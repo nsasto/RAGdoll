@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 from dotenv import load_dotenv
 
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 from ragdoll.entity_extraction.entity_extraction_service import GraphCreationService
 from ragdoll.config.config_manager import ConfigManager
 from ragdoll.llms import get_llm
@@ -19,19 +19,19 @@ logger = logging.getLogger(__name__)
 async def main(model_name: Optional[str] = None):
     """
     Demonstrates how to use the GraphCreationService with a real LLM.
-    
+
     Args:
         model_name: Optional name of the model to use. Can be a model name or a model type ('default', 'basic', 'reasoning', 'vision')
     """
     # Load environment variables for API keys
     load_dotenv()
-    
+
     # Get configuration
     config_manager = ConfigManager()
     entity_extraction_config = config_manager.entity_extraction_config.model_dump()
 
     # Use the real LLM
-    model_name = model_name or "gpt-4o" #"gpt-4o" "gpt-3.5-turbo"
+    model_name = model_name or "gpt-4o"  # "gpt-4o" "gpt-3.5-turbo"
     print(f"Using get_llm with model: {model_name}")
     llm = get_llm(model_name, config_manager)
 
@@ -58,20 +58,18 @@ async def main(model_name: Optional[str] = None):
 
     # Create a Langchain Document
     sample_doc = Document(
-        page_content=sample_text,
-        metadata={"source": "example_doc_1", "id": "doc1"}
+        page_content=sample_text, metadata={"source": "example_doc_1", "id": "doc1"}
     )
     sample_doc2 = Document(
-        page_content=sample_text_2,
-        metadata={"source": "example_doc_2", "id": "doc2"}
+        page_content=sample_text_2, metadata={"source": "example_doc_2", "id": "doc2"}
     )
 
     # Extract the graph
     graph = await graph_service.extract(
         documents=[sample_doc, sample_doc2],
         llm=llm,
-        entity_types=entity_extraction_config.get('entity_types'),
-        relationship_types=entity_extraction_config.get('relationship_types')
+        entity_types=entity_extraction_config.get("entity_types"),
+        relationship_types=entity_extraction_config.get("relationship_types"),
     )
 
     print(f"\nExtracted {len(graph.nodes)} nodes and {len(graph.edges)} edges")
@@ -86,7 +84,12 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Entity extraction example")
-    parser.add_argument('--model', type=str, default=None, help='Specify a model name (from config) or a model type (default, reasoning, vision)')
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Specify a model name (from config) or a model type (default, reasoning, vision)",
+    )
     args = parser.parse_args()
 
     asyncio.run(main(model_name=args.model))
