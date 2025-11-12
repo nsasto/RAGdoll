@@ -4,7 +4,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from langchain_community.document_loaders import TextLoader, WebBaseLoader
 from pathlib import Path
-from ragdoll.ingestion import ContentExtractionService as IngestionService, Source
+from ragdoll.ingestion import DocumentLoaderService as IngestionService, Source
 
 # Get the directory of the current test file
 TEST_DIR = Path(__file__).parent
@@ -209,3 +209,4 @@ class TestIngestDocuments:
         # Test batch processing
         service.ingest_documents(["test*.txt"])
         assert mock_load_source.call_count == 5
+

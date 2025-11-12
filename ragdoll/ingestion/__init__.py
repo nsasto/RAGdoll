@@ -9,9 +9,9 @@ import logging
 
 logger = logging.getLogger("ragdoll.ingestion")
 
-from ragdoll.ingestion.content_extraction import ContentExtractionService, Source
+from ragdoll.ingestion.document_loaders import DocumentLoaderService, Source
 
 __all__ = [
-    "ContentExtractionService",
+    "DocumentLoaderService",
     "Source",
 ]

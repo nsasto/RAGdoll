@@ -7,7 +7,7 @@ from langchain_core.embeddings import Embeddings
 
 from ragdoll import settings
 from ragdoll.config import Config
-from ragdoll.ingestion import ContentExtractionService
+from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 from ragdoll.embeddings import get_embedding_model
 from ragdoll.llms import get_llm
@@ -26,7 +26,7 @@ class Ragdoll:
         self,
         *,
         config_path: Optional[str] = None,
-        ingestion_service: Optional[ContentExtractionService] = None,
+        ingestion_service: Optional[DocumentLoaderService] = None,
         vector_store: Optional[BaseVectorStore] = None,
         embedding_model: Optional[Embeddings] = None,
         llm: Optional[Any] = None,
@@ -35,7 +35,7 @@ class Ragdoll:
             Config(config_path) if config_path else settings.get_config_manager()
         )
 
-        self.ingestion_service = ingestion_service or ContentExtractionService(
+        self.ingestion_service = ingestion_service or DocumentLoaderService(
             config_manager=self.config_manager
         )
 
@@ -124,3 +124,4 @@ class Ragdoll:
             f"Question: {question}\n"
             "Answer:"
         )
+

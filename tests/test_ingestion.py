@@ -4,7 +4,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from langchain_community.document_loaders import TextLoader, WebBaseLoader
 from pathlib import Path
-from ragdoll.ingestion import ContentExtractionService, Source
+from ragdoll.ingestion import DocumentLoaderService, Source
 
 # Get the directory of the current test file
 TEST_DIR = Path(__file__).parent
@@ -17,7 +17,7 @@ def content_extraction_service():
     """Create a content extraction service with mocked metrics manager."""
     logging.basicConfig(level=logging.DEBUG)
     """Create a content extraction service with mocked metrics manager."""
-    service = ContentExtractionService(max_threads=2, batch_size=5)
+    service = DocumentLoaderService(max_threads=2, batch_size=5)
     logging.info(
         f"Loaders on content extraction fixture: {list(service.loaders.keys())}"
     )
@@ -36,8 +36,8 @@ def sample_documents():
 
 @pytest.fixture
 def clean_content_extraction_service():
-    """Create a ContentExtractionService with no caching for clean testing and the correct config values."""
-    service = ContentExtractionService(use_cache=False)
+    """Create a DocumentLoaderService with no caching for clean testing and the correct config values."""
+    service = DocumentLoaderService(use_cache=False)
 
     return service
 
@@ -45,7 +45,7 @@ def clean_content_extraction_service():
 @pytest.fixture
 def ingestion_service():
     """Create a content extraction service for ingestion tests without caching."""
-    service = ContentExtractionService(use_cache=False)
+    service = DocumentLoaderService(use_cache=False)
 
     # Mock the metrics manager methods to avoid errors
     if hasattr(service, "metrics_manager") and service.metrics_manager is not None:
@@ -98,7 +98,7 @@ class TestBuildSources:
 
         # Apply the mock
         monkeypatch.setattr(
-            ContentExtractionService, "_parse_file_sources", mock_parse_file_sources
+            DocumentLoaderService, "_parse_file_sources", mock_parse_file_sources
         )
 
         # Test with the glob pattern
@@ -249,8 +249,8 @@ class TestLoadSource:
 
 # Test ingest_documents method
 class TestIngestDocuments:
-    @patch.object(ContentExtractionService, "_build_sources")
-    @patch.object(ContentExtractionService, "_load_source")
+    @patch.object(DocumentLoaderService, "_build_sources")
+    @patch.object(DocumentLoaderService, "_load_source")
     def test_ingest_documents_success(
         self,
         mock_load_source,
@@ -272,7 +272,7 @@ class TestIngestDocuments:
         assert len(result) == 2 * len(sample_documents)
         assert mock_load_source.call_count == 2
 
-    @patch.object(ContentExtractionService, "_build_sources")
+    @patch.object(DocumentLoaderService, "_build_sources")
     def test_ingest_documents_no_sources(
         self, mock_build_sources, clean_content_extraction_service
     ):
@@ -283,13 +283,13 @@ class TestIngestDocuments:
         with pytest.raises(ValueError, match="No valid sources found"):
             clean_content_extraction_service.ingest_documents(["nonexistent.txt"])
 
-    @patch.object(ContentExtractionService, "_build_sources")
-    @patch.object(ContentExtractionService, "_load_source")
+    @patch.object(DocumentLoaderService, "_build_sources")
+    @patch.object(DocumentLoaderService, "_load_source")
     def test_ingest_documents_batching(
         self, mock_load_source, mock_build_sources, sample_documents
     ):
         # Create service with small batch size
-        service = ContentExtractionService(batch_size=2, max_threads=1)
+        service = DocumentLoaderService(batch_size=2, max_threads=1)
 
         # Mock metrics manager methods for this service instance too
         if hasattr(service, "metrics_manager") and service.metrics_manager is not None:
@@ -306,3 +306,4 @@ class TestIngestDocuments:
         # Test batch processing
         service.ingest_documents(["test*.txt"])
         assert mock_load_source.call_count == 5
+

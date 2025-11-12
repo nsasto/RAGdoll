@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import os
 import sys
 from pathlib import Path
@@ -8,7 +8,7 @@ import logging
 # Add the parent directory to the path to allow imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from ragdoll.ingestion.pipeline import ingest_documents, IngestionOptions
+from ragdoll.pipeline import ingest_documents, IngestionOptions
 from ragdoll.llms import get_llm
 
 async def main(model_name: Optional[str] = None):

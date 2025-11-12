@@ -4,7 +4,7 @@
 import os
 import glob
 from pathlib import Path
-from ragdoll.ingestion import ContentExtractionService
+from ragdoll.ingestion import DocumentLoaderService
 
 # Get absolute path to the test_data directory
 current_file = Path(os.path.abspath(""))  # Current notebook directory
@@ -17,7 +17,7 @@ print(f"Found {len(file_paths)} files")
 
 # Create ingestion service with default settings
 
-service = ContentExtractionService()
+service = DocumentLoaderService()
 # Process all documents
 documents = service.ingest_documents(file_paths)
 
@@ -35,10 +35,10 @@ if documents:
 
 # ## Working with different file types
 
-from ragdoll.ingestion import ContentExtractionService
+from ragdoll.ingestion import DocumentLoaderService
 
 # Initialize service
-service = ContentExtractionService()
+service = DocumentLoaderService()
 # Process files of different types
 pdf_docs = service.ingest_documents(["../tests/test_data/test_pdf.pdf"])
 text_docs = service.ingest_documents(["../tests/test_data/test_txt.txt", "../tests/test_data/test_txt.txt"])
@@ -60,10 +60,10 @@ print(f"  - Web: {len(web_docs)}")
 # ## Customizing Ingestion Settings
 
 # Modified initialization with supported parameters
-from ragdoll.ingestion import ContentExtractionService
+from ragdoll.ingestion import DocumentLoaderService
 
 # Initialize with only the supported parameters
-service = ContentExtractionService(
+service = DocumentLoaderService(
     max_threads=4,                # Limit concurrency
     batch_size=10,                # Process files in batches of 10
     use_cache=True,               # Enable caching
@@ -89,7 +89,7 @@ if documents:
 # ## Working with Caching
 
 # Complete caching performance test
-from ragdoll.ingestion import ContentExtractionService
+from ragdoll.ingestion import DocumentLoaderService
 import time
 import statistics
 
@@ -97,7 +97,7 @@ def measure_processing_time(use_cache: bool, file_path: str, runs: int = 3) -> d
     """Measure document processing time with or without cache."""
     times = []
     
-    service = ContentExtractionService(use_cache=use_cache)
+    service = DocumentLoaderService(use_cache=use_cache)
     
     # Run multiple times to get average performance
     for i in range(runs):
@@ -119,7 +119,7 @@ def measure_processing_time(use_cache: bool, file_path: str, runs: int = 3) -> d
     }
 
 # Clear any existing cache first
-service_clear = ContentExtractionService(use_cache=True)
+service_clear = DocumentLoaderService(use_cache=True)
 service_clear.clear_cache()
 print("Cache cleared")
 
@@ -144,7 +144,7 @@ if no_cache_results['avg_time'] > 0:
 
 # ## Handling Errors
 
-from ragdoll.ingestion import ContentExtractionService
+from ragdoll.ingestion import DocumentLoaderService
 import logging
 
 # Configure logging to see warnings and errors
@@ -152,7 +152,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Create service
 
-service = ContentExtractionService()
+service = DocumentLoaderService()
 # Mix of valid and invalid files
 files = [
     "documents/valid.pdf",
@@ -180,7 +180,7 @@ except Exception as e:
 import os
 import glob
 from pathlib import Path
-from ragdoll.ingestion import ContentExtractionService
+from ragdoll.ingestion import DocumentLoaderService
 
 # Get absolute path to the test_data directory
 current_file = Path(os.path.abspath(""))  # Current notebook directory
@@ -193,12 +193,12 @@ print(f"Found {len(file_paths)} files")
 # ### Basic Usage
 
 # Create service
-service = ContentExtractionService(collect_metrics=True)
+service = DocumentLoaderService(collect_metrics=True)
 metrics = service.get_metrics(days=30) 
 metrics
 
 # Create service
-service = ContentExtractionService(collect_metrics=True)
+service = DocumentLoaderService(collect_metrics=True)
 
 # Pass the actual file paths, not the glob pattern
 service.ingest_documents(file_paths)
@@ -480,6 +480,8 @@ def export_sessions_to_csv(metrics_manager, output_path):
                 'success_rate': session['success_rate'],
                 'duration_seconds': session['duration_seconds']
             })
+
+
 
 
 

@@ -1,14 +1,4 @@
 import concurrent.futures
-import os
-import logging
-import inspect
-from pathlib import Path
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
-from enum import Enum
-from retry import retry
-
-import concurrent.futures
 import logging
 import inspect
 from glob import glob
@@ -32,7 +22,7 @@ class Source:
     is_file: bool = False
 
 
-class ContentExtractionService(BaseIngestionService):
+class DocumentLoaderService(BaseIngestionService):
     logger = logging.getLogger(__name__)
 
     def __init__(
@@ -321,3 +311,6 @@ class ContentExtractionService(BaseIngestionService):
             "recent_sessions": self.metrics_manager.get_recent_sessions(limit=5),
             "aggregate": self.metrics_manager.get_aggregate_metrics(days=days),
         }
+
+
+

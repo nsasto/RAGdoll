@@ -1,5 +1,5 @@
 try:
-    from ragdoll.ingestion import ContentExtractionService, Source
+    from ragdoll.ingestion import DocumentLoaderService, Source
     print("✅ Import from ragdoll.ingestion successful")
 except ImportError as e:
     print(f"❌ Import from ragdoll.ingestion failed: {e}")
