@@ -32,13 +32,18 @@ Here's a quick example of how to get started with RAGdoll:
 ```python
 from ragdoll.ragdoll import Ragdoll
 from ragdoll.config import Config
+
 # Create a new configuration
 config = Config(vector_store_path="./my_vector_db", chunk_size=500)
+
 # Create a Ragdoll instance
 ragdoll = Ragdoll(config=config)
 
-# Run a prompt
-result = ragdoll.run("What is the capital of France?")
+# Load and process documents
+ragdoll.add_documents("path/to/documents")
+
+# Run a query
+result = ragdoll.query("What is the capital of France?")
 
 # Print the result
 print(result)
@@ -47,6 +52,12 @@ print(result)
 ## Installation
 
 To install RAGdoll, follow these steps:
+
+### Stable version install
+
+`pip install python-ragdoll`
+
+### Latest version install
 
 1.  **Clone the Repository:**
 
@@ -187,9 +198,18 @@ You can create a `Config` object and pass it to the `Ragdoll` class.
 ```python
 from ragdoll.ragdoll import Ragdoll
 from ragdoll.config import Config
+
 # Create a new configuration
-config = Config(vector_store_path="./my_vector_db", chunk_size=500)
-# Create a Ragdoll instance
+config = Config(
+    vector_store_path="./my_vectors",
+    chunk_size=500,
+    chunk_overlap=50,
+    embeddings_model="openai",
+    llm_model="gpt-4o",
+    monitoring_enabled=True
+)
+
+# Create Ragdoll with this configuration
 ragdoll = Ragdoll(config=config)
 ```
 

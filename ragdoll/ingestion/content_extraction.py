@@ -2,7 +2,6 @@ import concurrent.futures
 import os
 import logging
 import inspect
-from glob import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
@@ -22,7 +21,7 @@ class Source:
     is_file: bool = False
 
 
-class IngestionService(BaseIngestionService):
+class ContentExtractionService(BaseIngestionService):
     logger = logging.getLogger(__name__)
 
     def __init__(
@@ -34,7 +33,7 @@ class IngestionService(BaseIngestionService):
         cache_manager: Optional[CacheManager] = None,
         metrics_manager: Optional[MetricsManager] = None,
         use_cache: bool = True,
-        collect_metrics: bool = False,
+        collect_metrics: Optional[bool] = None,
     ):
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -47,15 +46,19 @@ class IngestionService(BaseIngestionService):
         self.max_threads = (
             max_threads if max_threads is not None else config.max_threads
         )
-        self.collect_metrics = (
-            collect_metrics if collect_metrics is not None else monitor_config.enabled
-        )
         self.batch_size = batch_size if batch_size is not None else config.batch_size
 
         self.use_cache = use_cache
-        self.cache_manager = cache_manager or CacheManager(ttl_seconds=86400)
-        self.metrics_manager = metrics_manager
-        self.collect_metrics = metrics_manager is not None
+        self.cache_manager = cache_manager or CacheManager(
+            ttl_seconds=self.config_manager.cache_config.cache_ttl
+        )
+
+        self.collect_metrics = (
+            collect_metrics if collect_metrics is not None else monitor_config.enabled
+        )
+        self.metrics_manager = (
+            metrics_manager if metrics_manager is not None else MetricsManager()
+        )
 
         self.loaders = self.config_manager.get_loader_mapping()
         self.logger.debug(f"Available loaders: {list(self.loaders.keys())}")
@@ -82,15 +85,8 @@ class IngestionService(BaseIngestionService):
         return Source(identifier=url, extension=extension, is_file=False)
 
     def _parse_file_sources(self, pattern: str) -> List[Source]:
-        sources: List[Source] = []
-        has_wildcard = any(token in pattern for token in ("*", "?", "["))
-        matched_paths = (
-            [Path(p) for p in glob(pattern, recursive=True)]
-            if has_wildcard
-            else [Path(pattern)]
-        )
-
-        for path in matched_paths:
+        sources = []
+        for path in Path().glob(pattern) if "*" in pattern else [Path(pattern)]:
             if path.exists() and path.is_file():
                 sources.append(
                     Source(
@@ -121,123 +117,109 @@ class IngestionService(BaseIngestionService):
 
         metrics_info = None
         if self.collect_metrics and batch_id is not None:
+            _source_type = (
+                source.extension if source.extension is not None else "unknown"
+            )
             metrics_info = self.metrics_manager.start_source(
-                batch_id, source.identifier
+                batch_id, source.identifier, _source_type
             )
 
         try:
             if not source.extension:
-                self.logger.warning(
-                    "Skipping source %s without extension", source.identifier
+                if self.use_cache and not source.is_file:
+                    cached = self.cache_manager.get_from_cache(
+                        "website", source.identifier
+                    )
+                    if cached:
+                        self.logger.info(
+                            f"Using cached content for {source.identifier}"
+                        )
+                        self._record_metrics(
+                            metrics_info,
+                            batch_id,
+                            source,
+                            len(cached),
+                            source_size_bytes,
+                            success=True,
+                        )
+                        return cached
+
+            if source.extension in self.loaders:
+                loader_class = self.loaders[source.extension]
+
+                # Log which loader is being used for which file
+                self.logger.info(
+                    f"Using {loader_class.__name__} from {loader_class.__module__} for {source.identifier} (extension: {source.extension})"
+                )
+
+                constructor_params = inspect.signature(loader_class.__init__).parameters
+
+                if (
+                    "file_path" in constructor_params
+                    or "path" in constructor_params
+                    or "web_path" in constructor_params
+                    or len(constructor_params) == 1
+                ):
+                    if source.extension == "website":
+                        self.logger.info(
+                            f"Initializing website loader for {source.identifier}"
+                        )
+                        loader = loader_class(source.identifier)
+                        docs = loader.load()
+                    else:
+                        if "file_path" in constructor_params:
+                            self.logger.info(
+                                f"Initializing loader with file_path={source.identifier}"
+                            )
+                            loader = loader_class(file_path=source.identifier)
+                        elif "path" in constructor_params:
+                            self.logger.info(
+                                f"Initializing loader with path={source.identifier}"
+                            )
+                            loader = loader_class(path=source.identifier)
+                        elif "web_path" in constructor_params:
+                            self.logger.info(
+                                f"Initializing loader with web_path={source.identifier}"
+                            )
+                            loader = loader_class(web_path=source.identifier)
+                        else:
+                            self.logger.info(
+                                f"Initializing loader with positional argument: {source.identifier}"
+                            )
+                            loader = loader_class(source.identifier)
+                        docs = loader.load()
+                else:
+                    self.logger.info(f"Initializing loader with no arguments")
+                    loader = loader_class()
+                    docs = loader.load()
+
+                self.logger.info(
+                    f"Loader {loader_class.__name__} returned {len(docs)} documents from {source.identifier}"
                 )
                 self._record_metrics(
                     metrics_info,
                     batch_id,
                     source,
-                    0,
+                    len(docs),
                     source_size_bytes,
-                    success=False,
-                    error="Missing extension",
+                    success=True,
                 )
-                return []
-
-            loader_class = self.loaders.get(source.extension)
-            if loader_class is None:
+                return docs
+            else:
+                self.logger.error(
+                    f"Unsupported source: No loader found for extension {source.extension}"
+                )
                 raise ValueError(f"Unsupported source: ext={source.extension}")
 
-            docs = self._load_with_class(loader_class, source)
-            normalized_docs = self._normalize_documents(docs)
-
-            self._record_metrics(
-                metrics_info,
-                batch_id,
-                source,
-                len(normalized_docs),
-                source_size_bytes,
-                success=True,
-            )
-            return normalized_docs
-
+        except ValueError:
+            # Re-raise ValueError for unsupported sources
+            raise
         except Exception as e:
-            error_message = str(e)
+            self.logger.error(f"Failed to load {source.identifier}: {str(e)}")
             self._record_metrics(
-                metrics_info,
-                batch_id,
-                source,
-                0,
-                source_size_bytes,
-                success=False,
-                error=error_message,
+                metrics_info, batch_id, source, 0, 0, success=False, error=str(e)
             )
-            raise ValueError(f"Failed to load {source.identifier}: {error_message}")
-
-    def _load_with_class(self, loader_class, source: Source):
-        loader = self._instantiate_loader(loader_class, source)
-        load_callable = getattr(loader, "load", None)
-
-        if callable(load_callable):
-            return load_callable()
-
-        retrieve_callable = getattr(loader, "get_relevant_documents", None)
-        if callable(retrieve_callable):
-            return retrieve_callable(source.identifier)
-
-        raise ValueError(f"Loader {loader_class} does not provide a load method")
-
-    def _instantiate_loader(self, loader_class, source: Source):
-        try:
-            constructor_params = inspect.signature(loader_class.__init__).parameters
-        except (TypeError, ValueError):
-            constructor_params = {}
-
-        accepts_kwargs = any(
-            param.kind == inspect.Parameter.VAR_KEYWORD
-            for param in constructor_params.values()
-        )
-
-        if source.is_file:
-            if "file_path" in constructor_params or accepts_kwargs:
-                return loader_class(file_path=source.identifier)
-            if "path" in constructor_params:
-                return loader_class(path=source.identifier)
-
-        if source.extension == "website":
-            if "web_path" in constructor_params or accepts_kwargs:
-                return loader_class(web_path=source.identifier)
-            if "url" in constructor_params:
-                return loader_class(url=source.identifier)
-            return loader_class(source.identifier)
-
-        if len(constructor_params) <= 1:
-            return loader_class()
-
-        return loader_class(source.identifier)
-
-    def _normalize_documents(self, docs: Any) -> List[Dict[str, Any]]:
-        if not docs:
             return []
-
-        normalized: List[Dict[str, Any]] = []
-        for doc in docs:
-            if isinstance(doc, dict):
-                page_content = doc.get("page_content", "")
-                metadata = doc.get("metadata", {}) or {}
-            elif hasattr(doc, "page_content"):
-                page_content = getattr(doc, "page_content", "")
-                metadata = getattr(doc, "metadata", {}) or {}
-            else:
-                page_content = str(doc)
-                metadata = {}
-
-            if not isinstance(metadata, dict):
-                try:
-                    metadata = dict(metadata)
-                except (TypeError, ValueError):
-                    metadata = {"value": metadata}
-
-            normalized.append({"page_content": page_content, "metadata": metadata})
-
-        return normalized
 
     def _record_metrics(
         self,

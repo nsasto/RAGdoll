@@ -1,10 +1,17 @@
-import os
+"""
+LLM ingestion service for RAGdoll
 
-def create_empty_file(filepath):
-    """Creates an empty file at the specified filepath."""
-    if not os.path.exists(os.path.dirname(filepath)):
-        os.makedirs(os.path.dirname(filepath))  # Create directories if needed
-    open(filepath, 'w').close()
+This module provides utilities for extracting data from various file formats 
+and building a structured data pipeline for data ingestion into graph and vector db.
+"""
 
-# Example usage:
-# create_empty_file("path/to/your/empty_file.txt")
+import logging
+
+logger = logging.getLogger("ragdoll.ingestion")
+
+from ragdoll.ingestion.content_extraction import ContentExtractionService, Source
+
+__all__ = [
+    "ContentExtractionService",
+    "Source",
+]

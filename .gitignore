@@ -62,14 +62,20 @@ Thumbs.db
 # Environment variables
 .venv
 .vscode/launch.json
+.vscode/settings.json
 
-/ragdoll_v1
+# Models
+*/models/* 
+*/examples/c**.*
 
-# codex rules
-.codex
+#data
+.data/
+.data
+*/data/*
 
-#admin scripts
-scripts/
-
-#build metadata
+# Ignore Python package metadata
 *.egg-info/
+#IDE settings
+.vscode
+.idx
+scripts/

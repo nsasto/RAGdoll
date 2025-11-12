@@ -7,10 +7,11 @@ monitor:
   collect_metrics: true
 
 chunker:
-  default_splitter: markdown
+  default_splitter: recursive
   chunk_size: 1000
   chunk_overlap: 200
-  enabled: false
+  chunking_strategy: "markdown"  # Options: 'none', 'recursive', 'character', 'markdown', 'code', 'token'
+  enabled: true
 
 ingestion:
   max_threads: 10
@@ -20,45 +21,217 @@ ingestion:
   retry_backoff: 2
   loaders:
     file_mappings:
-        .json: langchain_community.document_loaders.JSONLoader
-        .jsonl: langchain_community.document_loaders.JSONLoader
-        .yaml: langchain_community.document_loaders.JSONLoader
-        .csv: langchain_community.document_loaders.CSVLoader
-        .epub: langchain_markitdown.loaders.EpubLoader
-        .xlsx: langchain_markitdown.loaders.XlsxLoader
-        .html: langchain_markitdown.loaders.HtmlLoader
-        .bmp: langchain_markitdown.loaders.ImageLoader
-        .jpeg: langchain_markitdown.loaders.ImageLoader
-        .jpg: langchain_markitdown.loaders.ImageLoader
-        .png: langchain_markitdown.loaders.ImageLoader
-        .tiff: langchain_markitdown.loaders.ImageLoader
-        .md: langchain_community.document_loaders.TextLoader
-        .pdf: langchain_community.document_loaders.PyMuPDFLoader
-        .pptx: langchain_markitdown.loaders.PptxLoader
-        .docx: langchain_markitdown.loaders.DocxLoader
-        .xml: langchain_markitdown.loaders.RssLoader
-        .txt: langchain_community.document_loaders.TextLoader
-        .rtf: langchain_community.document_loaders.RtfLoader
-        arxiv: langchain_community.retrievers.ArxivRetriever
-        website: langchain_community.document_loaders.WebBaseLoader
+      .json: langchain_community.document_loaders.JSONLoader
+      .jsonl: langchain_community.document_loaders.JSONLoader
+      .yaml: langchain_community.document_loaders.JSONLoader
+      .csv: langchain_community.document_loaders.CSVLoader
+      .epub: langchain_markitdown.loaders.EpubLoader
+      .xlsx: langchain_markitdown.loaders.XlsxLoader
+      .html: langchain_markitdown.loaders.HtmlLoader
+      .bmp: langchain_markitdown.loaders.ImageLoader
+      .jpeg: langchain_markitdown.loaders.ImageLoader
+      .jpg: langchain_markitdown.loaders.ImageLoader
+      .png: langchain_markitdown.loaders.ImageLoader
+      .tiff: langchain_markitdown.loaders.ImageLoader
+      .md: langchain_community.document_loaders.TextLoader
+      .pdf: langchain_community.document_loaders.PyMuPDFLoader
+      .pptx: langchain_markitdown.loaders.PptxLoader
+      .docx: langchain_markitdown.loaders.DocxLoader
+      .xml: langchain_markitdown.loaders.RssLoader
+      .txt: langchain_community.document_loaders.TextLoader
+      .rtf: langchain_community.document_loaders.RtfLoader
+      arxiv: langchain_community.retrievers.ArxivRetriever
+      website: langchain_community.document_loaders.WebBaseLoader
 
 embeddings:
-  enabled: true  
-  default_client: openai
-  clients:  
-    openai:  
-      client: openai
-      model: "text-embedding-3-large"
-      dimensions: 1024
-    huggingface:      
-      model: "sentence-transformers/all-mpnet-base-v2"
-      client: huggingface
-      model: "sentence-transformers/all-mpnet-base-v2"
-      api_key: "your_default_api_key"     
-
-vector_store:
   enabled: true
-  store_type: chroma
-  params:
-    collection_name: ragdoll
-    persist_directory: ".ragdoll/chroma"
+  default_model: "text-embedding-ada-002"
+  models:
+    text-embedding-ada-002:
+      provider: "openai"
+      api_key: "#OPENAI_API_KEY"
+      model: "text-embedding-ada-002"
+    all-mpnet-base-v2:
+      provider: "huggingface"
+      model_name: "sentence-transformers/all-mpnet-base-v2"
+      api_key: "your_default_api_key"
+
+entity_extraction:
+  spacy_model: "en_core_web_sm"
+  chunking_strategy: "none"  # Use 'default' to use the chunker config or 'none' to disable chunking
+  chunk_size: 1000
+  chunk_overlap: 50
+  splitter_type: "markdown"
+  coreference_resolution_method: "rule_based"  # Options: "rule_based", "llm", "none"
+  entity_extraction_methods: ["llm"] # Options: ["ner", "llm"]
+  relationship_extraction_method: "llm"
+  entity_types:
+    - "PERSON"
+    - "ORGANIZATION"
+    - "GEO_POLITICAL_ENTITY"
+    - "DATE"
+    - "LOCATION"
+    - "PRODUCT"
+    - "EVENT"
+    - "WORK_OF_ART"
+    - "LAW"
+    - "ROLE"
+    - "NORP"
+    - "FACILITY"
+    - "LANGUAGE"
+    - "PERCENT"
+    - "MONEY"
+    - "QUANTITY"
+    - "ORDINAL"
+    - "CARDINAL"
+    - "TIME"
+    - "CONCEPT"
+    - "DOMAIN"
+    - "SUBSTANCE"
+    - "DISEASE"
+    - "ANIMAL"
+    - "PLANT"
+    - "VEHICLE"
+    - "DEVICE"
+    - "SOFTWARE"
+    - "GAME"
+    - "FOOD"
+    - "DRINK"
+    - "MUSICAL_INSTRUMENT"
+    - "MEDIA"
+    - "SYMBOL"
+    - "IDEOLOGY"
+    - "ETHNICITY"
+    - "RELIGION"
+    - "ACADEMIC_DISCIPLINE"
+  relationship_types:
+    - "HAS_ROLE"
+    - "WORKS_FOR"
+    - "LOCATED_IN"
+    - "BORN_IN"
+    - "FOUNDED"
+    - "PARENT_OF"
+    - "SPOUSE_OF"
+    - "AFFILIATED_WITH"
+    - "BELONGS_TO"
+    - "CREATED"
+    - "PART_OF"
+    - "IS_A"
+    - "HAS_MEMBER"
+    - "CONTAINS"
+    - "USES"
+    - "PRODUCES"
+    - "IS_RELATED_TO"
+    - "HAS_ATTRIBUTE"
+    - "HAS_CAUSE"
+    - "HAS_EFFECT"
+    - "MANAGES"
+    - "OWNS"
+    - "COMPETES_WITH"
+    - "ACQUIRED"
+    - "LOCATED_NEAR"
+    - "CONNECTED_TO"
+  relationship_type_mapping:
+    "works for": "WORKS_FOR"
+    "is a": "IS_A"
+    "is an": "IS_A"
+    "located in": "LOCATED_IN"
+    "located at": "LOCATED_IN"
+    "born in": "BORN_IN"
+    "lives in": "LOCATED_IN"
+    "married to": "SPOUSE_OF"
+    "spouse of": "SPOUSE_OF"
+    "parent of": "PARENT_OF"
+    "child of": "PARENT_OF"
+    "works with": "AFFILIATED_WITH"
+  gleaning_enabled: true
+  max_gleaning_steps: 2
+  entity_linking_enabled: true
+  entity_linking_method: "string_similarity"
+  entity_linking_threshold: 0.8
+  postprocessing_steps: ["merge_similar_entities", "normalize_relations"]
+  output_format: "json"
+  graph_database_config:
+    output_file: "graph_output.json"
+
+# References to prompt files (without .md extension)
+llm_prompts:
+  entity_extraction: entity_extraction
+  extract_relationships: relationship_extraction
+  coreference_resolution: coreference_resolution
+  entity_relationship_gleaning: entity_relationship_gleaning
+  entity_relationship_gleaning_continue: entity_relationship_gleaning_continue
+
+llms:
+  model_list:
+    - model_name: basic_model
+      provider: openai
+      params:
+        model: gpt-3.5-turbo
+        api_key: "#OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: default_model
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: "#OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: reasoning_model
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: "#OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: vision_model
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: "#OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: gpt-3.5-turbo
+      provider: openai
+      params:
+        model: gpt-3.5-turbo
+        api_key: "#OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: gpt-4o
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: "#OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: claude-3-5-sonnet
+      provider: anthropic
+      params:
+        model: claude-3-5-sonnet-latest
+        api_key: "#ANTHROPIC_API_KEY"
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: gemini-1.5-pro
+      provider: google
+      params:
+        model: gemini-1.5-pro
+        api_key: "#GOOGLE_API_KEY"
+        temperature: 0.0
+        max_tokens: 1024
+
+vector_stores:
+  default_store: faiss
+  stores:
+    faiss:
+      distance_strategy: "cosine"
+    chroma:
+      collection_name: "ragdoll_documents"
+      params:
+        collection_name: "ragdoll"
+        persist_directory: ".ragdoll/chroma"
+    pinecone:
+      api_key: "os.environ/PINECONE_API_KEY"
+      environment: "os.environ/PINECONE_ENVIRONMENT"
+      index_name: "ragdoll-index"

@@ -1,162 +1,110 @@
-import concurrent.futures
 import os
-import logging
+import pytest
+import tempfile
+import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
-from enum import Enum
-from retry import retry
-
-from ragdoll.ingestion.base_ingestion_service import BaseIngestionService
-from ragdoll.config.config_manager import ConfigManager
 from ragdoll.cache.cache_manager import CacheManager
-from ragdoll.metrics.metrics_manager import MetricsManager
 
-@dataclass
-class Source:
-    identifier: str
-    extension: Optional[str] = None
-    is_file: bool = False
 
-class IngestionService(BaseIngestionService):
-    logger = logging.getLogger(__name__)
+class TestCacheManager:
+    def test_cache_manager_init(self):
+        """Test CacheManager initialization."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_manager = CacheManager(cache_dir=temp_dir, ttl_seconds=3600)
+            assert cache_manager.cache_dir == Path(temp_dir)
+            assert cache_manager.ttl_seconds == 3600
+            assert cache_manager.cache_dir.exists()
 
-    def __init__(
-        self,
-        config_path: Optional[str] = None,
-        custom_loaders: Optional[Dict[str, Any]] = None,
-        max_threads: Optional[int] = None,
-        batch_size: Optional[int] = None,
-        cache_manager: Optional[CacheManager] = None,
-        metrics_manager: Optional[MetricsManager] = None,
-        use_cache: bool = True,
-    ):
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    def test_get_cache_key(self):
+        """Test cache key generation."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_manager = CacheManager(cache_dir=temp_dir)
+            key1 = cache_manager._get_cache_key("website", "https://example.com")
+            key2 = cache_manager._get_cache_key("website", "https://example.com")
+            assert key1 == key2
+            assert len(key1) == 32  # MD5 hash length
 
-        self.config_manager = ConfigManager(config_path)
-        config = self.config_manager.ingestion_config
+    def test_save_and_get_from_cache(self):
+        """Test saving to and retrieving from cache."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_manager = CacheManager(cache_dir=temp_dir, ttl_seconds=3600)
 
-        self.max_threads = max_threads if max_threads is not None else config.max_threads
-        self.batch_size = batch_size if batch_size is not None else config.batch_size
+            # Test data
+            documents = [
+                {"page_content": "Test content 1", "metadata": {"source": "test"}},
+                {"page_content": "Test content 2", "metadata": {"source": "test"}},
+            ]
 
-        self.use_cache = use_cache
-        self.cache_manager = cache_manager or CacheManager(ttl_seconds=86400)
-        self.metrics_manager = metrics_manager
-        self.collect_metrics = metrics_manager is not None
+            # Save to cache
+            cache_manager.save_to_cache("website", "https://example.com", documents)
 
-        self.loaders = self.config_manager.get_loader_mapping()
-        if custom_loaders:
-            for ext, loader_class in custom_loaders.items():
-                if hasattr(loader_class, 'load'):
-                    self.loaders[ext] = loader_class
-                else:
-                    self.logger.warning(f"Invalid custom loader for {ext}")
+            # Retrieve from cache
+            cached_docs = cache_manager.get_from_cache("website", "https://example.com")
 
-        self.logger.info(f"Service initialized: loaders={len(self.loaders)}, max_threads={self.max_threads}")
+            assert cached_docs is not None
+            assert len(cached_docs) == 2
+            # Cache returns Document objects, so check attributes
+            assert cached_docs[0].page_content == "Test content 1"
+            assert cached_docs[1].page_content == "Test content 2"
 
-    def _is_arxiv_url(self, url: str) -> bool:
-        return "arxiv.org" in url
+    def test_cache_miss(self):
+        """Test cache miss for non-existent entry."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_manager = CacheManager(cache_dir=temp_dir)
+            result = cache_manager.get_from_cache("website", "https://nonexistent.com")
+            assert result is None
 
-    def _parse_url_sources(self, url: str) -> Source:
-        if self._is_arxiv_url(url):
-            return Source(identifier=url.split("/")[-1], is_file=False)
-        return Source(identifier=url, extension=Path(url).suffix.lower() or None, is_file=False)
+    def test_clear_cache_specific(self):
+        """Test clearing a specific cache entry."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_manager = CacheManager(cache_dir=temp_dir)
 
-    def _parse_file_sources(self, pattern: str) -> List[Source]:
-        sources = []
-        for path in Path().glob(pattern) if "*" in pattern else [Path(pattern)]:
-            if path.exists() and path.is_file():
-                sources.append(Source(identifier=str(path.absolute()), extension=path.suffix.lower(), is_file=True))
-        return sources
+            # Save to cache
+            documents = [{"page_content": "Test", "metadata": {}}]
+            cache_manager.save_to_cache("website", "https://example.com", documents)
 
-    def _build_sources(self, inputs: List[str]) -> List[Source]:
-        sources = []
-        for input_str in inputs:
-            if input_str.startswith(("http://", "https://")):
-                sources.append(self._parse_url_sources(input_str))
-            else:
-                sources.extend(self._parse_file_sources(input_str))
-        return sources
-
-    @retry(tries=3, delay=1, backoff=2, exceptions=(ConnectionError, TimeoutError))
-    def _load_source(self, source: Source, batch_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        path = Path(source.identifier)
-        source_size_bytes = path.stat().st_size if source.is_file and path.exists() else 0
-
-        metrics_info = None
-        if self.collect_metrics and batch_id is not None:
-            metrics_info = self.metrics_manager.start_source(batch_id, source.identifier)
-
-        try:
-            if not source.extension:
-                if self.use_cache and not source.is_file:
-                    cached = self.cache_manager.get_from_cache("website", source.identifier)
-                    if cached:
-                        self._record_metrics(metrics_info, batch_id, source, len(cached), source_size_bytes, success=True)
-                        return cached
-
-            if source.extension in self.loaders:
-                loader = self.loaders[source.extension](file_path=source.identifier)
-                docs = loader.load()
-            else:
-                raise ValueError(f"Unsupported source: ext={source.extension}")
-
-            self._record_metrics(metrics_info, batch_id, source, len(docs), source_size_bytes, success=True)
-            return docs
-        except Exception as e:
-            self.logger.error(f"Failed to load {source.identifier}: {str(e)}", exc_info=True)
-            self._record_metrics(metrics_info, batch_id, source, 0, 0, success=False, error=str(e))
-            return []
-
-    def _record_metrics(self, metrics_info, batch_id, source, doc_count, byte_size, success=True, error=None):
-        if self.collect_metrics and metrics_info:
-            self.metrics_manager.end_source(
-                batch_id=batch_id,
-                source_id=source.identifier,
-                success=success,
-                document_count=doc_count,
-                bytes_count=byte_size,
-                error_message=error
+            # Verify it's cached
+            assert (
+                cache_manager.get_from_cache("website", "https://example.com")
+                is not None
             )
 
-    def ingest_documents(self, inputs: List[str]) -> List[Dict[str, Any]]:
-        self.logger.info(f"Starting ingestion of {len(inputs)} inputs")
+            # Clear specific entry
+            cleared = cache_manager.clear_cache("website", "https://example.com")
+            assert cleared == 1
 
-        if self.collect_metrics:
-            self.metrics_manager.start_session(input_count=len(inputs))
+            # Verify it's gone
+            assert (
+                cache_manager.get_from_cache("website", "https://example.com") is None
+            )
 
-        sources = self._build_sources(inputs)
-        if not sources:
-            if self.collect_metrics:
-                self.metrics_manager.end_session(document_count=0)
-            raise ValueError("No valid sources found")
+    def test_clear_cache_all(self):
+        """Test clearing all cache entries."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_manager = CacheManager(cache_dir=temp_dir)
 
-        documents = []
-        for i in range(0, len(sources), self.batch_size):
-            batch = sources[i:i + self.batch_size]
-            batch_id = i // self.batch_size + 1
+            # Save multiple entries
+            documents = [{"page_content": "Test", "metadata": {}}]
+            cache_manager.save_to_cache("website", "https://example1.com", documents)
+            cache_manager.save_to_cache("website", "https://example2.com", documents)
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                results = list(executor.map(lambda s: self._load_source(s, batch_id=batch_id), batch))
-                for docs in results:
-                    documents.extend(docs)
+            # Clear all
+            cleared = cache_manager.clear_cache()
+            assert cleared == 2
 
-        if self.collect_metrics:
-            self.metrics_manager.end_session(document_count=len(documents))
+    def test_memory_cache(self):
+        """Test in-memory cache functionality."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_manager = CacheManager(cache_dir=temp_dir)
 
-        self.logger.info(f"Finished ingestion: {len(documents)} documents")
-        return documents
+            documents = [{"page_content": "Test", "metadata": {}}]
+            cache_manager.save_to_cache("website", "https://example.com", documents)
 
-    def clear_cache(self, source_type: Optional[str] = None, identifier: Optional[str] = None) -> int:
-        if not self.use_cache:
-            return 0
-        return self.cache_manager.clear_cache(source_type, identifier)
+            # First access should load from file and store in memory
+            cached1 = cache_manager.get_from_cache("website", "https://example.com")
+            assert cached1 is not None
 
-    def get_metrics(self, days: int = 30) -> Dict[str, Any]:
-        if not self.collect_metrics:
-            return {"enabled": False, "message": "Metrics collection is disabled"}
-        return {
-            "enabled": True,
-            "recent_sessions": self.metrics_manager.get_recent_sessions(limit=5),
-            "aggregate": self.metrics_manager.get_aggregate_metrics(days=days)
-        }
+            # Second access should use memory cache
+            cached2 = cache_manager.get_from_cache("website", "https://example.com")
+            assert cached2 is not None
+            assert cached1 == cached2
