@@ -79,3 +79,6 @@ Thumbs.db
 .vscode
 .idx
 scripts/
+
+graph_output.json
+knowledge_graph.png

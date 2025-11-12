@@ -24,7 +24,7 @@ async def main(model_name: Optional[str] = None):
         model_name: Optional name of the model to use. Can be a model name or a model type ('default', 'basic', 'reasoning', 'vision')
     """
     # Load environment variables for API keys
-    load_dotenv()
+    load_dotenv(override=True)
 
     # Get configuration
     config_manager = ConfigManager()
