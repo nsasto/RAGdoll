@@ -1,90 +1,160 @@
-"""Tools related to search functionality."""
+"""Tools related to web search and query generation."""
 
-from typing import List, Dict, Optional
+from __future__ import annotations
+
+import ast
 import logging
-from langchain_google_community import GoogleSearchAPIWrapper
-from ragdoll.config import Config
-from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field
-from ragdoll_v1.prompts import generate_search_queries_prompt
+from datetime import datetime
+from typing import Dict, List, Optional, Sequence
+
 from langchain_core.llms import LLM
+from langchain_core.tools import BaseTool
+from langchain_google_community import GoogleSearchAPIWrapper
+from pydantic import BaseModel, Field
+
+from ragdoll.config import ConfigManager
+from ragdoll.prompts import get_prompt
 
 
 class SearchToolsInput(BaseModel):
     query: str = Field(description="The search query string.")
-    num_results: Optional[int] = Field(default=3, description="The number of search results to return. Defaults to 3.")
+    num_results: Optional[int] = Field(
+        default=3,
+        description="The number of search results to return. Defaults to 3.",
+    )
 
 
 class SearchInternetTool(BaseTool):
     name = "search_internet"
     description = (
-        "A tool for performing internet searches using Google. "
-        "Input should be a query string, and optionally the number of results to return. "
-        "Returns a list of search results, where each result is a dictionary "
-        "containing the 'title', 'href' (URL), and 'snippet' (text summary) of the page."
+        "Use Google Custom Search via langchain-google-community to retrieve documents. "
+        "Skips obvious noise such as YouTube results."
     )
     args_schema = SearchToolsInput
 
-    def __init__(self, config: Config, ):
-        self.config = config
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(self.config.log_level)
+    def __init__(
+        self,
+        *,
+        google_search: Optional[GoogleSearchAPIWrapper] = None,
+        log_level: int = logging.INFO,
+    ) -> None:
+        self.logger = logging.getLogger(f"{__name__}.google")
+        self.logger.setLevel(log_level)
+        self._search = google_search or GoogleSearchAPIWrapper()
 
     def _run(self, query: str, num_results: int = 3) -> List[Dict]:
-        """Performs a Google search with the given query."""
-        self.logger.info(f"  🌐 Searching with query {query}...")
-
-        google_search = GoogleSearchAPIWrapper()
-        results = google_search.results(query, num_results)
-
-        if results is None:
+        """Synchronously run a Google search."""
+        self.logger.info("Searching the web for: %s", query)
+        results = self._search.results(query, num_results)
+        if not results:
             return []
-        search_results = []
 
+        filtered: List[Dict] = []
         for result in results:
-            # skip youtube results
-            if "youtube.com" in result["link"]:
+            if "youtube.com" in result.get("link", ""):
                 continue
-            search_result = {
-                "title": result["title"],
-                "href": result["link"],
-                "snippet": result["snippet"],
-            }
-            search_results.append(search_result)
+            filtered.append(
+                {
+                    "title": result.get("title"),
+                    "href": result.get("link"),
+                    "snippet": result.get("snippet"),
+                }
+            )
+        return filtered
 
-        return search_results
+    async def _arun(self, *args, **kwargs):  # pragma: no cover - sync only
+        raise NotImplementedError("SearchInternetTool does not implement async execution.")
 
 
 class SuggestedSearchTermsInput(BaseModel):
     query: str = Field(description="The query to generate suggested search terms for.")
-    num_suggestions: Optional[int] = Field(default=3, description="The number of suggested search terms to return. Defaults to 3.")
+    num_suggestions: Optional[int] = Field(
+        default=3,
+        description="Number of suggested search terms to return. Defaults to 3.",
+    )
 
 
 class SuggestedSearchTermsTool(BaseTool):
     name = "generate_suggested_search_terms"
     description = (
-        "A tool for generating suggested search terms related to a given query. "
-        "Input should be a query string, and optionally the number of suggestions to return. "
-        "Returns a list of suggested search terms (strings)."
+        "Generate related Google queries for a topic using the configured LLM and prompt templates."
     )
     args_schema = SuggestedSearchTermsInput
 
-    def __init__(self, config: Config, llm: LLM):
-        self.config = config
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(self.config.log_level)
-        self.llm = llm
-        
-    def _run(self, query: str, num_suggestions: int = 3) -> List[str]:
-        """Generates suggested search terms for a given query."""
-        prompt = generate_search_queries_prompt(query, num_suggestions)
+    DEFAULT_PROMPT_KEY = "search_queries"
 
-        self.logger.info(
-            f"🧠 Generating potential search queries with prompt:\n {query}"
+    def __init__(
+        self,
+        llm: LLM,
+        *,
+        config_manager: Optional[ConfigManager] = None,
+        prompt_key: str = DEFAULT_PROMPT_KEY,
+        log_level: int = logging.INFO,
+    ) -> None:
+        self.logger = logging.getLogger(f"{__name__}.suggestions")
+        self.logger.setLevel(log_level)
+        self.llm = llm
+        self.prompt_template = self._resolve_prompt(prompt_key, config_manager)
+
+    def _run(self, query: str, num_suggestions: int = 3) -> List[str]:
+        prompt = self.prompt_template.format(
+            query=query.strip(),
+            query_count=max(1, num_suggestions),
+            current_date=datetime.utcnow().strftime("%Y-%m-%d"),
         )
-        # use the shared LLM instance
-        result = self.llm.invoke(prompt)
-        values = result.content if hasattr(result, "content") else result
-        self.logger.info(f"🧠 Generated potential search queries: {values}")
-        import ast
-        return ast.literal_eval(values)
+        self.logger.debug("Generating search queries with prompt:\n%s", prompt)
+        response = self.llm.invoke(prompt)
+        raw_output = getattr(response, "content", response)
+        suggestions = self._parse_suggestions(raw_output)
+
+        # Deduplicate while preserving order and enforce requested length.
+        ordered: List[str] = []
+        for suggestion in suggestions:
+            if suggestion and suggestion not in ordered:
+                ordered.append(suggestion)
+            if len(ordered) >= num_suggestions:
+                break
+
+        self.logger.info("Generated %s suggested queries.", len(ordered))
+        return ordered
+
+    async def _arun(self, *args, **kwargs):  # pragma: no cover - sync only
+        raise NotImplementedError("SuggestedSearchTermsTool does not implement async execution.")
+
+    def _resolve_prompt(
+        self,
+        prompt_key: str,
+        config_manager: Optional[ConfigManager],
+    ) -> str:
+        if config_manager:
+            templates = config_manager.get_default_prompt_templates()
+            template = templates.get(prompt_key)
+            if template:
+                return template
+
+        try:
+            return get_prompt(prompt_key)
+        except ValueError as exc:  # pragma: no cover - defensive
+            raise ValueError(
+                f"Prompt '{prompt_key}' could not be loaded from ragdoll.prompts."
+            ) from exc
+
+    def _parse_suggestions(self, raw_output: str | Sequence[str]) -> List[str]:
+        if isinstance(raw_output, list):
+            return [str(item).strip() for item in raw_output if str(item).strip()]
+
+        text = str(raw_output).strip()
+        if not text:
+            return []
+
+        # Try to interpret the response as a Python/JSON list first.
+        try:
+            parsed = ast.literal_eval(text)
+            if isinstance(parsed, (list, tuple)):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except (ValueError, SyntaxError):
+            pass
+
+        # Fallback: treat each line as a suggestion.
+        lines = [line.strip().lstrip("-•") for line in text.splitlines()]
+        return [line for line in lines if line]
