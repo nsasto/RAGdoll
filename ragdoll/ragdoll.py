@@ -6,11 +6,13 @@ from ragdoll.loaders.base_loader import BaseLoader
 from ragdoll.chunkers.base_chunker import BaseChunker
 from ragdoll.embeddings.base_embeddings import BaseEmbeddings
 from ragdoll.vector_stores.base_vector_store import BaseVectorStore
+from ragdoll.vector_stores.factory import vector_store_from_config
 from ragdoll.llms.base_llm import BaseLLM
 from ragdoll.tools.search_tools import SearchInternetTool, SuggestedSearchTermsTool
 from ragdoll.graph_stores.base_graph_store import BaseGraphStore
 
 from ragdoll.config import Config
+from ragdoll.config.config_manager import ConfigManager
 
 class Ragdoll:
     def __init__(
@@ -24,6 +26,7 @@ class Ragdoll:
         graph_store: Optional[BaseGraphStore] = None,
     ):
         self.config = Config()
+        self.config_manager = ConfigManager()
 
         # Use the provided LLM or create a default one
         if llm:
@@ -39,7 +42,7 @@ class Ragdoll:
         self.chunker = chunker
         self.embeddings = embeddings
         self.vector_store = vector_store
-        self.llm = llm
+        self.graph_store = graph_store
 
         # Default implementations
         if self.loader is None:
@@ -50,13 +53,16 @@ class Ragdoll:
             from ragdoll.chunkers.recursive_character_text_splitter import MyRecursiveCharacterTextSplitter
             self.chunker = MyRecursiveCharacterTextSplitter()
         
-        if self.vector_store is None:
-            from ragdoll.vector_stores.chroma_vector_store import MyChroma
-            self.vector_store = MyChroma()
-        
         if self.embeddings is None:
             from ragdoll.embeddings.openai_embeddings import MyOpenAIEmbeddings
             self.embeddings = MyOpenAIEmbeddings()
+
+        if self.vector_store is None:
+            vector_config = self.config_manager.vector_store_config
+            self.vector_store = vector_store_from_config(
+                vector_config,
+                embedding=self.embeddings,
+            )
         
         if graph_store is None:
             from ragdoll.graph_stores.networkx_graph_store import MyNetworkxGraphStore

@@ -2,10 +2,14 @@ langchain==0.2.6
 langchain-openai==0.1.14
 langchain-huggingface==0.0.3
 langchain-community==0.2.6
-langchain-google-community==1.0.6
-langchain-text-splitters==0.2.2
-langchain-markitdown==0.1.0
+langchain-chroma==0.1.4
+chromadb>=0.5.0
+langchain-google-community
+langchain-text-splitters
+langchain-markitdown
+openai>=1.40.0
 python-dotenv==1.0.1
+chromadb>=1.0.3
 # openai  # not referenced anywhere in the codebase
 # pyarrow  # no imports
 # pandas  # no imports
@@ -25,3 +29,5 @@ python-dotenv==1.0.1
 # bs4  # no imports
 retry==0.9.2
 pytest==9.0.0
+flask==3.0.0
+flask-cors==4.0.0
