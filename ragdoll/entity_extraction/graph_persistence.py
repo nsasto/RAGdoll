@@ -426,7 +426,3 @@ class Neo4jCypherRetriever(_RetrieverBase):
         self, query: str, config: Optional[dict] = None, **kwargs
     ) -> list[Document]:  # pragma: no cover - compatibility
         return self._get_relevant_documents(query)
-
-    def get_relevant_documents(self, query: str) -> list[Document]:
-        """Expose sync retrieval regardless of base class implementation."""
-        return self._get_relevant_documents(query)

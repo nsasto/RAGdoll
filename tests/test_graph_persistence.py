@@ -21,7 +21,7 @@ def test_simple_graph_retriever_returns_documents():
     graph = _build_graph()
     retriever = SimpleGraphRetriever(graph, top_k=1)
 
-    docs = retriever.get_relevant_documents("Obama")
+    docs = retriever.invoke("Obama")
 
     assert len(docs) == 1
     doc = docs[0]
@@ -36,7 +36,7 @@ def test_graph_persistence_service_create_retriever_uses_last_graph():
     service.save(graph)
 
     retriever = service.create_retriever()
-    docs = retriever.get_relevant_documents("Honolulu")
+    docs = retriever.invoke("Honolulu")
 
     assert docs  # ensures retriever returns hits
     assert docs[0].metadata["node_type"] == "Location"

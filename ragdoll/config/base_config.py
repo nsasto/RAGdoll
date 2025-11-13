@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class BaseConfig(BaseModel):
     """Base configuration class that all configs should inherit from."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
 
     enabled: bool = Field(default=True, description="Whether this component is enabled.")
 
@@ -179,6 +179,7 @@ class LLMPromptsConfig(BaseModel):
 class GraphDatabaseConfig(BaseModel):
     """Configuration for graph database output."""
 
+    model_config = ConfigDict(protected_namespaces=())
     default_store: str = Field(
         default="json",
         description="Default graph store type to use.",
@@ -240,6 +241,7 @@ class GraphDatabaseConfig(BaseModel):
 class EntityExtractionConfig(BaseModel):
     """Configuration for entity extraction and graph creation."""
 
+    model_config = ConfigDict(protected_namespaces=())
     enabled: bool = Field(default=True)
     spacy_model: str = Field(default="en_core_web_sm")
     chunking_strategy: str = Field(default="default")
