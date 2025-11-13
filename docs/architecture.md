@@ -14,21 +14,21 @@ graph TD
     %% Knowledge Construction
     subgraph Knowledge_Build
         D --> E["Information Extraction<br/>(entities & relations)"]
-        E --> F["Knowledge Graph Upsert<br/>(policy interface)"]
+        E --> F["Graph Persistence<br/>(JSON, NetworkX, Neo4j)"]
         E --> G["Embedding Pipeline<br/>(single pass)"]
-        G --> H["VectorStoreAdapter<br/>(dynamic class e.g. Chroma/Hnswlib)"]
-        F --> I(("Graph Storage<br/>(IGraphStorage, Neo4j, etc.)"))
+        G --> H["VectorStoreAdapter<br/>(Chroma, FAISS, etc.)"]
+        F --> I(("Graph Storage or Retriever"))
         H --> J(("Vector DB"))
     end
 
     %% Query + Reasoning
     subgraph Query_Runtime
-        Q["User Query"] --> R["State Manager<br/>(retrieval orchestration)"]
+        Q["User Query"] --> R["Ragdoll Orchestrator"]
         R --> H
         R --> I
         R --> S["Context Assembly<br/>(chunks + KG facts)"]
         S --> T["Prompt Builder"]
-        T --> U["LLM Caller<br/>(LangChain adapters)"]
+        T --> U["BaseLLMCaller<br/>(LangChain adapters)"]
         U --> V["Answer"]
     end
 
@@ -51,3 +51,8 @@ graph TD
 ```
 
 For deeper dives into each subsystem, see the dedicated docs in `docs/ingestion.md`, `docs/chunking.md`, `docs/embeddings.md`, `docs/vector_stores.md`, `docs/graph_stores.md`, and `docs/llm_integration.md`.
+Recent changes worth noting:
+
+- **LLM abstractions** are handled via `BaseLLMCaller`, so LangChain models, custom HTTP clients, or fake callers can be injected consistently. `get_llm_caller()` in `ragdoll.llms` bridges config-driven models into this interface.
+- **Graph persistence** lives in `GraphPersistenceService`, which handles JSON/NetworkX/Neo4j output and exposes `create_retriever()` hooks (the new `simple` in-memory retriever and the Neo4j-backed retriever).
+- **Hybrid ingestion** is performed by `IngestionPipeline` and surfaced through `Ragdoll.ingest_with_graph()` / `ingest_with_graph_sync()`, giving callers a single entry point for vector + graph indexing and retrieval.
