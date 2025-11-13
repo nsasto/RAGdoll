@@ -17,16 +17,10 @@ from ragdoll import settings
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.llms import get_llm
 from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller
-from ragdoll.utils import json_parse
 from .base import BaseEntityExtractor
 from .graph_persistence import GraphPersistenceService
-from .models import (
-    EntityList,
-    Graph,
-    GraphEdge,
-    GraphNode,
-    RelationshipList,
-)
+from .models import Graph, GraphEdge, GraphNode
+from .relationship_parser import RelationshipOutputParser
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +76,9 @@ class EntityExtractionService(BaseEntityExtractor):
 
         spacy_model = merged_config.get("spacy_model", "en_core_web_sm")
         self.nlp = self._load_spacy(spacy_model)
+        self.relationship_parser = RelationshipOutputParser(
+            merged_config.get("relationship_output_format", "auto")
+        )
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -181,12 +178,12 @@ class EntityExtractionService(BaseEntityExtractor):
         document: Document,
         nodes: List[GraphNode],
     ) -> List[GraphEdge]:
-        parsed = json_parse(response, RelationshipList)
-        if not parsed:
+        relationship_list = self.relationship_parser.parse(response)
+        if not relationship_list.relationships:
             return []
 
         edges: List[GraphEdge] = []
-        for rel in parsed.relationships:
+        for rel in relationship_list.relationships:
             source_id = self._ensure_node(nodes, rel.subject, document.metadata)
             target_id = self._ensure_node(nodes, rel.object, document.metadata)
             edges.append(

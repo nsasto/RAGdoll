@@ -15,6 +15,20 @@ from typing import Any, Callable, Dict, Optional
 
 from langchain_core.documents import Document
 
+try:  # pragma: no cover - optional dependency
+    from langchain_core.retrievers import BaseRetriever as LangChainRetrieverBase
+except ImportError:  # pragma: no cover - fallback when LangChain isn't installed
+    class _RetrieverBase:  # type: ignore[override]
+        def _get_relevant_documents(self, query: str):
+            raise NotImplementedError("LangChain is not installed.")
+
+        def get_relevant_documents(self, query: str):
+            return self._get_relevant_documents(query)
+else:  # pragma: no cover - exercised indirectly in tests
+    class _RetrieverBase(LangChainRetrieverBase):
+        class Config:
+            arbitrary_types_allowed = True
+
 from .models import Graph, GraphNode
 
 logger = logging.getLogger(__name__)
@@ -109,6 +123,27 @@ class GraphPersistenceService:
 
         if backend_name == "simple":
             return SimpleGraphRetriever(graph_obj, **merged_config)
+        if backend_name in {"neo4j", "langchain_neo4j"}:
+            config_dict = {
+                "uri": self.neo4j_config.get("uri"),
+                "user": self.neo4j_config.get("user"),
+                "password": self.neo4j_config.get("password"),
+                **merged_config,
+            }
+            missing = [key for key in ("uri", "user", "password") if not config_dict.get(key)]
+            if missing:
+                raise ValueError(
+                    "Neo4j retriever requires connection details. Missing: "
+                    + ", ".join(missing)
+                )
+            return Neo4jCypherRetriever(
+                uri=config_dict["uri"],
+                user=config_dict["user"],
+                password=config_dict["password"],
+                top_k=int(config_dict.get("top_k", 5)),
+                cypher_template=config_dict.get("cypher_template"),
+                include_relationships=config_dict.get("include_relationships", True),
+            )
 
         raise ValueError(
             f"Unsupported graph retriever backend '{backend_name}'. "
@@ -213,8 +248,12 @@ class GraphPersistenceService:
         logger.info("Graph successfully persisted to Neo4j.")
 
 
-class SimpleGraphRetriever:
+class SimpleGraphRetriever(_RetrieverBase):
     """Lightweight retriever that surfaces graph nodes as LangChain Documents."""
+
+    graph: Graph
+    top_k: int = 5
+    include_edges: bool = True
 
     def __init__(
         self,
@@ -223,11 +262,10 @@ class SimpleGraphRetriever:
         top_k: int = 5,
         include_edges: bool = True,
     ) -> None:
-        self.graph = graph
-        self.top_k = max(1, top_k)
-        self.include_edges = include_edges
+        top_k = max(1, top_k)
+        super().__init__(graph=graph, top_k=top_k, include_edges=include_edges)
 
-    def get_relevant_documents(self, query: str) -> list[Document]:
+    def _get_relevant_documents(self, query: str) -> list[Document]:  # type: ignore[override]
         if not query:
             return []
 
@@ -272,3 +310,92 @@ class SimpleGraphRetriever:
             elif edge.target == node_id:
                 neighbors.append(edge.source)
         return neighbors
+
+
+class Neo4jCypherRetriever(_RetrieverBase):
+    """Retriever that runs lightweight Cypher against Neo4j."""
+
+    DEFAULT_QUERY = """
+    MATCH (n)
+    WHERE toLower(n.name) CONTAINS toLower($query)
+    OPTIONAL MATCH (n)-[r]->(m)
+    RETURN n, collect({type: type(r), target: coalesce(m.name, ""), target_id: m.id}) AS connections
+    LIMIT $top_k
+    """
+
+    uri: str
+    user: str
+    password: str
+    top_k: int = 5
+    cypher: str = DEFAULT_QUERY
+    include_relationships: bool = True
+
+    def __init__(
+        self,
+        *,
+        uri: str,
+        user: str,
+        password: str,
+        top_k: int = 5,
+        cypher_template: Optional[str] = None,
+        include_relationships: bool = True,
+    ) -> None:
+        top_k = max(1, top_k)
+        super().__init__(
+            uri=uri,
+            user=user,
+            password=password,
+            top_k=top_k,
+            cypher=cypher_template or self.DEFAULT_QUERY,
+            include_relationships=include_relationships,
+        )
+
+    def _get_relevant_documents(self, query: str) -> list[Document]:  # type: ignore[override]
+        if not query:
+            return []
+
+        records = self._run_query(query)
+        documents: list[Document] = []
+
+        for record in records:
+            node = record.get("n")
+            if node is None:
+                continue
+            node_dict = dict(node)
+            metadata: Dict[str, Any] = {
+                "node_id": node_dict.get("id", node.identity if hasattr(node, "identity") else None),
+                "node_labels": list(node.labels) if hasattr(node, "labels") else [],
+                **node_dict,
+            }
+            metadata.setdefault("name", node_dict.get("name"))
+            metadata.setdefault("type", node_dict.get("type"))
+
+            if self.include_relationships:
+                metadata["connections"] = record.get("connections", [])
+
+            documents.append(
+                Document(page_content=node_dict.get("name", ""), metadata=metadata)
+            )
+
+        return documents
+
+    def _run_query(self, query: str):
+        try:
+            from neo4j import GraphDatabase  # type: ignore
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError(
+                "neo4j Python driver is required for Neo4j retriever support. "
+                "Install with `pip install neo4j`."
+            ) from exc
+
+        driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+        try:
+            with driver.session() as session:
+                result = session.run(
+                    self.cypher,
+                    query=query,
+                    top_k=self.top_k,
+                )
+                return list(result)
+        finally:  # pragma: no cover - defensive cleanup
+            driver.close()
