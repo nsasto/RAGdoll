@@ -28,8 +28,25 @@ spacy>=3.7.0
 # lxml  # no imports
 # pymupdf  # no imports
 # faiss-cpu  # no imports
-# colorlog  # no imports
-# sentence_transformers  # no imports
-# pyperclip  # no imports
-# requests  # no imports
-# bs4  # no imports
+# Conservative canonical base requirements for RAGdoll
+langchain==1.0.5
+langchain-openai==1.0.2
+langchain-huggingface==1.0.1
+langchain-community==0.4.1
+langchain-chroma==1.0.0
+chromadb==1.3.4
+langchain-core==1.0.4
+langsmith==0.4.42
+langchain-google-community==3.0.0
+langchain-text-splitters==1.0.0
+langchain-markitdown==0.1.6
+openai>=1.40.0
+python-dotenv==1.0.1
+retry==0.9.2
+flask==3.0.0
+flask-cors==4.0.0
+
+# Notes:
+# - Heavy optional deps (spaCy, PyMuPDF, faiss, neo4j, etc.) are in
+#   `requirements-entity.txt` and `requirements-graph.txt`.
+# - Developer/test deps are in `requirements-dev.txt`.

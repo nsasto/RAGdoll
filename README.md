@@ -76,6 +76,24 @@ bash
 
 This will install the required dependencies, including Langchain and Pydantic. 3. **Install extra dependencies**: if you need some specific models or libraries, install them here as well.
 
+### Recommended conservative install (local development)
+
+To install the conservative base dependencies locally and optionally extras:
+
+```powershell
+# Base install
+pip install -r requirements.txt
+
+# Developer/test dependencies
+pip install -r requirements-dev.txt
+
+# Optional entity extraction and heavy NLP dependencies
+pip install -r requirements-entity.txt
+
+# Optional graph DB dependencies
+pip install -r requirements-graph.txt
+```
+
 ## Architecture
 
 RAGdoll's architecture is built around modular components and abstract base classes, making it highly extensible. Here's an overview of the key modules:
