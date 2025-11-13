@@ -219,6 +219,13 @@ class ConfigManager:
                     loader_class = registry_get_loader(class_path)
                     if loader_class:
                         self.logger.debug("Resolved loader for %s via registry: %s", ext, class_path)
+                        try:
+                            from ragdoll.ingestion import register_loader_class
+
+                            norm_ext = ext.lstrip(".").lower() if isinstance(ext, str) else ext
+                            register_loader_class(norm_ext, loader_class)
+                        except Exception:
+                            pass
                     else:
                         module_path, class_name = class_path.rsplit(".", 1)
                         self.logger.debug("Importing module %s, class %s", module_path, class_name)
@@ -234,6 +241,13 @@ class ConfigManager:
                             continue
 
                         loader_class = getattr(module, class_name)
+                        try:
+                            from ragdoll.ingestion import register_loader_class
+
+                            norm_ext = ext.lstrip(".").lower() if isinstance(ext, str) else ext
+                            register_loader_class(norm_ext, loader_class)
+                        except Exception:
+                            pass
                     self.logger.info(
                         "For extension %s: loaded %s from %s",
                         ext,
@@ -296,6 +310,13 @@ class ConfigManager:
                         ext,
                         class_path,
                     )
+                    try:
+                        from ragdoll.ingestion import register_loader_class
+
+                        norm_ext = ext.lstrip(".").lower() if isinstance(ext, str) else ext
+                        register_loader_class(norm_ext, loader_class)
+                    except Exception:
+                        pass
                 except (ImportError, AttributeError, ValueError) as exc:
                     self.logger.warning(
                         "Error loading loader for source %s: %s. This source type will "

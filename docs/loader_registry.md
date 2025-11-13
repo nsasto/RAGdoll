@@ -44,6 +44,29 @@ ingestion:
       .pdf: some.package.pdf_loader:PDFLoader
 ```
 
+Normalized keys
+
+- Registry keys are normalized by stripping any leading `.` and converting to
+  lowercase. This means `.PDF`, `.pdf`, and `pdf` all map to the same registry
+  key `pdf`.
+
+Examples:
+
+- In config you can still use the file extension with a leading dot:
+
+```yaml
+ingestion:
+  loaders:
+    file_mappings:
+      .pdf: langchain_community.document_loaders.PyMuPDFLoader
+```
+
+When the configuration is loaded, RAGdoll will register this mapping under
+the short name `pdf` (normalized) so at runtime you can call
+`ragdoll.ingestion.get_loader('pdf')` or `ragdoll.ingestion.get_loader('.pdf')`
+and receive the same class.
+
+
 Validation and migration
 
 - To surface misconfigured loader names early, instantiate a `ConfigManager` at startup — it will attempt to resolve configured loaders when `DocumentLoaderService` initializes.
