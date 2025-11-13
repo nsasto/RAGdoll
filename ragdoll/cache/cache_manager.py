@@ -8,6 +8,19 @@ import logging
 from ragdoll import settings
 
 
+def canonical_cache_key(input_str: Optional[str]) -> str:
+    """Return canonical cache key: MD5 hex of the UTF-8 string (32 lowercase hex chars).
+
+    Use this helper anywhere a logical identifier (e.g. "website:https://...")
+    needs to be converted into a stable filesystem-friendly key.
+    """
+    if input_str is None:
+        input_str = ""
+    if not isinstance(input_str, str):
+        input_str = str(input_str)
+    return hashlib.md5(input_str.encode("utf-8")).hexdigest()
+
+
 class CacheManager:
     """Manages caching for network-based document sources."""
 
@@ -44,8 +57,9 @@ class CacheManager:
 
     def _get_cache_key(self, source_type: str, identifier: str) -> str:
         """Generate a unique cache key for a source."""
-        key = f"{source_type}:{identifier}"
-        return hashlib.md5(key.encode()).hexdigest()
+        # Use the canonical helper so the same logical id maps to the same
+        # MD5 hex digest everywhere in the codebase.
+        return canonical_cache_key(f"{source_type}:{identifier}")
 
     def _get_cache_path(self, source_type: str, identifier: str) -> Path:
         """Get the file path for a cache entry."""
@@ -62,9 +76,10 @@ class CacheManager:
         """
         Retrieve documents from cache with optimized performance.
         """
-        cache_key = f"{source_type}:{identifier}"
+        # Use canonical hashed key for both memory and file lookup
+        cache_key = self._get_cache_key(source_type, identifier)
 
-        # Check memory cache first
+        # Check memory cache first (hashed key)
         if cache_key in self.memory_cache:
             self.logger.debug(f"Retrieved {cache_key} from memory cache")
             return self.memory_cache[cache_key]
@@ -110,6 +125,7 @@ class CacheManager:
 
             # Store in memory cache for next time
             if result_docs and len(self.memory_cache) < self.max_memory_cache_items:
+                # store under hashed key for consistent hits
                 self.memory_cache[cache_key] = result_docs
 
             return result_docs
@@ -161,7 +177,7 @@ class CacheManager:
                 "documents": serializable_docs,
             }
 
-            # Create cache key
+            # Create cache key (hashed) and file path
             cache_key = self._get_cache_key(source_type, identifier)
             cache_path = self.cache_dir / f"{cache_key}.json"
 
@@ -172,6 +188,27 @@ class CacheManager:
             self.logger.debug(
                 f"Cached {len(documents)} documents for {source_type}:{identifier}"
             )
+
+            # Also populate memory cache using the canonical hashed key
+            # Convert to Document objects similarly to get_from_cache's reconstruction
+            try:
+                from langchain_core.documents import Document
+
+                reconstructed = []
+                for d in serializable_docs:
+                    if isinstance(d, dict) and "page_content" in d:
+                        reconstructed.append(
+                            Document(page_content=d["page_content"], metadata=d.get("metadata", {}))
+                        )
+                    else:
+                        reconstructed.append(d)
+
+                if reconstructed and len(self.memory_cache) < self.max_memory_cache_items:
+                    self.memory_cache[cache_key] = reconstructed
+            except Exception:
+                # If Document class not available, store serializable docs
+                if serializable_docs and len(self.memory_cache) < self.max_memory_cache_items:
+                    self.memory_cache[cache_key] = serializable_docs
 
         except Exception as e:
             self.logger.error(f"Error caching {source_type}:{identifier}: {str(e)}")
@@ -194,6 +231,13 @@ class CacheManager:
             cache_path = self._get_cache_path(source_type, identifier)
             if cache_path.exists():
                 os.remove(cache_path)
+                # remove from memory cache as well
+                try:
+                    cache_key = self._get_cache_key(source_type, identifier)
+                    if cache_key in self.memory_cache:
+                        del self.memory_cache[cache_key]
+                except Exception:
+                    pass
                 return 1
             return 0
 
@@ -211,5 +255,16 @@ class CacheManager:
                 # If we can't read the file, remove it anyway
                 os.remove(cache_file)
                 count += 1
+
+        # For broad clears (by source_type or full), clear memory cache to avoid stale entries
+        try:
+            if source_type is None:
+                # full clear
+                self.memory_cache.clear()
+            else:
+                # best-effort: clear entire memory cache when clearing by source_type
+                self.memory_cache.clear()
+        except Exception:
+            pass
 
         return count
