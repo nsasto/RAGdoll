@@ -1,5 +1,4 @@
 ﻿import asyncio
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -9,7 +8,7 @@ import logging
 sys.path.append(str(Path(__file__).parent.parent))
 
 from ragdoll.pipeline import ingest_documents, IngestionOptions
-from ragdoll.llms import get_llm
+from ragdoll.llms import get_llm_caller
 
 async def main(model_name: Optional[str] = None):
     # Set up logging
@@ -17,9 +16,12 @@ async def main(model_name: Optional[str] = None):
     
     # Initialize LLM
     model_name = model_name or "gpt-3.5-turbo"
-    print(f"Using get_llm with model: {model_name}")
-    llm = get_llm(model_name)
-    print(f"LLM initialized: {llm}")
+    print(f"Using get_llm_caller with model: {model_name}")
+    llm_caller = get_llm_caller(model_name)
+    if llm_caller is None:
+        print("Unable to initialize the requested LLM. Check your configuration or API keys.")
+        return
+    print("LLM caller initialized.")
     
     # Get the absolute path to the test file
     test_data_dir = Path(__file__).parent.parent / "tests" / "test_data"
@@ -52,7 +54,7 @@ async def main(model_name: Optional[str] = None):
             "store_type": "networkx",
             "persist_directory": "./data/graph_stores/my_graph_rag"
         },
-        llm=llm,  # Pass the LLM via options
+        llm_caller=llm_caller,
         # Pass entity extraction specific options
         entity_extraction_options={
             "entity_types": ["Person", "Organization", "Location", "Date"],

@@ -6,9 +6,11 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from langchain_core.documents import Document
-from ragdoll.entity_extraction.entity_extraction_service import EntityExtractionService
+from ragdoll.entity_extraction.entity_extraction_service import (
+    EntityExtractionService,
+)
 from ragdoll.config import Config
-from ragdoll.llms import get_llm
+from ragdoll.llms import get_llm_caller
 from ragdoll.utils import visualize_graph
 
 # Configure logging
@@ -32,11 +34,16 @@ async def main(model_name: Optional[str] = None):
 
     # Use the real LLM
     model_name = model_name or "gpt-4o"  # "gpt-4o" "gpt-3.5-turbo"
-    print(f"Using get_llm with model: {model_name}")
-    llm = get_llm(model_name, config_manager)
+    print(f"Using get_llm_caller with model: {model_name}")
+    llm_caller = get_llm_caller(model_name, config_manager)
+    if llm_caller is None:
+        raise RuntimeError("Unable to load LLM caller. Check your configuration/API keys.")
 
     # Create the service
-    graph_service = EntityExtractionService(config=entity_extraction_config)
+    graph_service = EntityExtractionService(
+        config=entity_extraction_config,
+        llm_caller=llm_caller,
+    )
 
     # Define sample text
     sample_text = (
@@ -65,10 +72,7 @@ async def main(model_name: Optional[str] = None):
     )
 
     # Extract the graph
-    graph = await graph_service.extract(
-        documents=[sample_doc, sample_doc2],
-        llm_override=llm,
-    )
+    graph = await graph_service.extract(documents=[sample_doc, sample_doc2])
 
     print(f"\nExtracted {len(graph.nodes)} nodes and {len(graph.edges)} edges")
 
