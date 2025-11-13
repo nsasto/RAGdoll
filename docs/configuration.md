@@ -88,6 +88,17 @@ print(embeddings_cfg.default_client)
 - Add new config models by subclassing `BaseConfig`.
 - Add new config sections to YAML and update `ConfigManager` properties.
 
+### Entity Extraction Options
+
+Recent refactors introduced richer controls for graph/entity workflows:
+
+- `entity_extraction.relationship_parsing`: configure how LLM relationship output is parsed. Keys include `preferred_format` (`json`, `markdown`, `auto`), `parser_class` (dotted path to a custom parser), `schema` (custom Pydantic model), and `parser_kwargs`.
+- `entity_extraction.relationship_prompts`: map provider hints to prompt template names. The service picks `providers[provider_name]` when the LLM caller advertises its provider, otherwise it falls back to `default`.
+- `entity_extraction.graph_retriever`: enable optional retriever creation (`enabled: true`) and choose a backend (`simple` or `neo4j/langchain_neo4j`). Additional keys like `top_k` or `include_edges` are forwarded to the retriever factory, and Neo4j credentials are taken from `graph_database_config`.
+- `entity_extraction.llm_provider_hint`: manually specify the provider string if the chosen LLM caller cannot be auto-detected. This drives both prompt selection and downstream logging.
+
+When these sections are present in `default_config.yaml`, `ConfigManager` merges them into `entity_extraction_config`, so `EntityExtractionService` and `IngestionPipeline` pick up the new behavior automatically.
+
 ---
 
 ## Best Practices

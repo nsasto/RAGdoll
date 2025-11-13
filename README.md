@@ -234,6 +234,34 @@ config = Config(
 ragdoll = Ragdoll(config=config)
 ```
 
+### Entity Extraction Controls
+
+The `entity_extraction` section of `default_config.yaml` now exposes several knobs for graph-centric workflows:
+
+- `relationship_parsing`: choose the preferred output format (`json`, `markdown`, `auto`), optionally supply a custom parser class or schema, and pass parser-specific kwargs. This lets you tighten validation for LLM responses (e.g., point at your own Pydantic schema).
+- `relationship_prompts`: declare a default prompt template plus per-provider overrides (e.g., map `"anthropic"` to a Claude-specific prompt). The service picks the prompt whose provider matches the active `BaseLLMCaller`.
+- `graph_retriever`: enable creation of a graph retriever after entity extraction, select the backend (`simple` or `neo4j/langchain_neo4j`), and tune parameters like `top_k` or `include_edges`. When enabled, `EntityExtractionService` and `IngestionPipeline` expose a retriever you can plug into downstream chains.
+
+Example excerpt:
+
+```yaml
+entity_extraction:
+  relationship_parsing:
+    preferred_format: "markdown"
+    schema: "my_project.schemas.RelationshipListV2"
+  relationship_prompts:
+    default: "relationship_extraction"
+    providers:
+      openai: "relationship_extraction_openai"
+      anthropic: "relationship_extraction_claude"
+  graph_retriever:
+    enabled: true
+    backend: "neo4j"
+    top_k: 10
+```
+
+See `docs/configuration.md` for the full field reference.
+
 ## Contributing
 
 Contributions to RAGdoll are welcome! To contribute:
