@@ -160,7 +160,9 @@ entity_extraction:
     parser_kwargs: {}
   relationship_prompts:
     default: "relationship_extraction"
-    providers: {}
+    providers:
+      openai: "relationship_extraction_openai"
+      anthropic: "relationship_extraction_claude"
   graph_retriever:
     enabled: false
     backend: "simple"

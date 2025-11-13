@@ -19,12 +19,20 @@ from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.llms import get_llm
 from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller
 from ragdoll.prompts import get_prompt
+from .models import Graph, GraphEdge, GraphNode, RelationshipList
 from .base import BaseEntityExtractor
 from .graph_persistence import GraphPersistenceService
 from .models import Graph, GraphEdge, GraphNode, RelationshipList
 from .relationship_parser import RelationshipOutputParser
 
 logger = logging.getLogger(__name__)
+
+
+class _SafeFormatDict(dict):
+    """Format dictionary that leaves unknown keys untouched."""
+
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
 
 
 class EntityExtractionService(BaseEntityExtractor):
@@ -69,6 +77,8 @@ class EntityExtractionService(BaseEntityExtractor):
         )
         if self._active_llm_provider:
             self._active_llm_provider = self._active_llm_provider.lower()
+        elif getattr(self.llm_caller, "provider", None):
+            self._active_llm_provider = str(self.llm_caller.provider).lower()
 
         graph_db_config = merged_config.get("graph_database_config", {}) or {}
         graph_retriever_config = merged_config.get("graph_retriever", {}) or {}
@@ -266,10 +276,28 @@ class EntityExtractionService(BaseEntityExtractor):
         prompt_key = self._select_relationship_prompt_key()
         template = self._lookup_prompt_template(prompt_key)
         if template:
-            return template.format(document=document.page_content)
+            context = self._build_prompt_context(document)
+            return template.format_map(_SafeFormatDict(context))
         return (
             f"Extract relationships from the following text:\n\n{document.page_content}\n"
         )
+
+    def _build_prompt_context(self, document: Document) -> Dict[str, str]:
+        metadata = document.metadata or {}
+        relationship_types = self.config.get("relationship_types") or []
+        entities = metadata.get("entities") or metadata.get("entity_list") or ""
+        if isinstance(entities, (list, tuple)):
+            entities_value = "\n".join(str(item) for item in entities)
+        else:
+            entities_value = str(entities)
+
+        return {
+            "document": document.page_content,
+            "text": document.page_content,
+            "source_text": document.page_content,
+            "entities": entities_value,
+            "relationship_types": ", ".join(relationship_types),
+        }
 
     def _parse_relationships(
         self,
