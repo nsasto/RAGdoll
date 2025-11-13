@@ -11,9 +11,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Dict, Optional
 
-from .models import Graph
+from langchain_core.documents import Document
+
+from .models import Graph, GraphNode
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +35,21 @@ class GraphPersistenceService:
         output_format: str = "custom_graph_object",
         output_path: Optional[str] = None,
         neo4j_config: Optional[dict[str, Any]] = None,
+        *,
+        retriever_backend: Optional[str] = None,
+        retriever_config: Optional[dict[str, Any]] = None,
+        retriever_factory: Optional[Callable[[Graph, dict[str, Any]], Any]] = None,
     ) -> None:
         self.output_format = (output_format or "custom_graph_object").lower()
         self.output_path = output_path
         self.neo4j_config = neo4j_config or {}
+        self.retriever_backend = retriever_backend
+        self.retriever_config = retriever_config or {}
+        self.retriever_factory = retriever_factory
+        self._last_graph: Optional[Graph] = None
 
     def save(self, graph: Graph) -> Graph:
+        self._last_graph = graph
         logger.info(
             "Storing graph with %s nodes and %s edges in format %s",
             len(graph.nodes),
@@ -58,8 +69,51 @@ class GraphPersistenceService:
             self._save_neo4j(graph)
             return graph
 
-        logger.warning("Unsupported output format %s; returning graph unchanged", self.output_format)
+        logger.warning(
+            "Unsupported output format %s; returning graph unchanged", self.output_format
+        )
         return graph
+
+    def create_retriever(
+        self,
+        *,
+        graph: Optional[Graph] = None,
+        backend: Optional[str] = None,
+        **config: Any,
+    ) -> Any:
+        """
+        Build a retriever over the most recently persisted graph.
+
+        Args:
+            graph: Explicit graph instance to index (defaults to the last saved graph).
+            backend: Optional backend identifier (``"simple"`` is built-in).
+            **config: Additional backend-specific settings.
+
+        Returns:
+            An object that implements ``get_relevant_documents(query: str)``.
+        """
+
+        graph_obj = graph or self._last_graph
+        if graph_obj is None:
+            raise ValueError(
+                "A graph instance is required to create a retriever. "
+                "Call `save(graph)` first or pass `graph=` explicitly."
+            )
+
+        merged_config = {**self.retriever_config, **config}
+
+        if self.retriever_factory:
+            return self.retriever_factory(graph_obj, merged_config)
+
+        backend_name = (backend or self.retriever_backend or "simple").lower()
+
+        if backend_name == "simple":
+            return SimpleGraphRetriever(graph_obj, **merged_config)
+
+        raise ValueError(
+            f"Unsupported graph retriever backend '{backend_name}'. "
+            "Provide `retriever_factory` or use the built-in 'simple' backend."
+        )
 
     # ------------------------------------------------------------------ #
     # JSON persistence
@@ -157,3 +211,64 @@ class GraphPersistenceService:
 
         driver.close()
         logger.info("Graph successfully persisted to Neo4j.")
+
+
+class SimpleGraphRetriever:
+    """Lightweight retriever that surfaces graph nodes as LangChain Documents."""
+
+    def __init__(
+        self,
+        graph: Graph,
+        *,
+        top_k: int = 5,
+        include_edges: bool = True,
+    ) -> None:
+        self.graph = graph
+        self.top_k = max(1, top_k)
+        self.include_edges = include_edges
+
+    def get_relevant_documents(self, query: str) -> list[Document]:
+        if not query:
+            return []
+
+        query_lower = query.lower()
+        scored_nodes: list[tuple[int, GraphNode]] = []
+
+        for node in self.graph.nodes:
+            score = 0
+            name = node.name or ""
+            if query_lower in name.lower():
+                score += 2
+            for value in (node.metadata or {}).values():
+                if isinstance(value, str) and query_lower in value.lower():
+                    score += 1
+
+            if score > 0:
+                scored_nodes.append((score, node))
+
+        scored_nodes.sort(key=lambda pair: pair[0], reverse=True)
+
+        documents: list[Document] = []
+        for score, node in scored_nodes[: self.top_k]:
+            metadata = dict(node.metadata or {})
+            metadata.setdefault("node_id", node.id)
+            metadata.setdefault("node_type", node.type)
+            metadata["score"] = score
+
+            if self.include_edges:
+                metadata["connected_to"] = self._connected_node_ids(node.id)
+
+            documents.append(
+                Document(page_content=node.name or "", metadata=metadata)
+            )
+
+        return documents
+
+    def _connected_node_ids(self, node_id: str) -> list[str]:
+        neighbors: list[str] = []
+        for edge in self.graph.edges:
+            if edge.source == node_id:
+                neighbors.append(edge.target)
+            elif edge.target == node_id:
+                neighbors.append(edge.source)
+        return neighbors
