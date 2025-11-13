@@ -227,7 +227,3 @@ class EntityExtractionService(BaseEntityExtractor):
             self.graph_persistence.save(graph)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to persist graph: %s", exc)
-
-
-# Backward compatibility
-GraphCreationService = EntityExtractionService

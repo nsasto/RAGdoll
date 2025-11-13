@@ -9,7 +9,7 @@ Based on analysis of the RAGdoll codebase, significant progress has been made im
 Entity Extraction Analysis
 The current entity extraction module is well-structured but needs integration into the factory pattern framework:
 
-GraphCreationService in entity_extraction_service.py provides strong functionality
+EntityExtractionService in entity_extraction_service.py provides strong functionality
 It extracts entities and relationships from text using LLMs
 The module integrates with chunking and document processing
 A factory interface implementation would bring consistency with the architecture
@@ -20,7 +20,7 @@ Current Status: Partially implemented with BaseEntityExtractor class, needs full
 Implementation Strategy:
 
 Create a proper abstraction hierarchy with BaseEntityExtractor
-Refactor GraphCreationService to clearly implement the interface
+Ensure EntityExtractionService clearly implements the BaseEntityExtractor interface
 Add a factory function get_entity_extractor() that follows the established pattern
 Support multiple implementation types while keeping configuration flexible
 Interface Definition:

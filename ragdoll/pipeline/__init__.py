@@ -5,7 +5,8 @@ import logging
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from langchain.schema import Document
+from langchain_core.documents import Document
+
 
 from ragdoll import settings
 from ragdoll.config import Config
@@ -66,9 +67,12 @@ class IngestionPipeline:
         self.config_manager = config_manager or settings.get_config_manager()
         self.options = options or IngestionOptions()
 
-        self.content_extraction_service = content_extraction_service or DocumentLoaderService(
-            config_manager=self.config_manager,
-            collect_metrics=self.options.collect_metrics,
+        self.content_extraction_service = (
+            content_extraction_service
+            or DocumentLoaderService(
+                config_manager=self.config_manager,
+                collect_metrics=self.options.collect_metrics,
+            )
         )
 
         self.text_splitter = text_splitter or get_text_splitter(
@@ -106,9 +110,13 @@ class IngestionPipeline:
 
         if not self.options.skip_vector_store:
             if self.embedding_model is None:
-                raise ValueError("Embedding model is required for vector store indexing.")
+                raise ValueError(
+                    "Embedding model is required for vector store indexing."
+                )
 
-            vector_config = self.config_manager.vector_store_config.model_copy(deep=True)
+            vector_config = self.config_manager.vector_store_config.model_copy(
+                deep=True
+            )
             vector_overrides = self.options.vector_store_options or {}
             for key, value in vector_overrides.items():
                 if key == "params" and isinstance(value, dict):
@@ -124,9 +132,8 @@ class IngestionPipeline:
             self.vector_store = None
 
         if not self.options.skip_graph_store:
-            graph_config = (
-                self.config_manager.entity_extraction_config.graph_database_config
-                .model_copy(deep=True)
+            graph_config = self.config_manager.entity_extraction_config.graph_database_config.model_copy(
+                deep=True
             )
             graph_overrides = self.options.graph_store_options or {}
             for key, value in graph_overrides.items():
@@ -190,9 +197,7 @@ class IngestionPipeline:
         ]
 
         if string_sources:
-            extracted = self.content_extraction_service.ingest_documents(
-                string_sources
-            )
+            extracted = self.content_extraction_service.ingest_documents(string_sources)
             raw_docs.extend(
                 Document(page_content=doc["page_content"], metadata=doc["metadata"])
                 for doc in extracted
@@ -206,7 +211,9 @@ class IngestionPipeline:
         if not documents:
             return []
 
-        logger.info("Chunking %s documents using %s", len(documents), self.text_splitter)
+        logger.info(
+            "Chunking %s documents using %s", len(documents), self.text_splitter
+        )
         return split_documents(
             documents=documents,
             splitter=self.text_splitter,
@@ -223,7 +230,9 @@ class IngestionPipeline:
             loop = asyncio.get_event_loop()
             with ThreadPoolExecutor(max_workers=self.options.max_workers) as executor:
                 tasks = [
-                    loop.run_in_executor(executor, self.entity_extractor.extract, [chunk])
+                    loop.run_in_executor(
+                        executor, self.entity_extractor.extract, [chunk]
+                    )
                     for chunk in chunks
                 ]
                 await asyncio.gather(*tasks)
@@ -273,4 +282,3 @@ async def ingest_documents(
 
 
 __all__ = ["IngestionPipeline", "IngestionOptions", "ingest_documents"]
-

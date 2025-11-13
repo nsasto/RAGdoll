@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict, Any, Optional
 import logging
 
@@ -12,22 +14,22 @@ from .models import (
     Graph,
 )
 from .base import BaseEntityExtractor
-from .entity_extraction_service import EntityExtractionService, GraphCreationService
+from .entity_extraction_service import EntityExtractionService
 from .graph_persistence import GraphPersistenceService
 
 logger = logging.getLogger("ragdoll.entity_extraction")
 
 def get_entity_extractor(
-    extractor_type: str = None,
-    config_manager = None,
-    config: Dict[str, Any] = None,
-    **kwargs
+    extractor_type: str | None = None,
+    config_manager=None,
+    config: Dict[str, Any] | None = None,
+    **kwargs,
 ) -> BaseEntityExtractor:
     """
     Factory function for getting an entity extractor.
     
     Args:
-        extractor_type: Type of extractor (defaults to 'graph_creation_service')
+        extractor_type: Type of extractor (defaults to 'entity_extraction_service')
         config_manager: Optional ConfigManager instance
         config: Optional configuration dictionary
         **kwargs: Additional parameters to override config settings
@@ -52,15 +54,22 @@ def get_entity_extractor(
     merged_config = {**extraction_config, **kwargs}
     
     # Determine extractor type (priority: parameter > config > default)
-    actual_extractor_type = extractor_type or extraction_config.get("extractor_type", "graph_creation_service")
-    
-    logger.info(f"Creating entity extractor of type: {actual_extractor_type}")
-    
-    # Create the appropriate extractor instance
-    if actual_extractor_type != "graph_creation_service":
+    actual_extractor_type = extractor_type or extraction_config.get(
+        "extractor_type", "entity_extraction_service"
+    )
+
+    if actual_extractor_type == "graph_creation_service":
         logger.warning(
-            f"Unknown extractor type: {actual_extractor_type}, defaulting to EntityExtractionService"
+            "Extractor type 'graph_creation_service' is deprecated; "
+            "use 'entity_extraction_service' instead."
         )
+    elif actual_extractor_type != "entity_extraction_service":
+        logger.warning(
+            "Unknown extractor type '%s'; defaulting to EntityExtractionService",
+            actual_extractor_type,
+        )
+
+    logger.info("Creating entity extractor of type: %s", actual_extractor_type)
     return EntityExtractionService(config=merged_config)
 
 __all__ = [
@@ -73,7 +82,6 @@ __all__ = [
     "GraphEdge",
     "Graph",
     "EntityExtractionService",
-    "GraphCreationService",
     "GraphPersistenceService",
     "get_entity_extractor",
 ]

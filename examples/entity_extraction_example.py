@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 async def main(model_name: Optional[str] = None):
     """
-    Demonstrates how to use the GraphCreationService with a real LLM.
+    Demonstrates how to use the EntityExtractionService with a real LLM.
 
     Args:
         model_name: Optional name of the model to use. Can be a model name or a model type ('default', 'basic', 'reasoning', 'vision')
