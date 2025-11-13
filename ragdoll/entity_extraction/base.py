@@ -10,7 +10,8 @@ class BaseEntityExtractor(ABC):
     Base class for entity extraction implementations.
 
     This serves as the abstract base for all entity extractors in RAGdoll,
-    similar to how LangChain defines base classes like BaseLLM or BaseEmbeddings.
+    similar to how LangChain defines base classes like BaseEmbeddings or how
+    our LLM stack standardizes on the BaseLLMCaller protocol.
     """
 
     @abstractmethod

@@ -26,10 +26,10 @@ Here's a breakdown of the key abstractions:
     *   **Purpose:** Defines the contract for vector databases.
     *   **Key Methods:** `add_documents()`, `similarity_search()`, `from_documents()`.
     *   **Benefits:** Enables users to use different vector storage solutions (e.g., Chroma, FAISS, Pinecone).
-*   **`BaseLLM`:**
-    *   **Purpose:** Defines the contract for language models.
-    *   **Key Method:** `_call(prompt, stop)` - Processes a prompt and returns the model's response.
-    *   **Benefits:** Allows users to switch between different LLMs (e.g., OpenAI, Hugging Face models) with ease.
+*   **`BaseLLMCaller`:**
+    *   **Purpose:** Defines the async protocol used to invoke LLMs without depending directly on LangChain.
+    *   **Key Method:** `call(prompt)` - Processes a prompt and returns the model's response.
+    *   **Benefits:** Allows users to swap between LangChain models, custom HTTP clients, or test doubles with ease.
 *   **`BaseChain`:**
     *   **Purpose:** Defines the contract for chains.
     * **Key Method**: `run(prompt)`- Process a prompt.
@@ -45,7 +45,7 @@ Ragdoll 2.0 now embraces the LangChain ecosystem by directly inheriting from Lan
 
 *   **`BaseLoader`:** Your `BaseLoader` now inherits from LangChain's `BaseLoader`.
 *   **`BaseEmbeddings`:** Inherits from LangChain's `Embeddings`.
-*   **`BaseLLM`**: Inherits from Langchain's `LLM`.
+*   **`BaseLLMCaller`**: Wraps LangChain chat models (via `LangChainLLMCaller`) or any custom callable through a common protocol.
 *   **`BaseVectorStore`:** Inherits from LangChain's `VectorStore`.
 
 **Benefits of LangChain Compatibility:**

@@ -28,7 +28,7 @@ graph TD
         R --> I
         R --> S["Context Assembly<br/>(chunks + KG facts)"]
         S --> T["Prompt Builder"]
-        T --> U["LLM Provider<br/>(BaseLLM adapters)"]
+        T --> U["LLM Caller<br/>(LangChain adapters)"]
         U --> V["Answer"]
     end
 

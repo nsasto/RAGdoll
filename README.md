@@ -27,27 +27,27 @@ enabled: true
 
 ## Quick Start Guide
 
-Here's a quick example of how to get started with RAGdoll:
+Here's a quick example of how to get started with RAGdoll using the new LLM caller abstraction:
 
 ```python
 from ragdoll.ragdoll import Ragdoll
-from ragdoll.config import Config
+from ragdoll.llms import get_llm_caller
 
-# Create a new configuration
-config = Config(vector_store_path="./my_vector_db", chunk_size=500)
+# Resolve whichever model is marked as default in config (or pass a model name).
+llm_caller = get_llm_caller()
 
-# Create a Ragdoll instance
-ragdoll = Ragdoll(config=config)
+# Spin up the orchestrator with sensible defaults.
+ragdoll = Ragdoll(llm_caller=llm_caller)
 
-# Load and process documents
-ragdoll.add_documents("path/to/documents")
+# Ingest a few local files (vector store + caches handled automatically).
+ragdoll.ingest_data(["path/to/document.md", "path/to/notes.pdf"])
 
-# Run a query
+# Run a retrieval + answer round trip.
 result = ragdoll.query("What is the capital of France?")
-
-# Print the result
-print(result)
+print(result["answer"])
 ```
+
+Need finer control over loaders or paths? Instantiate `ragdoll.config.Config` with your overrides and pass `config_path` (or direct component instances) into `Ragdoll`.
 
 ## Installation
 
@@ -92,7 +92,7 @@ RAGdoll's architecture is built around modular components and abstract base clas
 
 ### Abstract Base Classes
 
-Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseEmbeddings`, `BaseVectorStore`, `BaseLLM`, `BaseGraphStore`, `BaseChain`) that defines a standard interface for that component type.
+Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseEmbeddings`, `BaseVectorStore`, `BaseGraphStore`, `BaseChain`) or protocol (the `BaseLLMCaller` interface) that defines a standard contract for that component type.
 
 ### Default Implementations
 
@@ -155,7 +155,7 @@ graph TD
         R --> I
         R --> S["Context Assembly<br/>(chunks + KG facts)"]
         S --> T["Prompt Builder"]
-        T --> U["LLM Provider<br/>(BaseLLM adapters)"]
+        T --> U["LLM Caller<br/>(LangChain adapters)"]
         U --> V["Answer"]
     end
 
