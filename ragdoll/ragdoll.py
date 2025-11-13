@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Any, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -9,11 +10,13 @@ from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 
 from ragdoll import settings
 from ragdoll.config import Config
-from ragdoll.ingestion import DocumentLoaderService
-from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 from ragdoll.embeddings import get_embedding_model
+from ragdoll.entity_extraction.models import Graph
+from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.llms import get_llm_caller
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
+from ragdoll.pipeline import IngestionOptions, IngestionPipeline
+from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +70,9 @@ class Ragdoll:
             if llm is not None and not isinstance(llm, BaseLLMCaller)
             else getattr(self.llm_caller, "llm", None)
         )
+        self.graph_retriever: Optional[Any] = None
+        self.last_graph: Optional[Graph] = None
+        self.graph_ingestion_stats: Optional[Dict[str, Any]] = None
 
     def ingest_data(self, sources: Sequence[str]) -> List[Document]:
         """
@@ -165,4 +171,66 @@ class Ragdoll:
 
         cleaned = response.strip()
         return cleaned or None
+
+    async def ingest_with_graph(
+        self,
+        sources: Sequence[Union[str, Document]],
+        *,
+        options: Optional[IngestionOptions] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run the ingestion pipeline (chunking, embeddings, entity extraction,
+        persistence) and expose the resulting graph retriever.
+
+        Args:
+            sources: File paths, URLs, or LangChain Documents to ingest.
+            options: Optional :class:`IngestionOptions` overrides.
+
+        Returns:
+            Dictionary containing pipeline stats, the generated graph (if any),
+            and the retriever object.
+        """
+
+        pipeline = IngestionPipeline(
+            config_manager=self.config_manager,
+            content_extraction_service=self.ingestion_service,
+            embedding_model=self.embedding_model,
+            vector_store=self.vector_store,
+            options=options or IngestionOptions(),
+        )
+        stats = await pipeline.ingest(list(sources))
+        retriever = pipeline.get_graph_retriever()
+        graph = pipeline.last_graph
+
+        self.graph_ingestion_stats = stats
+        self.graph_retriever = retriever
+        self.last_graph = graph
+
+        return {"stats": stats, "graph": graph, "graph_retriever": retriever}
+
+    def ingest_with_graph_sync(
+        self,
+        sources: Sequence[Union[str, Document]],
+        *,
+        options: Optional[IngestionOptions] = None,
+    ) -> Dict[str, Any]:
+        """
+        Convenience wrapper around :meth:`ingest_with_graph` for synchronous code.
+
+        Raises:
+            RuntimeError: if called while an event loop is already running.
+        """
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            raise RuntimeError(
+                "An event loop is running. Await `ingest_with_graph` instead of "
+                "calling the synchronous helper."
+            )
+
+        return asyncio.run(self.ingest_with_graph(sources, options=options))
 

@@ -3,10 +3,11 @@ from __future__ import annotations
 import asyncio
 from typing import List, Sequence
 
+import pytest
 from langchain_core.documents import Document
 
-from ragdoll.ragdoll import Ragdoll
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
+from ragdoll.ragdoll import Ragdoll
 
 
 class FakeLLMCaller(BaseLLMCaller):
@@ -42,6 +43,11 @@ class FakeIngestionService:
         return self.documents
 
 
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
 def test_ragdoll_query_uses_llm_caller():
     documents = [
         Document(page_content="Alpha content", metadata={"source": "alpha"}),
@@ -69,3 +75,35 @@ def test_call_llm_sync_inside_running_loop():
         return call_llm_sync(fake_llm, "Prompt while loop is running.")
 
     assert asyncio.run(invoke()) == "loop-safe response"
+
+
+@pytest.mark.anyio("asyncio")
+async def test_ragdoll_ingest_with_graph_exposes_retriever(monkeypatch):
+    documents = [Document(page_content="Doc", metadata={})]
+    fake_llm = FakeLLMCaller("ok")
+    ragdoll = Ragdoll(
+        ingestion_service=FakeIngestionService(documents),
+        vector_store=FakeVectorStore(documents),
+        embedding_model=object(),
+        llm_caller=fake_llm,
+    )
+
+    class DummyPipeline:
+        def __init__(self, *args, **kwargs):
+            self.last_graph = "graph-object"
+            self._retriever = "retriever-obj"
+
+        async def ingest(self, sources):
+            self.sources = sources
+            return {"documents_processed": len(sources)}
+
+        def get_graph_retriever(self):
+            return self._retriever
+
+    monkeypatch.setattr("ragdoll.ragdoll.IngestionPipeline", DummyPipeline)
+
+    result = await ragdoll.ingest_with_graph(["foo.txt"])
+
+    assert result["graph_retriever"] == "retriever-obj"
+    assert ragdoll.graph_retriever == "retriever-obj"
+    assert ragdoll.last_graph == "graph-object"

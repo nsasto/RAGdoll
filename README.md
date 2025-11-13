@@ -49,6 +49,31 @@ print(result["answer"])
 
 Need finer control over loaders or paths? Instantiate `ragdoll.config.Config` with your overrides and pass `config_path` (or direct component instances) into `Ragdoll`.
 
+### Graph Retrieval Pipeline
+
+When you enable `entity_extraction.graph_retriever.enabled` in your config, you can trigger the full ingestion pipeline (chunking, embeddings, entity extraction, graph persistence) and retrieve a knowledge-graph-aware retriever directly from the `Ragdoll` API:
+
+```python
+import asyncio
+from ragdoll.ragdoll import Ragdoll
+from ragdoll.pipeline import IngestionOptions
+
+async def main():
+    ragdoll = Ragdoll()
+    result = await ragdoll.ingest_with_graph(
+        ["path/to/docs/manual.pdf"],
+        options=IngestionOptions(parallel_extraction=False),
+    )
+    print(result["stats"])           # ingestion metrics
+    print(result["graph"])           # pydantic Graph object
+    retriever = result["graph_retriever"]
+    answers = retriever.invoke("How does the widget fail-safe work?")
+
+asyncio.run(main())
+```
+
+The helper `ingest_with_graph_sync()` wraps `asyncio.run()` for scripts that are not already running an event loop.
+
 ## Installation
 
 To install RAGdoll, follow these steps:
