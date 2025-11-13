@@ -4,31 +4,23 @@ from pathlib import Path
 this_directory = Path(__file__).parent
 
 install_requires = [
-    # Core dependencies
-    "numpy>=2.0.0",
-    "python-dotenv>=1.0.1",
-    "pyarrow>=19.0.1",
-    "pandas>=2.2.3",
-    "colored>=2.2.4",
-    "colorlog>=6.8.2",
-    "pyperclip>=1.8.2",
-    # LangChain ecosystem
-    "langchain>=0.3.23",
-    "langchain-core>=0.3.59",
-    "langchain-text-splitters>=0.3.8",
-    "langchain_community>=0.3.21",
-    "langchain_openai>=0.3.12",
-    "langchain-google-community>=2.0.7",
-    # Document processing
-    "lxml>=5.1.0",
-    "PyMuPDF>=1.25.5",
-    "langchain-markitdown>=0.1.6",
-    "docx>=0.2.4",
-    # ML/AI dependencies
-    "openai>=1.71.0",
-    "google-api-python-client>=2.166.0",
-    "sentence_transformers>=4.1.0",
-    "faiss-cpu>=1.11.0",
+    # Conservative base install requirements (match `requirements.txt`)
+    "langchain==1.0.5",
+    "langchain-openai==1.0.2",
+    "langchain-huggingface==1.0.1",
+    "langchain-community==0.4.1",
+    "langchain-chroma==1.0.0",
+    "chromadb==1.3.4",
+    "langchain-core==1.0.4",
+    "langsmith==0.4.42",
+    "langchain-google-community==3.0.0",
+    "langchain-text-splitters==1.0.0",
+    "langchain-markitdown==0.1.6",
+    "openai>=1.40.0",
+    "python-dotenv==1.0.1",
+    "retry==0.9.2",
+    "flask==3.0.0",
+    "flask-cors==4.0.0",
 ]
 
 setup(
@@ -38,6 +30,25 @@ setup(
     author="Nathan Sasto",
     packages=find_packages(),
     install_requires=install_requires,
+    extras_require={
+        "dev": [
+            "pytest==9.0.0",
+            "coverage",
+            "black",
+            "isort",
+            "flake8",
+        ],
+        "entity": [
+            "spacy>=3.7.0",
+            "spacy-transformers",
+            "sentence_transformers>=2.2.2",
+            "PyMuPDF>=1.25.5",
+        ],
+        "graph": [
+            "neo4j>=5.11.0",
+            "rdflib",
+        ],
+    },
     python_requires='>=3.8',
     classifiers=[
         'Development Status :: 3 - Alpha',
