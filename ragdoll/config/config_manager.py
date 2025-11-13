@@ -91,6 +91,21 @@ class ConfigManager:
             },
         )
         entity_config.setdefault("graph_database_config", {"output_file": "graph_output.json"})
+        parsing_defaults = entity_config.setdefault("relationship_parsing", {})
+        parsing_defaults.setdefault("preferred_format", "auto")
+        parsing_defaults.setdefault("parser_class", None)
+        parsing_defaults.setdefault("schema", None)
+        parsing_defaults.setdefault("parser_kwargs", {})
+
+        prompt_defaults = entity_config.setdefault("relationship_prompts", {})
+        prompt_defaults.setdefault("default", "relationship_extraction")
+        prompt_defaults.setdefault("providers", {})
+
+        retriever_defaults = entity_config.setdefault("graph_retriever", {})
+        retriever_defaults.setdefault("enabled", False)
+        retriever_defaults.setdefault("backend", "simple")
+        retriever_defaults.setdefault("top_k", 5)
+        retriever_defaults.setdefault("include_edges", True)
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML and environment overrides."""

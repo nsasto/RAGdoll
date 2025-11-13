@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import re
-from typing import List, Sequence
+from typing import List, Sequence, Type
+
+from pydantic import BaseModel
 
 from ragdoll.utils import json_parse
 
@@ -11,8 +13,14 @@ from .models import Relationship, RelationshipList
 class RelationshipOutputParser:
     """Parses LLM output describing relationships into structured models."""
 
-    def __init__(self, preferred_format: str = "auto") -> None:
+    def __init__(
+        self,
+        preferred_format: str = "auto",
+        *,
+        schema_model: Type[BaseModel] = RelationshipList,
+    ) -> None:
         self.preferred_format = (preferred_format or "auto").lower()
+        self.schema_model = schema_model
 
     def parse(self, response: str) -> RelationshipList:
         if not response:
@@ -37,11 +45,28 @@ class RelationshipOutputParser:
         ordered.append(self._parse_arrow_notation)
         return ordered
 
-    @staticmethod
-    def _parse_json(text: str) -> List[Relationship]:
-        parsed = json_parse(text, RelationshipList)
-        if parsed and parsed.relationships:
-            return parsed.relationships
+    def _parse_json(self, text: str) -> List[Relationship]:
+        parsed = json_parse(text, self.schema_model)
+        if not parsed:
+            return []
+
+        relationships = getattr(parsed, "relationships", None)
+        if not relationships:
+            return []
+
+        normalized: List[Relationship] = []
+        for rel in relationships:
+            if isinstance(rel, Relationship):
+                normalized.append(rel)
+            elif isinstance(rel, BaseModel):
+                normalized.append(Relationship(**rel.model_dump()))
+            elif isinstance(rel, dict):
+                try:
+                    normalized.append(Relationship(**rel))
+                except TypeError:
+                    continue
+        if normalized:
+            return normalized
         return []
 
     @staticmethod

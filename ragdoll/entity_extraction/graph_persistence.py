@@ -24,11 +24,21 @@ try:  # pragma: no cover - optional dependency
     from langchain_core.retrievers import BaseRetriever as LangChainRetrieverBase
 except ImportError:  # pragma: no cover - fallback when LangChain isn't installed
     class _RetrieverBase:  # type: ignore[override]
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
         def _get_relevant_documents(self, query: str):
-            raise NotImplementedError("LangChain is not installed.")
+            raise NotImplementedError(
+                "LangChain is not installed, so no retriever is available."
+            )
 
         def get_relevant_documents(self, query: str):
             return self._get_relevant_documents(query)
+
+        def invoke(self, query: str, config: Optional[dict] = None, **kwargs):
+            return self._get_relevant_documents(query)
+
 else:  # pragma: no cover - exercised indirectly in tests
     class _RetrieverBase(LangChainRetrieverBase):
         if ConfigDict is not None:
@@ -319,10 +329,10 @@ class SimpleGraphRetriever(_RetrieverBase):
                 neighbors.append(edge.source)
         return neighbors
 
-    def get_relevant_documents(self, query: str) -> list[Document]:
-        """Expose sync retrieval regardless of base class implementation."""
+    def invoke(
+        self, query: str, config: Optional[dict] = None, **kwargs
+    ) -> list[Document]:  # pragma: no cover - compatibility
         return self._get_relevant_documents(query)
-
 
 class Neo4jCypherRetriever(_RetrieverBase):
     """Retriever that runs lightweight Cypher against Neo4j."""
@@ -411,6 +421,11 @@ class Neo4jCypherRetriever(_RetrieverBase):
                 return list(result)
         finally:  # pragma: no cover - defensive cleanup
             driver.close()
+
+    def invoke(
+        self, query: str, config: Optional[dict] = None, **kwargs
+    ) -> list[Document]:  # pragma: no cover - compatibility
+        return self._get_relevant_documents(query)
 
     def get_relevant_documents(self, query: str) -> list[Document]:
         """Expose sync retrieval regardless of base class implementation."""

@@ -4,7 +4,8 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Union
+from importlib import import_module
+from typing import Any, Dict, List, Optional, Sequence, Type, Union
 
 try:  # pragma: no cover - optional dependency
     import spacy
@@ -17,9 +18,10 @@ from ragdoll import settings
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.llms import get_llm
 from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller
+from ragdoll.prompts import get_prompt
 from .base import BaseEntityExtractor
 from .graph_persistence import GraphPersistenceService
-from .models import Graph, GraphEdge, GraphNode
+from .models import Graph, GraphEdge, GraphNode, RelationshipList
 from .relationship_parser import RelationshipOutputParser
 
 logger = logging.getLogger(__name__)
@@ -45,11 +47,13 @@ class EntityExtractionService(BaseEntityExtractor):
         llm_caller: Optional[BaseLLMCaller] = None,
     ) -> None:
         config_manager = settings.get_config_manager()
+        self.config_manager = config_manager
         base_config = config_manager.entity_extraction_config.model_dump()
         merged_config = {**base_config, **(config or {})}
         merged_config["prompts"] = config_manager.get_default_prompt_templates()
 
         self.config = merged_config
+        self.prompt_templates = merged_config.get("prompts", {}) or {}
         self.chunk_documents = chunk_documents
         self.text_splitter = text_splitter
         llm_instance = llm or get_llm(config_manager=config_manager)
@@ -59,8 +63,15 @@ class EntityExtractionService(BaseEntityExtractor):
             self.llm_caller = LangChainLLMCaller(llm_instance)
         else:
             self.llm_caller = None
+        self._active_llm_provider = (
+            merged_config.get("llm_provider_hint")
+            or self._infer_llm_provider(llm_instance)
+        )
+        if self._active_llm_provider:
+            self._active_llm_provider = self._active_llm_provider.lower()
 
         graph_db_config = merged_config.get("graph_database_config", {}) or {}
+        graph_retriever_config = merged_config.get("graph_retriever", {}) or {}
         self.graph_persistence = GraphPersistenceService(
             output_format=graph_db_config.get(
                 "output_format", merged_config.get("output_format", "custom_graph_object")
@@ -72,13 +83,28 @@ class EntityExtractionService(BaseEntityExtractor):
                 if graph_db_config.get(key)
             }
             or None,
+            retriever_backend=graph_retriever_config.get("backend"),
+            retriever_config={
+                key: value
+                for key, value in graph_retriever_config.items()
+                if key not in {"enabled", "backend"}
+            },
         )
+        self.graph_retriever_enabled = graph_retriever_config.get("enabled", False)
+        self.graph_retriever_config = graph_retriever_config
+        self._last_graph: Optional[Graph] = None
 
         spacy_model = merged_config.get("spacy_model", "en_core_web_sm")
         self.nlp = self._load_spacy(spacy_model)
-        self.relationship_parser = RelationshipOutputParser(
-            merged_config.get("relationship_output_format", "auto")
+        self.relationship_parser = self._build_relationship_parser()
+        prompts_cfg = merged_config.get("relationship_prompts", {}) or {}
+        self.relationship_prompt_default = prompts_cfg.get(
+            "default", "relationship_extraction"
         )
+        providers_map = prompts_cfg.get("providers", {}) or {}
+        self.relationship_prompt_overrides = {
+            key.lower(): value for key, value in providers_map.items()
+        }
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -117,13 +143,85 @@ class EntityExtractionService(BaseEntityExtractor):
             spacy.cli.download(model_name)
             return spacy.load(model_name)
 
+    def _build_relationship_parser(self) -> RelationshipOutputParser:
+        parsing_config: Dict[str, Any] = self.config.get("relationship_parsing", {}) or {}
+        parser_class_path = parsing_config.get("parser_class")
+        parser_kwargs = parsing_config.get("parser_kwargs", {}) or {}
+        schema_path = parsing_config.get("schema")
+        schema_model: Type[RelationshipList] = RelationshipList
+        if schema_path:
+            schema_model = self._import_from_string(schema_path)
+
+        preferred_format = parsing_config.get("preferred_format", "auto")
+        if parser_class_path:
+            parser_cls = self._import_from_string(parser_class_path)
+            if callable(parser_cls):
+                return parser_cls(**parser_kwargs)
+            raise TypeError(f"Custom parser '{parser_class_path}' is not callable.")
+
+        return RelationshipOutputParser(
+            preferred_format=preferred_format,
+            schema_model=schema_model,
+        )
+
+    def _import_from_string(self, dotted_path: str):
+        if not dotted_path:
+            raise ValueError("A dotted path is required to import a symbol.")
+        module_path, _, attr = dotted_path.rpartition(".")
+        if not module_path or not attr:
+            raise ImportError(f"Invalid dotted path '{dotted_path}'.")
+        module = import_module(module_path)
+        return getattr(module, attr)
+
+    def _infer_llm_provider(self, llm_instance: Optional[Any]) -> Optional[str]:
+        if llm_instance is None:
+            return None
+
+        namespace = ""
+        if hasattr(llm_instance, "lc_namespace"):
+            try:
+                namespace = ".".join(llm_instance.lc_namespace)
+            except Exception:  # pragma: no cover - defensive
+                namespace = ""
+        if not namespace:
+            namespace = getattr(llm_instance, "__module__", "") or ""
+        namespace = namespace.lower()
+
+        for provider in ("openai", "anthropic", "google", "azure", "bedrock", "cohere"):
+            if provider in namespace:
+                return provider
+        return None
+
+    def _select_relationship_prompt_key(self) -> str:
+        provider = (self._active_llm_provider or "").lower()
+        if provider and provider in self.relationship_prompt_overrides:
+            return self.relationship_prompt_overrides[provider]
+        return self.relationship_prompt_default
+
+    def _lookup_prompt_template(self, prompt_key: Optional[str]) -> Optional[str]:
+        if not prompt_key:
+            return None
+        template = self.prompt_templates.get(prompt_key)
+        if template:
+            return template
+        try:
+            return get_prompt(prompt_key)
+        except ValueError:
+            return None
+
     def _resolve_llm_caller(
         self, override: Optional[Union[BaseLanguageModel, BaseLLMCaller]]
     ) -> Optional[BaseLLMCaller]:
         if override is None:
             return self.llm_caller
         if isinstance(override, BaseLLMCaller):
+            provider = getattr(override, "provider", None)
+            if provider:
+                self._active_llm_provider = provider.lower()
             return override
+        inferred = self._infer_llm_provider(override)
+        if inferred:
+            self._active_llm_provider = inferred
         return LangChainLLMCaller(override)
 
     async def _maybe_chunk_documents(
@@ -165,7 +263,8 @@ class EntityExtractionService(BaseEntityExtractor):
         return self._parse_relationships(response, document, nodes)
 
     def _build_relationship_prompt(self, document: Document) -> str:
-        template = self.config["prompts"].get("relationship_extraction")
+        prompt_key = self._select_relationship_prompt_key()
+        template = self._lookup_prompt_template(prompt_key)
         if template:
             return template.format(document=document.page_content)
         return (
@@ -220,7 +319,22 @@ class EntityExtractionService(BaseEntityExtractor):
     async def _store_graph(self, graph: Graph) -> None:
         if not self.graph_persistence:
             return
+        self._last_graph = graph
         try:
             self.graph_persistence.save(graph)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to persist graph: %s", exc)
+
+    def create_graph_retriever(self, **kwargs: Any):
+        if not self.graph_retriever_enabled:
+            raise RuntimeError(
+                "Graph retriever creation is disabled. Enable "
+                "`entity_extraction.graph_retriever.enabled` in config."
+            )
+        return self.graph_persistence.create_retriever(
+            graph=kwargs.pop("graph", self._last_graph),
+            **kwargs,
+        )
+
+    def get_last_graph(self) -> Optional[Graph]:
+        return self._last_graph

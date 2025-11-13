@@ -283,3 +283,19 @@ class EntityExtractionConfig(BaseModel):
     graph_database_config: GraphDatabaseConfig = Field(
         default_factory=GraphDatabaseConfig
     )
+    relationship_parsing: Dict[str, Any] = Field(
+        default_factory=lambda: {"preferred_format": "auto"},
+        description="Parser configuration for relationship extraction outputs.",
+    )
+    relationship_prompts: Dict[str, Any] = Field(
+        default_factory=lambda: {"default": "relationship_extraction", "providers": {}},
+        description="Prompt template mappings for relationship extraction per provider.",
+    )
+    graph_retriever: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Configuration for optional graph retriever creation.",
+    )
+    llm_provider_hint: Optional[str] = Field(
+        default=None,
+        description="Optional override for the active LLM provider (e.g., 'openai').",
+    )

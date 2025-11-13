@@ -153,6 +153,20 @@ entity_extraction:
   output_format: "json"
   graph_database_config:
     output_file: "graph_output.json"
+  relationship_parsing:
+    preferred_format: "auto"
+    parser_class:
+    schema:
+    parser_kwargs: {}
+  relationship_prompts:
+    default: "relationship_extraction"
+    providers: {}
+  graph_retriever:
+    enabled: false
+    backend: "simple"
+    top_k: 5
+    include_edges: true
+  llm_provider_hint:
 
 # References to prompt files (without .md extension)
 llm_prompts:

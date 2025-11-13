@@ -150,6 +150,8 @@ class IngestionPipeline:
             self.graph_store = None
 
         self.stats = self._build_initial_stats()
+        self.graph_retriever = None
+        self.last_graph = None
 
     @staticmethod
     def _build_initial_stats() -> Dict[str, Any]:
@@ -161,6 +163,7 @@ class IngestionPipeline:
             "vector_entries_added": 0,
             "graph_entries_added": 0,
             "errors": [],
+            "graph_retriever_available": False,
         }
 
     async def ingest(self, sources: List[Union[str, Path, Document]]) -> Dict[str, Any]:
@@ -237,9 +240,22 @@ class IngestionPipeline:
                 ]
                 await asyncio.gather(*tasks)
         else:
-            await self.entity_extractor.extract(chunks)
+            graph = await self.entity_extractor.extract(chunks)
+            self.last_graph = graph
+            self.stats["graph_entries_added"] = len(graph.edges)
+            if getattr(self.entity_extractor, "graph_retriever_enabled", False):
+                try:
+                    self.graph_retriever = self.entity_extractor.create_graph_retriever(
+                        graph=graph
+                    )
+                    self.stats["graph_retriever_available"] = True
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.warning("Unable to create graph retriever: %s", exc)
 
         self.stats["entities_extracted"] = len(chunks)
+
+    def get_graph_retriever(self):
+        return self.graph_retriever
 
     def _resolve_llm_caller(
         self,
