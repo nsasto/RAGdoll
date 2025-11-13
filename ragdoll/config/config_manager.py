@@ -201,6 +201,9 @@ class ConfigManager:
             Dictionary mapping file extensions to loader classes.
         """
 
+        # import registry lazily to avoid circular imports at module import time
+        from ragdoll.ingestion import get_loader as registry_get_loader
+
         loaders_config: LoadersConfig | None = self.ingestion_config.loaders
         result: Dict[str, Type] = {}
         file_mappings = getattr(loaders_config, "file_mappings", None)
@@ -212,20 +215,25 @@ class ConfigManager:
                 module_path: str | None = None
 
                 try:
-                    module_path, class_name = class_path.rsplit(".", 1)
-                    self.logger.debug("Importing module %s, class %s", module_path, class_name)
-                    module = import_module(module_path)
+                    # First try the short-name registry (preferred)
+                    loader_class = registry_get_loader(class_path)
+                    if loader_class:
+                        self.logger.debug("Resolved loader for %s via registry: %s", ext, class_path)
+                    else:
+                        module_path, class_name = class_path.rsplit(".", 1)
+                        self.logger.debug("Importing module %s, class %s", module_path, class_name)
+                        module = import_module(module_path)
 
-                    if not hasattr(module, class_name):
-                        self.logger.warning(
-                            "Module %s does not have attribute %s for extension %s. Skipping.",
-                            module_path,
-                            class_name,
-                            ext,
-                        )
-                        continue
+                        if not hasattr(module, class_name):
+                            self.logger.warning(
+                                "Module %s does not have attribute %s for extension %s. Skipping.",
+                                module_path,
+                                class_name,
+                                ext,
+                            )
+                            continue
 
-                    loader_class = getattr(module, class_name)
+                        loader_class = getattr(module, class_name)
                     self.logger.info(
                         "For extension %s: loaded %s from %s",
                         ext,

@@ -80,6 +80,11 @@ class DocumentLoaderService(BaseIngestionService):
                 else:
                     self.logger.warning(f"Invalid custom loader for {ext}")
 
+        # Note: you can also register loader classes globally using the
+        # `ragdoll.ingestion.register_loader("name")` decorator. If a short
+        # name is used in the configuration (instead of a full module path),
+        # the ConfigManager will prefer the registered loader class.
+
         self.logger.info(
             f"Service initialized: loaders={len(self.loaders)}, max_threads={self.max_threads}"
         )

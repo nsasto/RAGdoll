@@ -117,6 +117,9 @@ Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseEmbedd
 RAGdoll provides default implementations for most components, allowing you to quickly get started without having to write everything from scratch:
 
 - **`Lanchain-Markitdown`:** A default loader for most major file types.
+ - **`Lanchain-Markitdown`:** A default loader for most major file types.
+     See `docs/loader_registry.md` for information on the loader registry and how
+     to register custom loader classes under short names.
 - **`RecursiveCharacterTextSplitter`:** A default text splitter.
 - **`OpenAIEmbeddings`:** Default embeddings that use OpenAI's API.
 - **`LangChain VectorStore factory`:** Plug-and-play wrapper for any LangChain vector store (Chroma, FAISS, etc.); see `docs/vector_stores.md`.
