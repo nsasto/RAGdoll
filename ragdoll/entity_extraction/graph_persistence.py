@@ -15,6 +15,11 @@ from typing import Any, Callable, Dict, Optional, ClassVar
 
 from langchain_core.documents import Document
 
+try:  # pragma: no cover - allow compatibility across Pydantic versions
+    from pydantic import ConfigDict
+except ImportError:  # pragma: no cover - Pydantic v1 fallback
+    ConfigDict = None  # type: ignore
+
 try:  # pragma: no cover - optional dependency
     from langchain_core.retrievers import BaseRetriever as LangChainRetrieverBase
 except ImportError:  # pragma: no cover - fallback when LangChain isn't installed
@@ -26,8 +31,11 @@ except ImportError:  # pragma: no cover - fallback when LangChain isn't installe
             return self._get_relevant_documents(query)
 else:  # pragma: no cover - exercised indirectly in tests
     class _RetrieverBase(LangChainRetrieverBase):
-        class Config:
-            arbitrary_types_allowed = True
+        if ConfigDict is not None:
+            model_config = ConfigDict(arbitrary_types_allowed=True)  # type: ignore[assignment]
+        else:  # pragma: no cover - only needed for legacy Pydantic versions
+            class Config:
+                arbitrary_types_allowed = True
 
 from .models import Graph, GraphNode
 
