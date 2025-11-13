@@ -24,17 +24,17 @@ The ingestion module orchestrates the end-to-end pipeline for document processin
 
 ## Key Components
 
-- **`base_ingestion_service.py`**: Defines the abstract base class for ingestion services, specifying the required interface and extensibility points.
-- **`ingestion_service.py`**: Provides a concrete implementation of the ingestion pipeline, integrating loading, chunking, embedding, and storage.
-- **Example**: `examples/ingestion.ipynb` demonstrates how to use and customize the ingestion pipeline in practice.
-  ingestor.run()
+- **`DocumentLoaderService`** (`ragdoll/ingestion/document_loaders.py`): normalizes inputs (files, URLs, glob patterns) and hands back LangChain `Document` objects.
+- **`IngestionPipeline`** (`ragdoll/pipeline/__init__.py`): orchestrates chunking, embeddings, optional entity extraction, vector-store insertion, and graph persistence/retrieval.
+- **`IngestionOptions`**: configuration object for toggling vector vs. graph storage, worker counts, chunking overrides, etc.
+- **Examples**: `examples/ingestion.ipynb` for a notebook walkthrough and `examples/graph_retriever_example.py` for the async graph retriever workflow.
 
 ## Features
 
-- Modular ingestion steps: load, chunk, embed, store.
-- Extensible for new document types, chunkers, embedders, and storage backends.
-- Error handling and logging for robust pipeline execution.
-- Integration with configuration and metrics modules.
+- Modular ingestion steps: load, chunk, embed, optional entity extraction.
+- Extensible for new document types, chunkers, embedders, storage backends, and graph stores.
+- Built-in wiring to `EntityExtractionService`/`GraphPersistenceService` so you can persist graphs or spin up an in-memory graph retriever.
+- Error handling, retries, and metrics instrumentation (when enabled in config).
 
 ---
 
@@ -43,7 +43,8 @@ The ingestion module orchestrates the end-to-end pipeline for document processin
 1. **Loading**: Documents are loaded from various sources (files, URLs, databases, etc.).
 2. **Chunking**: Loaded documents are split into smaller chunks using pluggable chunkers.
 3. **Embedding**: Each chunk is converted into a vector representation using the selected embedding model.
-4. **Storing**: Embeddings and metadata are stored in a vector store or other backend for later retrieval.
+4. **Graph creation (optional)**: When `entity_extraction.extract_entities` is enabled, chunks feed into `EntityExtractionService`, which persists the resulting graph via `GraphPersistenceService`.
+5. **Graph retrieval (optional)**: If `entity_extraction.graph_retriever.enabled` is `true`, the pipeline instantiates a retriever (`simple` in-memory or `neo4j`) and exposes it on `IngestionPipeline`.
 
 Each step is modular and can be replaced or extended as needed.
 
@@ -51,79 +52,61 @@ Each step is modular and can be replaced or extended as needed.
 
 ## Public API and Function Documentation
 
-### `BaseIngestionService`
+### `DocumentLoaderService`
 
-#### `ingest_documents(sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]`
+- `ingest_documents(inputs: List[str|Document]) -> List[Dict[str, Any]]`: loads heterogeneous sources (filesystem paths, glob patterns, URLs, pre-built `Document`s) and yields normalized dictionaries with `page_content` + `metadata`.
+- Handles batching, threading, caching, and metrics (configured via `ingestion` section in YAML).
 
-Abstract method to ingest documents from various sources concurrently. Each source is a dictionary with keys like `type` (e.g., "website", "pdf") and `identifier` (e.g., a URL, a file path). Returns a list of documents with metadata.
-
----
-
-### `IngestionService`
-
-#### Constructor
+### `IngestionPipeline`
 
 ```python
-IngestionService(
-    config_path: Optional[str] = None,
-    custom_loaders: Optional[Dict[str, Any]] = None,
-    max_threads: Optional[int] = None,
-    batch_size: Optional[int] = None,
-    cache_manager: Optional[CacheManager] = None,
-    metrics_manager: Optional[MetricsManager] = None,
-    use_cache: bool = True,
-    collect_metrics: bool = False
+pipeline = IngestionPipeline(
+    config_manager=my_config,
+    content_extraction_service=DocumentLoaderService(...),
+    embedding_model=my_embeddings,
+    vector_store=my_vector_store,
+    options=IngestionOptions(...)
 )
+stats = await pipeline.ingest(sources)
+retriever = pipeline.get_graph_retriever()
+graph = pipeline.last_graph
 ```
 
-Initializes the ingestion service with configuration, custom loaders, threading, caching, and metrics options.
-
-#### `ingest_documents(inputs: List[str]) -> List[Dict[str, Any]]`
-
-Ingests documents from a list of input sources (file paths, URLs, or glob patterns). Handles batching, threading, caching, and metrics. Returns a list of loaded documents with metadata.
-
-**Example:**
-
-```python
-from ragdoll.ingestion.ingestion_service import IngestionService
-ingestor = IngestionService(config_path="config.yaml")
-docs = ingestor.ingest_documents(["data/*.pdf", "https://arxiv.org/abs/1234.5678"])
-```
-
-#### `clear_cache(source_type: Optional[str] = None, identifier: Optional[str] = None) -> int`
-
-Clears cached data for a given source type and/or identifier. Returns the number of cache entries cleared.
-
-#### `get_metrics(days: int = 30) -> Dict[str, Any]`
-
-Returns recent and aggregate ingestion metrics for the last `days` days. Useful for monitoring pipeline performance.
-
----
-
-### Utility Functions
-
-#### `create_empty_file(filepath)`
-
-Creates an empty file at the specified path. Example:
-
-```python
-from ragdoll.ingestion import create_empty_file
-create_empty_file("output/empty.txt")
-```
+- `IngestionOptions` toggles vector-store writes, graph-store writes, parallel entity extraction, per-component overrides, and LLM caller injection.
+- After `ingest()`, the pipeline exposes:
+  - `stats`: document/chunk counts, vector/graph entries, errors, whether a graph retriever is available.
+  - `last_graph`: the most recent `Graph` object returned by `EntityExtractionService`.
+  - `get_graph_retriever()`: returns the in-memory or Neo4j retriever when `graph_retriever.enabled` is `true`.
 
 ---
 
 ## Usage Example
 
 ```python
-from ragdoll.ingestion.ingestion_service import IngestionService
+import asyncio
+from ragdoll.pipeline import IngestionPipeline, IngestionOptions
+from ragdoll import settings
 
-ingestor = IngestionService(config_path="config.yaml")
-docs = ingestor.ingest_documents(["data/*.pdf", "https://arxiv.org/abs/1234.5678"])
-print(f"Loaded {len(docs)} documents")
+async def run():
+    pipeline = IngestionPipeline(
+        config_manager=settings.get_config_manager(),
+        options=IngestionOptions(
+            skip_vector_store=True,
+            entity_extraction_options={
+                "config": {"graph_retriever": {"enabled": True, "backend": "simple"}}
+            },
+        ),
+    )
+    stats = await pipeline.ingest(["data/manual.pdf"])
+    print(stats)
+    retriever = pipeline.get_graph_retriever()
+    if retriever:
+        print(retriever.invoke("Who collaborated with Ada Lovelace?"))
+
+asyncio.run(run())
 ```
 
-See `examples/ingestion.ipynb` for a step-by-step notebook demonstration.
+See `examples/ingestion.ipynb` for a full notebook and `examples/graph_retriever_example.py` for the dedicated graph workflow.
 
 ---
 

@@ -73,6 +73,7 @@ asyncio.run(main())
 ```
 
 The helper `ingest_with_graph_sync()` wraps `asyncio.run()` for scripts that are not already running an event loop.
+See `examples/graph_retriever_example.py` for a complete runnable script.
 
 ## Installation
 
