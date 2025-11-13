@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from ragdoll import settings
 from ragdoll.config import Config
+from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller, call_llm_sync
 from ragdoll.prompts import get_prompt
 
 
@@ -86,15 +87,16 @@ class SuggestedSearchTermsTool(BaseTool):
 
     def __init__(
         self,
-        llm: LLM,
+        llm: Optional[LLM] = None,
         *,
+        llm_caller: Optional[BaseLLMCaller] = None,
         config_manager: Optional[Config] = None,
         prompt_key: str = DEFAULT_PROMPT_KEY,
         log_level: int = logging.INFO,
     ) -> None:
         self.logger = logging.getLogger(f"{__name__}.suggestions")
         self.logger.setLevel(log_level)
-        self.llm = llm
+        self.llm_caller = self._resolve_llm_caller(llm=llm, llm_caller=llm_caller)
         self.prompt_template = self._resolve_prompt(prompt_key, config_manager)
 
     def _run(self, query: str, num_suggestions: int = 3) -> List[str]:
@@ -104,8 +106,15 @@ class SuggestedSearchTermsTool(BaseTool):
             current_date=datetime.utcnow().strftime("%Y-%m-%d"),
         )
         self.logger.debug("Generating search queries with prompt:\n%s", prompt)
-        response = self.llm.invoke(prompt)
-        raw_output = getattr(response, "content", response)
+        if not self.llm_caller:
+            self.logger.warning("No LLM configured for SuggestedSearchTermsTool.")
+            return []
+
+        try:
+            raw_output = call_llm_sync(self.llm_caller, prompt)
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.error("Failed to generate search suggestions: %s", exc)
+            return []
         suggestions = self._parse_suggestions(raw_output)
 
         # Deduplicate while preserving order and enforce requested length.
@@ -157,5 +166,17 @@ class SuggestedSearchTermsTool(BaseTool):
             pass
 
         # Fallback: treat each line as a suggestion.
-        lines = [line.strip().lstrip("-•") for line in text.splitlines()]
+        lines = [line.strip().lstrip("-*") for line in text.splitlines()]
         return [line for line in lines if line]
+
+    def _resolve_llm_caller(
+        self,
+        *,
+        llm: Optional[LLM],
+        llm_caller: Optional[BaseLLMCaller],
+    ) -> Optional[BaseLLMCaller]:
+        if llm_caller is not None:
+            return llm_caller
+        if llm is None:
+            return None
+        return LangChainLLMCaller(llm)

@@ -15,7 +15,8 @@ from ragdoll.entity_extraction import EntityExtractionService
 from ragdoll.vector_stores import vector_store_from_config
 from ragdoll.graph_stores import get_graph_store
 from ragdoll.ingestion import DocumentLoaderService
-from ragdoll.llms import get_llm
+from ragdoll.llms import get_llm_caller
+from ragdoll.llms.callers import BaseLLMCaller
 from langchain_core.language_models import BaseLanguageModel
 
 logger = logging.getLogger("ragdoll.pipeline")
@@ -39,7 +40,8 @@ class IngestionOptions:
     vector_store_options: Dict[str, Any] = None
     graph_store_options: Dict[str, Any] = None
     entity_extraction_options: Dict[str, Any] = None
-    llm: Any = None  # Optional LLM override
+    llm: Any = None  # Optional legacy LLM override (string/config/object)
+    llm_caller: Optional[BaseLLMCaller] = None  # Preferred injection point
 
 
 class IngestionPipeline:
@@ -86,12 +88,16 @@ class IngestionPipeline:
             entity_config.update(config_overrides)
 
             llm_override = extraction_options.get("llm") or self.options.llm
-            if llm_override and not isinstance(llm_override, BaseLanguageModel):
-                llm_override = get_llm(llm_override, self.config_manager)
+            llm_caller_override = (
+                extraction_options.get("llm_caller") or self.options.llm_caller
+            )
+            resolved_llm_caller = self._resolve_llm_caller(
+                llm_override, llm_caller_override
+            )
 
             self.entity_extractor = entity_extractor or EntityExtractionService(
                 config=entity_config,
-                llm=llm_override,
+                llm_caller=resolved_llm_caller,
                 text_splitter=self.text_splitter,
                 chunk_documents=False,
             )
@@ -225,6 +231,28 @@ class IngestionPipeline:
             await self.entity_extractor.extract(chunks)
 
         self.stats["entities_extracted"] = len(chunks)
+
+    def _resolve_llm_caller(
+        self,
+        llm_value: Any,
+        llm_caller_value: Optional[BaseLLMCaller],
+    ) -> Optional[BaseLLMCaller]:
+        if llm_caller_value is not None:
+            return llm_caller_value
+
+        if isinstance(llm_value, BaseLLMCaller):
+            return llm_value
+
+        if llm_value is None:
+            return None
+
+        if isinstance(llm_value, BaseLanguageModel):
+            return get_llm_caller(config_manager=self.config_manager, llm=llm_value)
+
+        return get_llm_caller(
+            model_name_or_config=llm_value,
+            config_manager=self.config_manager,
+        )
 
 
 async def ingest_documents(

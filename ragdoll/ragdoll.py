@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Iterable, List, Optional, Sequence
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 
 from ragdoll import settings
 from ragdoll.config import Config
 from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 from ragdoll.embeddings import get_embedding_model
-from ragdoll.llms import get_llm
+from ragdoll.llms import get_llm_caller
+from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
+
+logger = logging.getLogger(__name__)
 
 
 class Ragdoll:
@@ -30,6 +35,7 @@ class Ragdoll:
         vector_store: Optional[BaseVectorStore] = None,
         embedding_model: Optional[Embeddings] = None,
         llm: Optional[Any] = None,
+        llm_caller: Optional[BaseLLMCaller] = None,
     ) -> None:
         self.config_manager = (
             Config(config_path) if config_path else settings.get_config_manager()
@@ -55,7 +61,12 @@ class Ragdoll:
                 vector_config, embedding=self.embedding_model
             )
 
-        self.llm = llm or get_llm(config_manager=self.config_manager)
+        self.llm_caller = self._resolve_llm_caller(llm=llm, llm_caller=llm_caller)
+        self.llm = (
+            llm
+            if llm is not None and not isinstance(llm, BaseLLMCaller)
+            else getattr(self.llm_caller, "llm", None)
+        )
 
     def ingest_data(self, sources: Sequence[str]) -> List[Document]:
         """
@@ -74,15 +85,10 @@ class Ragdoll:
         """
         hits = self.vector_store.similarity_search(question, k=k)
 
-        answer: Optional[str] = None
-        if self.llm and hasattr(self.llm, "invoke") and hits:
+        answer = None
+        if self.llm_caller and hits:
             prompt = self._build_prompt(question, hits)
-            response = self.llm.invoke(prompt)  # type: ignore[attr-defined]
-            answer = getattr(response, "content", response)
-            if isinstance(answer, str):
-                answer = answer.strip()
-            else:
-                answer = str(answer)
+            answer = self._call_llm(prompt)
 
         return {"answer": answer, "documents": hits}
 
@@ -124,4 +130,39 @@ class Ragdoll:
             f"Question: {question}\n"
             "Answer:"
         )
+
+    def _resolve_llm_caller(
+        self,
+        *,
+        llm: Optional[Any],
+        llm_caller: Optional[BaseLLMCaller],
+    ) -> Optional[BaseLLMCaller]:
+        if llm_caller is not None:
+            return llm_caller
+
+        if isinstance(llm, BaseLLMCaller):
+            return llm
+
+        if isinstance(llm, (BaseChatModel, BaseLanguageModel)):
+            return get_llm_caller(config_manager=self.config_manager, llm=llm)
+
+        if isinstance(llm, (str, dict)):
+            return get_llm_caller(
+                model_name_or_config=llm, config_manager=self.config_manager
+            )
+
+        return get_llm_caller(config_manager=self.config_manager)
+
+    def _call_llm(self, prompt: str) -> Optional[str]:
+        if not self.llm_caller:
+            return None
+
+        try:
+            response = call_llm_sync(self.llm_caller, prompt)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("LLM call failed: %s", exc)
+            return None
+
+        cleaned = response.strip()
+        return cleaned or None
 
