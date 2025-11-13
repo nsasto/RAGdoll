@@ -4,7 +4,7 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Union
 
 try:  # pragma: no cover - optional dependency
     import spacy
@@ -15,7 +15,8 @@ from langchain_core.language_models import BaseLanguageModel
 
 from ragdoll import settings
 from ragdoll.chunkers import get_text_splitter, split_documents
-from ragdoll.llms import call_llm, get_llm
+from ragdoll.llms import get_llm
+from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller
 from ragdoll.utils import json_parse
 from .base import BaseEntityExtractor
 from .graph_persistence import GraphPersistenceService
@@ -47,6 +48,7 @@ class EntityExtractionService(BaseEntityExtractor):
         llm: Optional[BaseLanguageModel] = None,
         text_splitter=None,
         chunk_documents: bool = True,
+        llm_caller: Optional[BaseLLMCaller] = None,
     ) -> None:
         config_manager = settings.get_config_manager()
         base_config = config_manager.entity_extraction_config.model_dump()
@@ -56,7 +58,13 @@ class EntityExtractionService(BaseEntityExtractor):
         self.config = merged_config
         self.chunk_documents = chunk_documents
         self.text_splitter = text_splitter
-        self.llm = llm or get_llm(config_manager=config_manager)
+        llm_instance = llm or get_llm(config_manager=config_manager)
+        if llm_caller is not None:
+            self.llm_caller = llm_caller
+        elif llm_instance is not None:
+            self.llm_caller = LangChainLLMCaller(llm_instance)
+        else:
+            self.llm_caller = None
 
         graph_db_config = merged_config.get("graph_database_config", {}) or {}
         self.graph_persistence = GraphPersistenceService(
@@ -81,13 +89,13 @@ class EntityExtractionService(BaseEntityExtractor):
     async def extract(
         self,
         documents: Sequence[Document],
-        llm_override: Optional[BaseLanguageModel] = None,
+        llm_override: Optional[Union[BaseLanguageModel, BaseLLMCaller]] = None,
     ) -> Graph:
         logger.info("Extracting entities from %s documents", len(documents))
         processed_docs = await self._maybe_chunk_documents(documents)
         nodes: List[GraphNode] = []
         edges: List[GraphEdge] = []
-        llm_runner = llm_override or self.llm
+        llm_runner = self._resolve_llm_caller(llm_override)
 
         for doc in processed_docs:
             nodes.extend(self._run_spacy(doc))
@@ -111,6 +119,15 @@ class EntityExtractionService(BaseEntityExtractor):
             logger.info("spaCy model '%s' not found. Downloading...", model_name)
             spacy.cli.download(model_name)
             return spacy.load(model_name)
+
+    def _resolve_llm_caller(
+        self, override: Optional[Union[BaseLanguageModel, BaseLLMCaller]]
+    ) -> Optional[BaseLLMCaller]:
+        if override is None:
+            return self.llm_caller
+        if isinstance(override, BaseLLMCaller):
+            return override
+        return LangChainLLMCaller(override)
 
     async def _maybe_chunk_documents(
         self, documents: Sequence[Document]
@@ -141,13 +158,13 @@ class EntityExtractionService(BaseEntityExtractor):
         self,
         document: Document,
         nodes: List[GraphNode],
-        llm_runner: Optional[BaseLanguageModel],
+        llm_runner: Optional[BaseLLMCaller],
     ) -> List[GraphEdge]:
         if not llm_runner:
             return []
 
         prompt = self._build_relationship_prompt(document)
-        response = await call_llm(llm_runner, prompt, return_raw_response=False)
+        response = await llm_runner.call(prompt)
         return self._parse_relationships(response, document, nodes)
 
     def _build_relationship_prompt(self, document: Document) -> str:

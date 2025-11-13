@@ -8,10 +8,12 @@ import os
 import logging
 import importlib.util
 from typing import Dict, Any, Optional, Union
+
 from langchain_core.language_models import BaseChatModel, BaseLanguageModel
+
 from ragdoll import settings
 from ragdoll.config import Config
-from .utils import call_llm
+from .callers import BaseLLMCaller, LangChainLLMCaller
 
 logger = logging.getLogger("ragdoll.llms")
 
@@ -127,14 +129,42 @@ def get_llm(
     try:
         logger.debug(f"Initializing {provider} model '{actual_model_name}' with config keys: {list(processed_config.keys())}")
         model = init_chat_model(
-            model=actual_model_name,
-            model_provider=provider,
-            **processed_config
+            model=actual_model_name, model_provider=provider, **processed_config
         )
         return model
     except Exception as e:
         logger.error(f"Failed to initialize {provider} model '{actual_model_name}': {e}")
         return None
+
+
+def get_llm_caller(
+    model_name_or_config: Union[str, Dict[str, Any]] = None,
+    config_manager: Optional[Config] = None,
+    llm: Optional[Union[BaseChatModel, BaseLanguageModel]] = None,
+) -> Optional[BaseLLMCaller]:
+    """
+    Convenience helper that wraps :func:`get_llm` and returns a ``BaseLLMCaller``.
+
+    Args:
+        model_name_or_config: Same semantics as ``get_llm``; ignored when ``llm`` is provided.
+        config_manager: Optional configuration manager reference.
+        llm: Pre-instantiated LangChain model to wrap.
+
+    Returns:
+        ``BaseLLMCaller`` implementation or ``None`` if no LLM could be resolved.
+    """
+
+    llm_instance = llm
+    if llm_instance is None:
+        llm_instance = get_llm(
+            model_name_or_config=model_name_or_config,
+            config_manager=config_manager,
+        )
+
+    if llm_instance is None:
+        return None
+
+    return LangChainLLMCaller(llm_instance)
 
 # Example Usage (assuming you have ragdoll installed):
 if __name__ == "__main__":
