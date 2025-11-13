@@ -19,6 +19,8 @@ __all__ = [
 # Simple registry for loader classes. Loaders can register themselves
 # with a short name which can be referenced in configuration.
 from typing import Dict, Type, Optional, List
+from pathlib import Path
+from importlib import import_module
 
 _loader_registry: Dict[str, Type] = {}
 
@@ -60,3 +62,63 @@ def clear_loader_registry() -> None:
     _loader_registry.clear()
 
 __all__.extend(["register_loader", "get_loader", "list_loaders", "clear_loader_registry"])
+
+
+# --- bootstrap: register default-config loaders if possible -------------------
+def _bootstrap_register_default_loaders() -> None:
+    """
+    Load ragdoll/config/default_config.yaml and register any file_mappings
+    found. This reads the YAML file directly (no ragdoll.config import) and
+    performs a best-effort import+registration of loader classes under
+    normalized short names (strip leading '.' and lowercase).
+    """
+    try:
+        cfg_path = Path(__file__).resolve().parents[1] / "config" / "default_config.yaml"
+        if not cfg_path.exists():
+            # try one level up if layout differs
+            cfg_path = Path(__file__).resolve().parents[2] / "ragdoll" / "config" / "default_config.yaml"
+        if not cfg_path.exists():
+            logger.debug("No default_config.yaml found at %s", cfg_path)
+            return
+
+        text = cfg_path.read_text(encoding="utf-8")
+    except Exception as e:
+        logger.debug("Default config not found for loader bootstrap: %s", e)
+        return
+
+    try:
+        import yaml
+
+        cfg = yaml.safe_load(text) or {}
+    except Exception as e:
+        logger.debug("Could not parse default_config.yaml for loader bootstrap: %s", e)
+        return
+
+    # file_mappings live under ingestion.loaders.file_mappings in config
+    ingestion_cfg = cfg.get("ingestion", {}) or {}
+    loaders_block = ingestion_cfg.get("loaders", {}) or {}
+    file_mappings = loaders_block.get("file_mappings", {}) or {}
+
+    for ext, loader_ref in file_mappings.items():
+        name = _normalize_name(ext)
+        if not loader_ref or not isinstance(loader_ref, str):
+            continue
+        try:
+            # support "pkg.module:Class" and "pkg.module.Class"
+            ref = loader_ref.replace(":", ".")
+            module_path, _, class_name = ref.rpartition('.')
+            if not module_path or not class_name:
+                raise ImportError(f"Malformed loader import string '{loader_ref}'")
+            module = __import__(module_path, fromlist=[class_name])
+            cls = getattr(module, class_name)
+            register_loader_class(name, cls)
+            logger.debug("Registered loader '%s' -> %s", name, loader_ref)
+        except Exception as e:
+            logger.debug("Skipping registration for loader '%s' (%s): %s", name, loader_ref, e)
+
+
+try:
+    _bootstrap_register_default_loaders()
+except Exception as _e:
+    logger.debug("Loader bootstrap failed: %s", _e)
+# ---------------------------------------------------------------------------

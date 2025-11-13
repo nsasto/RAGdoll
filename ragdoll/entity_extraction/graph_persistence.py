@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, ClassVar
 
 from langchain_core.documents import Document
 
@@ -311,11 +311,15 @@ class SimpleGraphRetriever(_RetrieverBase):
                 neighbors.append(edge.source)
         return neighbors
 
+    def get_relevant_documents(self, query: str) -> list[Document]:
+        """Expose sync retrieval regardless of base class implementation."""
+        return self._get_relevant_documents(query)
+
 
 class Neo4jCypherRetriever(_RetrieverBase):
     """Retriever that runs lightweight Cypher against Neo4j."""
 
-    DEFAULT_QUERY = """
+    DEFAULT_QUERY: ClassVar[str] = """
     MATCH (n)
     WHERE toLower(n.name) CONTAINS toLower($query)
     OPTIONAL MATCH (n)-[r]->(m)
@@ -399,3 +403,7 @@ class Neo4jCypherRetriever(_RetrieverBase):
                 return list(result)
         finally:  # pragma: no cover - defensive cleanup
             driver.close()
+
+    def get_relevant_documents(self, query: str) -> list[Document]:
+        """Expose sync retrieval regardless of base class implementation."""
+        return self._get_relevant_documents(query)
