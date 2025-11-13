@@ -1,5 +1,10 @@
 ![Ragdoll](img/github-header-image.png)
 
+[![CI](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml/badge.svg)](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](https://github.com/nsasto/RAGdoll/releases)
+[![Stable](https://badge.fury.io/py/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 # RAGdoll: A Flexible and Extensible RAG Framework
 
 Welcome to Ragdoll 2.0! This release marks a significant overhaul of the Ragdoll project, focusing on enhanced flexibility, extensibility, and maintainability. We've completely refactored the core architecture to make it easier than ever to adapt Ragdoll to your specific needs and integrate it with the broader LangChain ecosystem. This document outlines the major changes and improvements you'll find in this new version.
@@ -20,10 +25,11 @@ This version of RAGdoll introduces several key features that improve the flexibi
 - **Auto Loader Selection**: RAGdoll now includes loaders for multiple file types (not only pdf). The loader defaults to Langchain-Markitdown loaders, but can be configured to use any Lanchain compatible loader.
 - **Monitoring:** A new monitoring capability has been added to RAGdoll. This allows you to track and understand the performance and behavior of your RAG applications over time.
 
-<CODE_BLOCK> # Enable monitoring in config
+```yaml
+# Enable monitoring in config
 monitor:
-enabled: true
-</CODE_BLOCK>
+  enabled: true
+```
 
 ## Quick Start Guide
 
@@ -87,9 +93,8 @@ To install RAGdoll, follow these steps:
 
 1.  **Clone the Repository:**
 
-```
-bash
-    git clone <repository_url>
+```bash
+    git clone https://github.com/nsasto/RAGdoll.git
     cd RAGdoll
 ```
 
@@ -142,10 +147,9 @@ Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseEmbedd
 
 RAGdoll provides default implementations for most components, allowing you to quickly get started without having to write everything from scratch:
 
-- **`Lanchain-Markitdown`:** A default loader for most major file types.
- - **`Lanchain-Markitdown`:** A default loader for most major file types.
-     See `docs/loader_registry.md` for information on the loader registry and how
-     to register custom loader classes under short names.
+- **`Langchain-Markitdown`:** A default loader for most major file types.
+  See `docs/loader_registry.md` for information on the loader registry and how
+  to register custom loader classes under short names.
 - **`RecursiveCharacterTextSplitter`:** A default text splitter.
 - **`OpenAIEmbeddings`:** Default embeddings that use OpenAI's API.
 - **`LangChain VectorStore factory`:** Plug-and-play wrapper for any LangChain vector store (Chroma, FAISS, etc.); see `docs/vector_stores.md`.
