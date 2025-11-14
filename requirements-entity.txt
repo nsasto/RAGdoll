@@ -1,6 +1,0 @@
-# Optional heavy dependencies for entity extraction / NLP
-spacy>=3.7.0
-spacy-transformers
-sentence_transformers>=2.2.2
-# PyMuPDF for PDF parsing
-PyMuPDF>=1.25.5

@@ -1,3 +1,0 @@
-# Optional graph / DB dependencies
-neo4j>=5.11.0
-rdflib
