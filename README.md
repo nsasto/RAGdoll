@@ -81,6 +81,16 @@ asyncio.run(main())
 The helper `ingest_with_graph_sync()` wraps `asyncio.run()` for scripts that are not already running an event loop.
 See `examples/graph_retriever_example.py` for a complete runnable script.
 
+### How Vector and Graph Stores Work Together
+
+Ragdoll keeps both storage backends under the same orchestration surface:
+
+- `Ragdoll.ingest_data(...)` (or the lower-level `IngestionPipeline`) always loads documents, chunks them, embeds each chunk, and writes those embeddings into the configured **vector store**.
+- When `entity_extraction.extract_entities` (or `entity_extraction.graph_retriever.enabled`) is true, the same pipeline also fans out chunks to the **entity extraction service**, which generates a graph, persists it through the configured **graph store**, and can return a graph-aware retriever.
+- Both flows are coordinated inside `IngestionPipeline`: it receives the shared `AppConfig`, builds the ingestion service, embedding model, vector store, and optionally graph store, and emits stats/retrievers back through `Ragdoll`.
+
+So even though `ragdoll/vector_stores` and `ragdoll/graph_stores` live in separate packages, their lifecycle is tied together via the pipeline entry points shown above.
+
 ## Installation
 
 To install RAGdoll, follow these steps:
@@ -137,7 +147,7 @@ RAGdoll's architecture is built around modular components and abstract base clas
 - **`vector_stores`:** Manages the storage and retrieval of vector embeddings.
 - **`llms`:** Provides an interface to interact with different large language models.
 - **`graph_stores`:** Manages the storage and querying of knowledge graphs.
-- **`chains`:** Defines different types of chains, like retrieval QA.
+- **`chains`:** Defines different types of chains, like retrieval QA (not implemented)
 
 ### Abstract Base Classes
 
