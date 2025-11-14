@@ -1,1 +1,0 @@
-open("new_file.txt", "w").close()
