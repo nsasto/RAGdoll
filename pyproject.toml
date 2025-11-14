@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-ragdoll"
-version = "2.0.1"
+version = "2.1.0"
 description = "A set of helper classes that abstract some of the more common tasks of a typical RAG process including document loading/web scraping."
 readme = "README.md"
 license = {text = "MIT"}
