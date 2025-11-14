@@ -110,29 +110,41 @@ To install RAGdoll, follow these steps:
 
 2.  **Install Dependencies:**
 
-```
-bash
+```bash
     pip install -e .
 ```
 
-This will install the required dependencies, including Langchain and Pydantic. 3. **Install extra dependencies**: if you need some specific models or libraries, install them here as well.
+This will install the required dependencies, including Langchain and Pydantic.
 
-### Recommended conservative install (local development)
+### Installation with optional features
 
-To install the conservative base dependencies locally and optionally extras:
+RAGdoll supports optional dependency groups for different use cases:
 
-```powershell
+```bash
+# Base install (core functionality only)
+pip install -e .
+
+# Development tools (testing, linting, formatting)
+pip install -e .[dev]
+
+# Entity extraction and NLP features (spaCy, sentence transformers, PDF processing)
+pip install -e .[entity]
+
+# Graph database support (Neo4j, RDF)
+pip install -e .[graph]
+
+# All optional features combined
+pip install -e .[all]
+```
+
+### From PyPI (recommended for production)
+
+```bash
 # Base install
-pip install -r requirements.txt
+pip install python-ragdoll
 
-# Developer/test dependencies
-pip install -r requirements-dev.txt
-
-# Optional entity extraction and heavy NLP dependencies
-pip install -r requirements-entity.txt
-
-# Optional graph DB dependencies
-pip install -r requirements-graph.txt
+# With optional features
+pip install python-ragdoll[all]  # or [dev], [entity], [graph]
 ```
 
 ## Architecture

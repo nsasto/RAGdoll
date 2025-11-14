@@ -63,6 +63,9 @@ graph = [
     "neo4j>=5.11.0",
     "rdflib",
 ]
+all = [
+    "python-ragdoll[dev,entity,graph]",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
