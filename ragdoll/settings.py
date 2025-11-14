@@ -11,6 +11,7 @@ import os
 from functools import lru_cache
 from typing import Optional
 
+from ragdoll.app_config import AppConfig, CONFIG_ENV_VAR, bootstrap_app
 from ragdoll.config import (
     CacheConfig,
     Config,
@@ -23,21 +24,26 @@ from ragdoll.config import (
     MonitorConfig,
 )
 
-_CONFIG_ENV_VAR = "RAGDOLL_CONFIG_PATH"
-
 
 @lru_cache(maxsize=1)
-def get_config_manager(config_path: Optional[str] = None) -> Config:
+def get_app(config_path: Optional[str] = None) -> AppConfig:
     """
-    Return the shared ConfigManager/Config instance.
+    Return the shared :class:`AppConfig` instance.
 
     Order of precedence for config path:
       1. Explicit ``config_path`` argument.
       2. ``RAGDOLL_CONFIG_PATH`` environment variable.
       3. Default path baked into ConfigManager.
     """
-    resolved_path = config_path or os.environ.get(_CONFIG_ENV_VAR)
-    return Config(resolved_path)
+
+    resolved_path = config_path or os.environ.get(CONFIG_ENV_VAR)
+    return bootstrap_app(resolved_path)
+
+
+def get_config_manager(config_path: Optional[str] = None) -> Config:
+    """Compatibility shim returning the ConfigManager from the shared app."""
+
+    return get_app(config_path).config
 
 
 def get_cache_config() -> CacheConfig:

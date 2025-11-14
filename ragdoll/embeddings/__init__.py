@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Union, List
 
 from langchain_core.embeddings import Embeddings
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 
 # Import embedding models for direct access in tests
 from langchain_openai import OpenAIEmbeddings
@@ -20,7 +21,11 @@ logger = logging.getLogger("ragdoll.embeddings")
 
 
 def get_embedding_model(
-    model_name: str = None, config_manager=None, provider=None, **kwargs
+    model_name: str = None,
+    config_manager=None,
+    provider=None,
+    app_config: Optional[AppConfig] = None,
+    **kwargs,
 ) -> Optional[Embeddings]:
     """
     Get an embedding model based on configuration.
@@ -34,8 +39,10 @@ def get_embedding_model(
     Returns:
         An initialized embedding model, or None if an error occurs
     """
-    if config_manager is None:
-        config_manager = settings.get_config_manager()
+    if app_config is not None:
+        config_manager = app_config.config
+    elif config_manager is None:
+        config_manager = settings.get_app().config
 
     # If provider is directly specified, skip config and use direct initialization
     if provider:

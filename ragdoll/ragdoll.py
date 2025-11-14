@@ -9,7 +9,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 
 from ragdoll import settings
-from ragdoll.config import Config
+from ragdoll.app_config import AppConfig, bootstrap_app
 from ragdoll.embeddings import get_embedding_model
 from ragdoll.entity_extraction.models import Graph
 from ragdoll.ingestion import DocumentLoaderService
@@ -34,18 +34,27 @@ class Ragdoll:
         self,
         *,
         config_path: Optional[str] = None,
+        app_config: Optional[AppConfig] = None,
         ingestion_service: Optional[DocumentLoaderService] = None,
         vector_store: Optional[BaseVectorStore] = None,
         embedding_model: Optional[Embeddings] = None,
         llm: Optional[Any] = None,
         llm_caller: Optional[BaseLLMCaller] = None,
     ) -> None:
-        self.config_manager = (
-            Config(config_path) if config_path else settings.get_config_manager()
-        )
+        if config_path and app_config:
+            raise ValueError("Provide either config_path or app_config, not both.")
+
+        if app_config is not None:
+            self.app_config = app_config
+        elif config_path:
+            self.app_config = bootstrap_app(config_path)
+        else:
+            self.app_config = settings.get_app()
+
+        self.config_manager = self.app_config.config
 
         self.ingestion_service = ingestion_service or DocumentLoaderService(
-            config_manager=self.config_manager
+            app_config=self.app_config
         )
 
         self.embedding_model = embedding_model or get_embedding_model(

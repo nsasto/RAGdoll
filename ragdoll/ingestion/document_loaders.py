@@ -9,6 +9,7 @@ from enum import Enum
 from retry import retry
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig, bootstrap_app
 from ragdoll.config import Config
 from ragdoll.ingestion.base import BaseIngestionService
 from ragdoll.cache.cache_manager import CacheManager
@@ -36,20 +37,29 @@ class DocumentLoaderService(BaseIngestionService):
         use_cache: bool = True,
         collect_metrics: Optional[bool] = None,
         config_manager: Optional[Config] = None,
+        app_config: Optional[AppConfig] = None,
     ):
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
         )
 
-        if config_manager is not None and config_path is not None:
-            raise ValueError("Provide either config_manager or config_path, not both.")
+        if sum(1 for item in (app_config, config_manager, config_path) if item) > 1:
+            raise ValueError(
+                "Provide only one of app_config, config_manager, or config_path."
+            )
 
-        if config_manager is not None:
+        self.app_config = app_config
+        if self.app_config is not None:
+            self.config_manager = self.app_config.config
+        elif config_manager is not None:
             self.config_manager = config_manager
         elif config_path is not None:
-            self.config_manager = Config(config_path)
+            self.app_config = bootstrap_app(config_path)
+            self.config_manager = self.app_config.config
         else:
-            self.config_manager = settings.get_config_manager()
+            self.app_config = settings.get_app()
+            self.config_manager = self.app_config.config
+
         config = self.config_manager.ingestion_config
         monitor_config = self.config_manager.monitor_config
 
@@ -59,16 +69,24 @@ class DocumentLoaderService(BaseIngestionService):
         self.batch_size = batch_size if batch_size is not None else config.batch_size
 
         self.use_cache = use_cache
-        self.cache_manager = cache_manager or CacheManager(
-            ttl_seconds=self.config_manager.cache_config.cache_ttl
-        )
+        if cache_manager is not None:
+            self.cache_manager = cache_manager
+        elif self.app_config is not None:
+            self.cache_manager = self.app_config.get_cache_manager()
+        else:
+            self.cache_manager = CacheManager(
+                ttl_seconds=self.config_manager.cache_config.cache_ttl
+            )
 
         self.collect_metrics = (
             collect_metrics if collect_metrics is not None else monitor_config.enabled
         )
-        self.metrics_manager = (
-            metrics_manager if metrics_manager is not None else MetricsManager()
-        )
+        if metrics_manager is not None:
+            self.metrics_manager = metrics_manager
+        elif self.app_config is not None:
+            self.metrics_manager = self.app_config.get_metrics_manager()
+        else:
+            self.metrics_manager = MetricsManager()
 
         self.loaders = self.config_manager.get_loader_mapping()
         self.logger.debug(f"Available loaders: {list(self.loaders.keys())}")

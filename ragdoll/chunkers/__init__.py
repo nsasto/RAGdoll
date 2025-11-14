@@ -26,6 +26,7 @@ _splitter_cache = {}
 
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 
 
 def get_text_splitter(
@@ -33,6 +34,7 @@ def get_text_splitter(
     chunk_size: int = None,
     chunk_overlap: int = None,
     config_manager=None,
+    app_config: Optional[AppConfig] = None,
     config: Dict[str, Any] = None,
     language: str = None,
     separators: List[str] = None,
@@ -57,8 +59,10 @@ def get_text_splitter(
         A configured TextSplitter instance
     """
     # Initialize config
-    chunker_config = {}
-    if config_manager is not None:
+    chunker_config: Dict[str, Any] = {}
+    if app_config is not None:
+        chunker_config = app_config.config._config.get("chunker", {})
+    elif config_manager is not None:
         chunker_config = config_manager._config.get("chunker", {})
     elif config is not None:
         if isinstance(config, dict):
@@ -67,7 +71,7 @@ def get_text_splitter(
             else:
                 chunker_config = config
     else:
-        chunker_config = settings.get_config_manager()._config.get("chunker", {})
+        chunker_config = settings.get_app().config._config.get("chunker", {})
 
     # Determine splitter type (priority: parameter > config > default)
     # First check explicit splitter_type, then chunking_strategy (if it's a valid splitter type),
