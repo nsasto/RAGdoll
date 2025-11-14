@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, Union, List
 import uuid
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 from ragdoll.config.base_config import GraphDatabaseConfig
 from ragdoll.entity_extraction.models import Graph, GraphNode, GraphEdge
 
@@ -19,6 +20,7 @@ def get_graph_store(
     store_type: str = None,
     graph: Optional[Graph] = None,
     config_manager=None,
+    app_config: Optional[AppConfig] = None,
     graph_config: Optional[Union[Dict[str, Any], GraphDatabaseConfig]] = None,
     **kwargs
 ) -> Optional[Any]:
@@ -46,7 +48,10 @@ def get_graph_store(
     
     # If no explicit config provided, try to load from config_manager
     if db_config is None:
-        config_manager = config_manager or settings.get_config_manager()
+        if app_config is not None:
+            config_manager = app_config.config
+        else:
+            config_manager = config_manager or settings.get_app().config
 
         entity_extraction_config = config_manager._config.get("entity_extraction", {})
         graph_db_dict = entity_extraction_config.get("graph_database_config", {})

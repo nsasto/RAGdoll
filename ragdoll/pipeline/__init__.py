@@ -9,6 +9,7 @@ from langchain_core.documents import Document
 
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 from ragdoll.config import Config
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.embeddings import get_embedding_model
@@ -56,6 +57,7 @@ class IngestionPipeline:
     def __init__(
         self,
         config_manager: Optional[Config] = None,
+        app_config: Optional[AppConfig] = None,
         content_extraction_service: Optional[DocumentLoaderService] = None,
         text_splitter=None,
         embedding_model=None,
@@ -64,24 +66,43 @@ class IngestionPipeline:
         graph_store=None,
         options: Optional[IngestionOptions] = None,
     ):
-        self.config_manager = config_manager or settings.get_config_manager()
+        if (
+            app_config is not None
+            and config_manager is not None
+            and app_config.config is not config_manager
+        ):
+            raise ValueError(
+                "Provide app_config and config_manager pointing to the same Config "
+                "instance or pass only one reference."
+            )
+
+        if app_config is not None:
+            self.app_config = app_config
+        elif config_manager is not None:
+            self.app_config = AppConfig(config=config_manager)
+        else:
+            self.app_config = settings.get_app()
+
+        self.config_manager = config_manager or self.app_config.config
         self.options = options or IngestionOptions()
 
         self.content_extraction_service = (
             content_extraction_service
             or DocumentLoaderService(
-                config_manager=self.config_manager,
+                app_config=self.app_config,
                 collect_metrics=self.options.collect_metrics,
             )
         )
 
         self.text_splitter = text_splitter or get_text_splitter(
             config_manager=self.config_manager,
+            app_config=self.app_config,
             **(self.options.chunking_options or {}),
         )
 
         self.embedding_model = embedding_model or get_embedding_model(
             config_manager=self.config_manager,
+            app_config=self.app_config,
             **(self.options.embedding_options or {}),
         )
 
@@ -104,6 +125,7 @@ class IngestionPipeline:
                 llm_caller=resolved_llm_caller,
                 text_splitter=self.text_splitter,
                 chunk_documents=False,
+                app_config=self.app_config,
             )
         else:
             self.entity_extractor = None
@@ -143,8 +165,8 @@ class IngestionPipeline:
                     graph_config.extra_config[key] = value
 
             self.graph_store = graph_store or get_graph_store(
-                config_manager=self.config_manager,
                 graph_config=graph_config,
+                app_config=self.app_config,
             )
         else:
             self.graph_store = None
@@ -272,11 +294,16 @@ class IngestionPipeline:
             return None
 
         if isinstance(llm_value, BaseLanguageModel):
-            return get_llm_caller(config_manager=self.config_manager, llm=llm_value)
+            return get_llm_caller(
+                config_manager=self.config_manager,
+                app_config=self.app_config,
+                llm=llm_value,
+            )
 
         return get_llm_caller(
             model_name_or_config=llm_value,
             config_manager=self.config_manager,
+            app_config=self.app_config,
         )
 
 
@@ -292,6 +319,7 @@ async def ingest_documents(
 
     pipeline = IngestionPipeline(
         config_manager=custom_manager,
+        app_config=AppConfig(config=custom_manager) if custom_manager else None,
         options=options or IngestionOptions(),
     )
     return await pipeline.ingest(sources)

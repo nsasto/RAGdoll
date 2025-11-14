@@ -13,6 +13,7 @@ from langchain_google_community import GoogleSearchAPIWrapper
 from pydantic import BaseModel, Field
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 from ragdoll.config import Config
 from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller, call_llm_sync
 from ragdoll.prompts import get_prompt
@@ -91,13 +92,17 @@ class SuggestedSearchTermsTool(BaseTool):
         *,
         llm_caller: Optional[BaseLLMCaller] = None,
         config_manager: Optional[Config] = None,
+        app_config: Optional[AppConfig] = None,
         prompt_key: str = DEFAULT_PROMPT_KEY,
         log_level: int = logging.INFO,
     ) -> None:
         self.logger = logging.getLogger(f"{__name__}.suggestions")
         self.logger.setLevel(log_level)
+        self.app_config = app_config
         self.llm_caller = self._resolve_llm_caller(llm=llm, llm_caller=llm_caller)
-        self.prompt_template = self._resolve_prompt(prompt_key, config_manager)
+        self.prompt_template = self._resolve_prompt(
+            prompt_key, config_manager=config_manager
+        )
 
     def _run(self, query: str, num_suggestions: int = 3) -> List[str]:
         prompt = self.prompt_template.format(
@@ -136,8 +141,18 @@ class SuggestedSearchTermsTool(BaseTool):
         prompt_key: str,
         config_manager: Optional[Config],
     ) -> str:
-        manager = config_manager or settings.get_config_manager()
-        templates = manager.get_default_prompt_templates()
+        manager = config_manager
+        if manager is None:
+            if self.app_config is not None:
+                manager = self.app_config.config
+            else:
+                manager = settings.get_app().config
+
+        if self.app_config is not None:
+            templates = self.app_config.get_prompt_templates()
+        else:
+            templates = manager.get_default_prompt_templates()
+
         template = templates.get(prompt_key)
         if template:
             return template

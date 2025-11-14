@@ -15,6 +15,7 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseLanguageModel
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.llms import get_llm
 from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller
@@ -53,18 +54,20 @@ class EntityExtractionService(BaseEntityExtractor):
         text_splitter=None,
         chunk_documents: bool = True,
         llm_caller: Optional[BaseLLMCaller] = None,
+        app_config: Optional[AppConfig] = None,
     ) -> None:
-        config_manager = settings.get_config_manager()
+        self.app_config = app_config or settings.get_app()
+        config_manager = self.app_config.config
         self.config_manager = config_manager
         base_config = config_manager.entity_extraction_config.model_dump()
         merged_config = {**base_config, **(config or {})}
-        merged_config["prompts"] = config_manager.get_default_prompt_templates()
+        merged_config["prompts"] = self.app_config.get_prompt_templates()
 
         self.config = merged_config
         self.prompt_templates = merged_config.get("prompts", {}) or {}
         self.chunk_documents = chunk_documents
         self.text_splitter = text_splitter
-        llm_instance = llm or get_llm(config_manager=config_manager)
+        llm_instance = llm or get_llm(config_manager=config_manager, app_config=self.app_config)
         if llm_caller is not None:
             self.llm_caller = llm_caller
         elif llm_instance is not None:

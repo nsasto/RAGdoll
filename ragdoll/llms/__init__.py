@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, Union
 from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 from ragdoll.config import Config
 from .callers import BaseLLMCaller, LangChainLLMCaller
 
@@ -49,6 +50,7 @@ def _set_api_key_from_config(provider: Optional[str], config: Dict[str, Any]) ->
 def get_llm(
     model_name_or_config: Union[str, Dict[str, Any]] = None,
     config_manager: Optional[Config] = None,
+    app_config: Optional[AppConfig] = None,
 ) -> Optional[Union[BaseChatModel, BaseLanguageModel]]:
     """
     Get a LangChain model based on a model name (from config) or a direct configuration.
@@ -73,8 +75,10 @@ def get_llm(
         logger.error("Failed to import LangChain chat models. Ensure you have the necessary LangChain integrations installed.")
         return None
 
-    if config_manager is None:
-        config_manager = settings.get_config_manager()
+    if app_config is not None:
+        config_manager = app_config.config
+    elif config_manager is None:
+        config_manager = settings.get_app().config
 
     llm_config = config_manager._config.get("llms", {})
     default_model_name = llm_config.get("default_model")
@@ -140,6 +144,7 @@ def get_llm(
 def get_llm_caller(
     model_name_or_config: Union[str, Dict[str, Any]] = None,
     config_manager: Optional[Config] = None,
+    app_config: Optional[AppConfig] = None,
     llm: Optional[Union[BaseChatModel, BaseLanguageModel]] = None,
 ) -> Optional[BaseLLMCaller]:
     """
@@ -159,6 +164,7 @@ def get_llm_caller(
         llm_instance = get_llm(
             model_name_or_config=model_name_or_config,
             config_manager=config_manager,
+            app_config=app_config,
         )
 
     if llm_instance is None:

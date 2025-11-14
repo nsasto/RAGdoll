@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 import logging
 
 from ragdoll import settings
+from ragdoll.app_config import AppConfig
 from .models import (
     Entity,
     Relationship,
@@ -22,6 +23,7 @@ logger = logging.getLogger("ragdoll.entity_extraction")
 def get_entity_extractor(
     extractor_type: str | None = None,
     config_manager=None,
+    app_config: Optional[AppConfig] = None,
     config: Dict[str, Any] | None = None,
     **kwargs,
 ) -> BaseEntityExtractor:
@@ -38,8 +40,10 @@ def get_entity_extractor(
         A BaseEntityExtractor instance
     """
     # Initialize config
-    extraction_config = {}
-    if config_manager is not None:
+    extraction_config: Dict[str, Any] = {}
+    if app_config is not None:
+        extraction_config = app_config.config._config.get("entity_extraction", {})
+    elif config_manager is not None:
         extraction_config = config_manager._config.get("entity_extraction", {})
     elif config is not None:
         if isinstance(config, dict):
@@ -48,7 +52,9 @@ def get_entity_extractor(
             else:
                 extraction_config = config
     else:
-        extraction_config = settings.get_config_manager()._config.get("entity_extraction", {})
+        extraction_config = (
+            settings.get_app().config._config.get("entity_extraction", {})
+        )
     
     # Merge kwargs into extraction_config (kwargs take priority)
     merged_config = {**extraction_config, **kwargs}
@@ -70,7 +76,7 @@ def get_entity_extractor(
         )
 
     logger.info("Creating entity extractor of type: %s", actual_extractor_type)
-    return EntityExtractionService(config=merged_config)
+    return EntityExtractionService(config=merged_config, app_config=app_config)
 
 __all__ = [
     "BaseEntityExtractor",  # Export the base class

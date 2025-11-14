@@ -89,7 +89,9 @@ def mock_config_manager():
 # Test 1: Fix test_get_graph_store_with_config_manager
 def test_get_graph_store_with_config_manager(mock_config_manager):
     """Test getting a graph store using a config manager."""
-    with patch("ragdoll.graph_stores.settings.get_config_manager", return_value=mock_config_manager):
+    mock_app = MagicMock()
+    mock_app.config = mock_config_manager
+    with patch("ragdoll.graph_stores.settings.get_app", return_value=mock_app):
         with patch("ragdoll.graph_stores._create_json_graph_store") as mock_create:
             mock_store = MagicMock(spec=GraphStoreWrapper)
             mock_store.store_type = "json"

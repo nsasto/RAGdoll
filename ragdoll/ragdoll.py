@@ -58,7 +58,7 @@ class Ragdoll:
         )
 
         self.embedding_model = embedding_model or get_embedding_model(
-            config_manager=self.config_manager
+            config_manager=self.config_manager, app_config=self.app_config
         )
 
         if vector_store is not None:
@@ -159,14 +159,22 @@ class Ragdoll:
             return llm
 
         if isinstance(llm, (BaseChatModel, BaseLanguageModel)):
-            return get_llm_caller(config_manager=self.config_manager, llm=llm)
+            return get_llm_caller(
+                config_manager=self.config_manager,
+                app_config=self.app_config,
+                llm=llm,
+            )
 
         if isinstance(llm, (str, dict)):
             return get_llm_caller(
-                model_name_or_config=llm, config_manager=self.config_manager
+                model_name_or_config=llm,
+                config_manager=self.config_manager,
+                app_config=self.app_config,
             )
 
-        return get_llm_caller(config_manager=self.config_manager)
+        return get_llm_caller(
+            config_manager=self.config_manager, app_config=self.app_config
+        )
 
     def _call_llm(self, prompt: str) -> Optional[str]:
         if not self.llm_caller:
