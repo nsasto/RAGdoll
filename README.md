@@ -53,7 +53,7 @@ result = ragdoll.query("What is the capital of France?")
 print(result["answer"])
 ```
 
-Need finer control over loaders or paths? Instantiate `ragdoll.config.Config` with your overrides and pass `config_path` (or direct component instances) into `Ragdoll`.
+Need finer control over loaders or paths? Use `settings.get_app()` (or `bootstrap_app` with overrides) to obtain the shared `AppConfig`, tweak its `config`, and pass component overrides into `Ragdoll`.
 
 ### Graph Retrieval Pipeline
 
@@ -247,21 +247,16 @@ RAGdoll uses Pydantic to manage its configuration. This allows for:
 You can create a `Config` object and pass it to the `Ragdoll` class.
 
 ```python
+from ragdoll import settings
 from ragdoll.ragdoll import Ragdoll
-from ragdoll.config import Config
 
-# Create a new configuration
-config = Config(
-    vector_store_path="./my_vectors",
-    chunk_size=500,
-    chunk_overlap=50,
-    embeddings_model="openai",
-    llm_model="gpt-4o",
-    monitoring_enabled=True
-)
+# Grab the shared AppConfig (respects RAGDOLL_CONFIG_PATH when set)
+app = settings.get_app()
+config = app.config
+config._config["vector_store"]["params"]["persist_directory"] = "./my_vectors"
 
 # Create Ragdoll with this configuration
-ragdoll = Ragdoll(config=config)
+ragdoll = Ragdoll(app_config=app)
 ```
 
 ### Entity Extraction Controls
