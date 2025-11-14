@@ -3,9 +3,12 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import logging
 from ragdoll import settings
+
+if TYPE_CHECKING:
+    from ragdoll.app_config import AppConfig
 
 
 def canonical_cache_key(input_str: Optional[str]) -> str:
@@ -26,20 +29,27 @@ class CacheManager:
 
     logger = logging.getLogger(__name__)
 
-    def __init__(self, cache_dir: str = None, ttl_seconds: int = 86400):
+    def __init__(
+        self,
+        cache_dir: Optional[str] = None,
+        ttl_seconds: Optional[int] = None,
+        app_config: Optional["AppConfig"] = None,
+    ):
         """Initialize the cache manager.
 
         Args:
             cache_dir: Directory to store the cache. If None, uses ~/.ragdoll/cache/
         """
-        cache_config = settings.get_cache_config()
-
         if cache_dir is None:
             cache_dir = os.path.join(os.path.expanduser("~"), ".ragdoll", "cache")
 
-        # Use provided ttl_seconds or fall back to config
-        if ttl_seconds == 86400:  # default value
-            ttl_seconds = cache_config.cache_ttl
+        # Use provided ttl_seconds or fall back to config driven defaults
+        if ttl_seconds is None:
+            if app_config is not None:
+                ttl_seconds = app_config.config.cache_config.cache_ttl
+            else:
+                cache_config = settings.get_cache_config()
+                ttl_seconds = cache_config.cache_ttl
 
         self.cache_dir = Path(cache_dir)
         self.ttl_seconds = ttl_seconds

@@ -1,44 +1,34 @@
-﻿"""Examples for the search tools in ragdoll/tools/search_tools.py."""
+"""Examples for the search tools in ragdoll/tools/search_tools.py."""
 
 import logging
-from ragdoll.config import Config  # Assuming Config is in ragdoll.config
-from ragdoll.config import Config  # Assuming ConfigManager is in ragdoll.config.config_manager
+from dotenv import load_dotenv
+
+from ragdoll import settings
 from ragdoll.tools.search_tools import SearchInternetTool, SuggestedSearchTermsTool
-from langchain_openai import OpenAI  # Import OpenAI LLM
+from langchain_openai import OpenAI  # Requires langchain-openai installed
 
-# Load OpenAI API key from .env file, overriding existing environment variables
-load_dotenv(override=True)
-logger = logging.getLogger(__name__)
-# Create a configuration manager
-config_manager = Config()
-config = config_manager._config #access the loaded config as a dictionary
-logger.setLevel(config.get("log_level",logging.INFO)) # Set logging level if needed
-logging.basicConfig(level=config.get("log_level",logging.INFO)) # Set logging level if needed
-# --- Example for SearchInternetTool ---
-print("--- SearchInternetTool Example ---")
-search_tool = SearchInternetTool(config=config)
 
-query = "What is the capital of France?"
-num_results = 2
-search_results = search_tool._run(query=query, num_results=num_results)
+def main() -> None:
+    load_dotenv(override=True)
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
-print(f"Search results for '{query}' (limited to {num_results} results):")
-for result in search_results:
-    print(f"  Title: {result['title']}")
-    print(f"  URL: {result['href']}")
-    print(f"  Snippet: {result['snippet']}")
-    print("-" * 20)
+    app = settings.get_app()
 
-# --- Example for SuggestedSearchTermsTool ---
-print("\n--- SuggestedSearchTermsTool Example ---")
+    print("--- SearchInternetTool Example ---")
+    search_tool = SearchInternetTool()
+    query = "What is the capital of France?"
+    results = search_tool._run(query=query, num_results=2)
+    for result in results:
+        logger.info("%s (%s)", result["title"], result["href"])
 
-# Use OpenAI LLM instead of MockLLM
-openai_llm = OpenAI() # You can specify model parameters here if needed
-suggest_tool = SuggestedSearchTermsTool(config=config, llm=openai_llm)
-query = "Paris"
-num_suggestions = 3
-suggestions = suggest_tool._run(query=query, num_suggestions=num_suggestions)
+    print("\n--- SuggestedSearchTermsTool Example ---")
+    openai_llm = OpenAI()  # Relies on OPENAI_API_KEY
+    suggest_tool = SuggestedSearchTermsTool(app_config=app, llm=openai_llm)
+    suggestions = suggest_tool._run(query="Paris", num_suggestions=3)
+    for suggestion in suggestions:
+        logger.info("Suggested: %s", suggestion)
 
-print(f"Suggested search terms for '{query}' (limited to {num_suggestions} suggestions):")
-for suggestion in suggestions:
-    print(f"  - {suggestion}")
+
+if __name__ == "__main__":
+    main()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from ragdoll.config import Config
 
@@ -35,8 +35,7 @@ class AppConfig:
         if self._cache_manager is None:
             from ragdoll.cache.cache_manager import CacheManager
 
-            ttl_seconds = self.config.cache_config.cache_ttl
-            self._cache_manager = CacheManager(ttl_seconds=ttl_seconds)
+            self._cache_manager = CacheManager(app_config=self)
         return self._cache_manager
 
     def set_cache_manager(self, manager: "CacheManager") -> None:
@@ -75,6 +74,7 @@ def bootstrap_app(
     config_path: Optional[str] = None,
     *,
     config: Optional[Config] = None,
+    overrides: Optional[Dict[str, Any]] = None,
     cache_manager: Optional["CacheManager"] = None,
     metrics_manager: Optional["MetricsManager"] = None,
     prompt_templates: Optional[Dict[str, str]] = None,
@@ -87,6 +87,8 @@ def bootstrap_app(
             falls back to ``RAGDOLL_CONFIG_PATH`` or the package default.
         config: Pre-built :class:`Config` instance. Useful in tests where the
             caller already performed custom hydration.
+        overrides: Optional dictionary merged into the raw configuration dict
+            before typed models are materialized.
         cache_manager: Optional cache manager override.
         metrics_manager: Optional metrics manager override.
         prompt_templates: Preloaded prompt mapping.
@@ -97,6 +99,8 @@ def bootstrap_app(
 
     resolved_path = config_path or os.environ.get(CONFIG_ENV_VAR)
     config_instance = config or Config(resolved_path)
+    if overrides:
+        config_instance._config.update(overrides)
 
     app_config = AppConfig(config=config_instance)
     if cache_manager:

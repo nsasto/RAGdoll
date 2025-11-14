@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 from ragdoll.entity_extraction.entity_extraction_service import (
     EntityExtractionService,
 )
-from ragdoll.config import Config
+from ragdoll import settings
 from ragdoll.llms import get_llm_caller
 from ragdoll.utils import visualize_graph
 
@@ -29,13 +29,14 @@ async def main(model_name: Optional[str] = None):
     load_dotenv(override=True)
 
     # Get configuration
-    config_manager = Config()
+    app_config = settings.get_app()
+    config_manager = app_config.config
     entity_extraction_config = config_manager.entity_extraction_config.model_dump()
 
     # Use the real LLM
     model_name = model_name or "gpt-4o"  # "gpt-4o" "gpt-3.5-turbo"
     print(f"Using get_llm_caller with model: {model_name}")
-    llm_caller = get_llm_caller(model_name, config_manager)
+    llm_caller = get_llm_caller(model_name, app_config=app_config)
     if llm_caller is None:
         raise RuntimeError("Unable to load LLM caller. Check your configuration/API keys.")
 
@@ -43,6 +44,7 @@ async def main(model_name: Optional[str] = None):
     graph_service = EntityExtractionService(
         config=entity_extraction_config,
         llm_caller=llm_caller,
+        app_config=app_config,
     )
 
     # Define sample text

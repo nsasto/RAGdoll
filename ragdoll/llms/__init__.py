@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, Union
 from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 
 from ragdoll import settings
-from ragdoll.app_config import AppConfig
+from ragdoll.app_config import AppConfig, bootstrap_app
 from ragdoll.config import Config
 from .callers import BaseLLMCaller, LangChainLLMCaller
 
@@ -196,8 +196,8 @@ if __name__ == "__main__":
 
     # Example with custom config file
     try:
-        custom_config_manager = Config(config_path="path/to/your/custom_config.yaml")  # Replace with actual path
-        claude = get_llm("claude-3-5-sonnet", custom_config_manager)
+        custom_app = bootstrap_app(config_path="path/to/your/custom_config.yaml")  # Replace with actual path
+        claude = get_llm("claude-3-5-sonnet", app_config=custom_app)
         if claude:
             print(f"Loaded with custom config: {claude}")
     except FileNotFoundError:

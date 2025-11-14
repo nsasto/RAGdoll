@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 
 
 from ragdoll import settings
-from ragdoll.app_config import AppConfig
+from ragdoll.app_config import AppConfig, bootstrap_app
 from ragdoll.config import Config
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.embeddings import get_embedding_model
@@ -312,14 +312,15 @@ async def ingest_documents(
     config: Optional[Dict[str, Any]] = None,
     options: Optional[IngestionOptions] = None,
 ) -> Dict[str, Any]:
-    custom_manager = None
+    app_config = None
+    config_manager = None
     if config:
-        custom_manager = Config(None)
-        custom_manager._config.update(config)
+        app_config = bootstrap_app(overrides=config)
+        config_manager = app_config.config
 
     pipeline = IngestionPipeline(
-        config_manager=custom_manager,
-        app_config=AppConfig(config=custom_manager) if custom_manager else None,
+        config_manager=config_manager,
+        app_config=app_config,
         options=options or IngestionOptions(),
     )
     return await pipeline.ingest(sources)
