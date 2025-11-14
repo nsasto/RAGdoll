@@ -34,6 +34,12 @@ async def main(model_name: Optional[str] = None):
         
     # Sources can be file paths, URLs, or other identifiers
     sources = [str(txt_file)]
+
+    vector_store_dir = Path("./data/vector_stores/my_graph_rag")
+    graph_store_dir = Path("./data/graph_stores/my_graph_rag")
+    vector_store_dir.mkdir(parents=True, exist_ok=True)
+    graph_store_dir.mkdir(parents=True, exist_ok=True)
+    graph_store_file = graph_store_dir / "graph.pkl"
     
     print(f"Processing file: {sources[0]}")
     
@@ -46,13 +52,17 @@ async def main(model_name: Optional[str] = None):
             "chunk_size": 1000,
             "chunk_overlap": 200
         },
+        # Use Chroma so we do not need to bootstrap a FAISS index/docstore.
         vector_store_options={
-            "store_type": "faiss",
-            "persist_directory": "./data/vector_stores/my_graph_rag"
+            "store_type": "chroma",
+            "params": {
+                "collection_name": "graph_rag_demo",
+                "persist_directory": str(vector_store_dir),
+            },
         },
         graph_store_options={
             "store_type": "networkx",
-            "persist_directory": "./data/graph_stores/my_graph_rag"
+            "output_file": str(graph_store_file),
         },
         llm_caller=llm_caller,
         # Pass entity extraction specific options

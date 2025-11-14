@@ -72,6 +72,7 @@ Thumbs.db
 .data/
 .data
 */data/*
+data/
 
 # Ignore Python package metadata
 *.egg-info/

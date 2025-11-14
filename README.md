@@ -1,7 +1,7 @@
 ![Ragdoll](img/github-header-image.png)
 
 [![CI](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml/badge.svg)](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](https://github.com/nsasto/RAGdoll/releases)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/nsasto/RAGdoll/releases)
 [![Stable](https://badge.fury.io/py/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
