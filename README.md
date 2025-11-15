@@ -275,7 +275,11 @@ from ragdoll.ragdoll import Ragdoll
 # Grab the shared AppConfig (respects RAGDOLL_CONFIG_PATH when set)
 app = settings.get_app()
 config = app.config
-config._config["vector_store"]["params"]["persist_directory"] = "./my_vectors"
+vector_stores = config._config.setdefault("vector_stores", {})
+vector_stores.setdefault("default_store", "chroma")
+stores = vector_stores.setdefault("stores", {})
+chroma_settings = stores.setdefault("chroma", {})
+chroma_settings.setdefault("params", {})["persist_directory"] = "./my_vectors"
 
 # Create Ragdoll with this configuration
 ragdoll = Ragdoll(app_config=app)

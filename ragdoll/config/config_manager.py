@@ -43,6 +43,7 @@ class ConfigManager:
         self._log_loaded_config()
         self._initialize_prompts()
         self._ensure_entity_extraction_defaults()
+        self._normalize_vector_store_config()
 
     def _log_loaded_config(self) -> None:
         """Emit a debug log with the loaded configuration."""
@@ -106,6 +107,71 @@ class ConfigManager:
         retriever_defaults.setdefault("backend", "simple")
         retriever_defaults.setdefault("top_k", 5)
         retriever_defaults.setdefault("include_edges", True)
+
+    def _normalize_vector_store_config(self) -> None:
+        """
+        Support both legacy ``vector_store`` and the newer ``vector_stores`` schema.
+
+        The new format lets users define multiple backends and select a default. We
+        normalize it here so downstream code can continue to reference the legacy
+        ``vector_store`` block without caring which syntax the user chose.
+        """
+
+        if "vector_store" in self._config:
+            return
+
+        block = self._config.get("vector_stores")
+        normalized = self._coerce_vector_store_block(block)
+        if normalized:
+            self._config["vector_store"] = normalized
+        elif block is not None:
+            self.logger.warning(
+                "Unable to normalize 'vector_stores' configuration. Falling back to defaults."
+            )
+
+    def _coerce_vector_store_block(self, block: Dict[str, Any] | None) -> Dict[str, Any] | None:
+        if not isinstance(block, dict):
+            return None
+
+        stores = block.get("stores") or {}
+        default_store = block.get("default_store")
+        if not default_store and stores:
+            default_store = next(iter(stores))
+
+        store_entry = stores.get(default_store) if default_store else None
+        if store_entry is None:
+            return None
+
+        enabled = block.get("enabled")
+        params: Dict[str, Any] = {}
+        store_type = default_store
+
+        if isinstance(store_entry, dict):
+            store_type = store_entry.get("store_type", store_type)
+            if "enabled" in store_entry:
+                enabled = store_entry["enabled"]
+
+            nested_params = store_entry.get("params")
+            values = {
+                key: value
+                for key, value in store_entry.items()
+                if key not in {"store_type", "enabled", "params"}
+            }
+            params.update(values)
+            if isinstance(nested_params, dict):
+                params.update(nested_params)
+        else:
+            store_type = store_entry or store_type
+
+        top_level_params = block.get("params")
+        if isinstance(top_level_params, dict):
+            params.update(top_level_params)
+
+        return {
+            "enabled": True if enabled is None else bool(enabled),
+            "store_type": store_type,
+            "params": params,
+        }
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML and environment overrides."""

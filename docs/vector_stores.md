@@ -87,20 +87,24 @@ results = store.similarity_search("What is RAG?", k=3)
 
 - `create_vector_store(...)` instantiates an empty `VectorStore`.
 - `create_vector_store_from_documents(...)` hydrates a store using LangChain's `from_documents`.
-- `vector_store_from_config(...)` wires the `vector_store` section of `default_config.yaml`.
+- `vector_store_from_config(...)` wires the `vector_stores` section of `default_config.yaml`.
 
 ### Configuration
 
 ```yaml
-vector_store:
+vector_stores:
   enabled: true
-  store_type: chroma
-  params:
-    collection_name: ragdoll
-    persist_directory: ".ragdoll/chroma"
+  default_store: chroma
+  stores:
+    chroma:
+      params:
+        collection_name: ragdoll
+        persist_directory: ".ragdoll/chroma"
+    faiss:
+      distance_strategy: cosine
 ```
 
-Within `Ragdoll`, this configuration is read via `ConfigManager.vector_store_config` and turned into a live store:
+Within `Ragdoll`, this configuration is read via `ConfigManager.vector_store_config` (which normalizes the `vector_stores` block) and turned into a live store:
 
 ```python
 from ragdoll.config.config_manager import ConfigManager
