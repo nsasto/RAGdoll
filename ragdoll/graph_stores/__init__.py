@@ -158,10 +158,13 @@ def _create_networkx_graph_store(config: Dict[str, Any], graph: Optional[Graph] 
             # Save if output file is specified
             if "output_file" in config:
                 import pickle
-                os.makedirs(os.path.dirname(config["output_file"]), exist_ok=True)
-                with open(config["output_file"], "wb") as f:
+                output_path = config["output_file"]
+                output_dir = os.path.dirname(output_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                with open(output_path, "wb") as f:
                     pickle.dump(nx_graph, f)
-                logger.info(f"NetworkX graph saved to {config['output_file']}")
+                logger.info(f"NetworkX graph saved to {output_path}")
         
         return GraphStoreWrapper("networkx", nx_graph, config)
     
@@ -184,10 +187,13 @@ def _create_json_graph_store(config: Dict[str, Any], graph: Optional[Graph] = No
             
             # Save if output file is specified
             if "output_file" in config:
-                os.makedirs(os.path.dirname(config["output_file"]), exist_ok=True)
-                with open(config["output_file"], "w") as f:
+                output_path = config["output_file"]
+                output_dir = os.path.dirname(output_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                with open(output_path, "w") as f:
                     f.write(graph_json)
-                logger.info(f"Graph saved as JSON to {config['output_file']}")
+                logger.info(f"Graph saved as JSON to {output_path}")
             
             # Create a store that holds the JSON data
             json_store = {"data": graph_json, "graph": graph}
@@ -323,10 +329,13 @@ class GraphStoreWrapper:
             # Save to file if specified
             if "output_file" in self.config:
                 import pickle
-                os.makedirs(os.path.dirname(self.config["output_file"]), exist_ok=True)
-                with open(self.config["output_file"], "wb") as f:
+                output_path = self.config["output_file"]
+                output_dir = os.path.dirname(output_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                with open(output_path, "wb") as f:
                     pickle.dump(nx_graph, f)
-                logger.info(f"NetworkX graph saved to {self.config['output_file']}")
+                logger.info(f"NetworkX graph saved to {output_path}")
                 
             return True
             
@@ -346,10 +355,13 @@ class GraphStoreWrapper:
             
             # Save to file if specified
             if "output_file" in self.config:
-                os.makedirs(os.path.dirname(self.config["output_file"]), exist_ok=True)
-                with open(self.config["output_file"], "w") as f:
+                output_path = self.config["output_file"]
+                output_dir = os.path.dirname(output_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                with open(output_path, "w") as f:
                     f.write(graph_json)
-                logger.info(f"Graph saved as JSON to {self.config['output_file']}")
+                logger.info(f"Graph saved as JSON to {output_path}")
                 
             return True
             
