@@ -39,7 +39,7 @@ Caching improves performance by storing intermediate results (e.g., embeddings, 
 ## How It Works
 
 1. **Initialization**: The cache manager is initialized with a cache directory and TTL (time-to-live).
-2. **Caching**: Results from network or expensive operations are stored in cache (disk and memory).
+2. **Caching**: Results from network or expensive operations are stored in cache (disk and memory). `DocumentLoaderService` automatically persists non-file sources (websites, Arxiv links, remote PDFs, etc.) when `use_cache=True`.
 3. **Retrieval**: Cached results are loaded if available and valid; otherwise, new results are computed and cached.
 
 ---
@@ -69,10 +69,22 @@ Clear cached data for a given source type and/or identifier. Returns the number 
 ## Usage Example
 
 ```python
-from ragdoll.cache.cache_manager import CacheManager
-cache = CacheManager()
-docs = cache.get_from_cache("website", "https://arxiv.org/abs/1234.5678")
+from ragdoll.ingestion import DocumentLoaderService
+
+# Enable caching (True by default)
+loader = DocumentLoaderService(use_cache=True)
+loader.ingest_documents(["https://arxiv.org/abs/1234.5678"])
+
+# Subsequent runs reuse cached documents instead of re-downloading.
 ```
+
+---
+
+## Integration with DocumentLoaderService
+
+- Remote sources (any non-file `Source`) are cached automatically after a successful load.
+- Cache keys are derived from the source type (e.g., `website`, `.pdf`, `arxiv`) plus the identifier URL.
+- You can disable caching globally by passing `use_cache=False` to `DocumentLoaderService`, or configure TTL/location via `CacheManager`.
 
 ---
 

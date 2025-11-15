@@ -167,6 +167,48 @@ class TestLoadSource:
         assert docs == sample_documents
         mock_loader_instance.load.assert_called_once()
 
+    def test_remote_load_is_cached(self, sample_documents):
+        service = DocumentLoaderService(use_cache=True)
+        service.cache_manager = MagicMock()
+        service.cache_manager.get_from_cache.return_value = None
+        if hasattr(service, "metrics_manager"):
+            service.metrics_manager.start_source = MagicMock(return_value={})
+            service.metrics_manager.end_source = MagicMock(return_value={})
+
+        mock_loader_instance = MagicMock()
+        mock_loader_instance.load.return_value = sample_documents
+        mock_loader_class = MagicMock(return_value=mock_loader_instance)
+        mock_loader_class.__name__ = "MockRemoteLoader"
+        mock_loader_class.__module__ = "mock_remote_module"
+        service.loaders["website"] = mock_loader_class
+
+        source = Source(is_file=False, identifier="https://example.com", extension="website")
+        docs = service._load_source(source)
+
+        assert docs == sample_documents
+        service.cache_manager.save_to_cache.assert_called_once_with(
+            "website", source.identifier, sample_documents
+        )
+
+    def test_remote_load_uses_cache_when_available(self, sample_documents):
+        service = DocumentLoaderService(use_cache=True)
+        cached_docs = [{"page_content": "cached", "metadata": {"source": "cache"}}]
+        service.cache_manager = MagicMock()
+        service.cache_manager.get_from_cache.return_value = cached_docs
+        if hasattr(service, "metrics_manager"):
+            service.metrics_manager.start_source = MagicMock(return_value={})
+            service.metrics_manager.end_source = MagicMock(return_value={})
+
+        mock_loader_class = MagicMock()
+        service.loaders["website"] = mock_loader_class
+
+        source = Source(is_file=False, identifier="https://example.com", extension="website")
+        docs = service._load_source(source)
+
+        assert docs == cached_docs
+        mock_loader_class.assert_not_called()
+        service.cache_manager.save_to_cache.assert_not_called()
+
     def test_load_arxiv(
         self, clean_content_extraction_service, sample_documents, monkeypatch
     ):

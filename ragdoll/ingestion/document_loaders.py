@@ -167,25 +167,37 @@ class DocumentLoaderService(BaseIngestionService):
                 batch_id, source.identifier, _source_type
             )
 
+        cache_source_type = source.extension or "unknown"
+        can_use_cache = (
+            self.use_cache and not source.is_file and cache_source_type is not None
+        )
+        cached_docs: Optional[List[Dict[str, Any]]] = None
+
         try:
-            if not source.extension:
-                if self.use_cache and not source.is_file:
-                    cached = self.cache_manager.get_from_cache(
-                        "website", source.identifier
+            if can_use_cache:
+                try:
+                    cached_docs = self.cache_manager.get_from_cache(
+                        cache_source_type, source.identifier
                     )
-                    if cached:
-                        self.logger.info(
-                            f"Using cached content for {source.identifier}"
-                        )
-                        self._record_metrics(
-                            metrics_info,
-                            batch_id,
-                            source,
-                            len(cached),
-                            source_size_bytes,
-                            success=True,
-                        )
-                        return cached
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    self.logger.warning(
+                        "Unable to read cache for %s (%s): %s",
+                        source.identifier,
+                        cache_source_type,
+                        exc,
+                    )
+
+            if cached_docs:
+                self.logger.info("Using cached content for %s", source.identifier)
+                self._record_metrics(
+                    metrics_info,
+                    batch_id,
+                    source,
+                    len(cached_docs),
+                    source_size_bytes,
+                    success=True,
+                )
+                return cached_docs
 
             loader_class = (
                 self._get_loader_class(source.extension)
@@ -256,6 +268,18 @@ class DocumentLoaderService(BaseIngestionService):
                     source_size_bytes,
                     success=True,
                 )
+                if can_use_cache and docs:
+                    try:
+                        self.cache_manager.save_to_cache(
+                            cache_source_type, source.identifier, docs
+                        )
+                    except Exception as exc:  # pragma: no cover - defensive logging
+                        self.logger.warning(
+                            "Unable to cache %s (%s): %s",
+                            source.identifier,
+                            cache_source_type,
+                            exc,
+                        )
                 return docs
             else:
                 self.logger.error(
