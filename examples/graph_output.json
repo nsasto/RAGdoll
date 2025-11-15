@@ -1,354 +1,851 @@
 {
   "nodes": [
     {
-      "id": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
+      "id": "spacy-e246aac7ea294ba49ea0624adc0902ec",
       "type": "PERSON",
-      "name": "Barack Obama",
+      "name": "Lorem",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "dfee3845-0d62-4d1f-90a3-0896ff6b41f1",
-      "type": "ORDINAL",
-      "name": "44th",
+      "id": "spacy-c4666ba4adf64776bf56f890c8627705",
+      "type": "ORG",
+      "name": "Retrieval-Augmented Generation (RAG",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "fe8befd3-dc5c-41f8-8105-25db52f41d4a",
-      "type": "ROLE",
-      "name": "President",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "5f086c56-81c4-4278-811e-ec368810e634",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "United States",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "7ed09e2d-1fc7-4c7d-be46-74967477dade",
-      "type": "LOCATION",
-      "name": "Honolulu",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "0ab7eeeb-2fab-4df8-92c0-b5973163636b",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "Hawaii",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "ec330e56-b95b-4d16-baca-87d31c1bb15a",
+      "id": "spacy-797e590ac92d48d28fe364d0cc10d4d5",
       "type": "PERSON",
-      "name": "Michelle Obama",
+      "name": "RAG",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "60f15ebf-8dca-44cb-9f78-ddd51776c8a4",
+      "id": "spacy-db1c4feac7954cd382f89bacfcd2a8dc",
       "type": "PERSON",
-      "name": "Malia Ann Obama",
+      "name": "RAG",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "96e89382-098c-4536-8f0e-d59594f36c77",
+      "id": "spacy-d7c48d36d01b4e1a87b5a497f2d4f001",
       "type": "PERSON",
-      "name": "Sasha Obama",
+      "name": "RAG",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "536c089c-fa99-479d-b94c-fd2a07ac0a3f",
-      "type": "ROLE",
-      "name": "U.S. Senator",
+      "id": "spacy-e954242e229646f0908094cb33a7f6e5",
+      "type": "GPE",
+      "name": "RAG",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "7e922738-44e6-497d-a241-67e2c1907e1f",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "Illinois",
-      "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_1",
-        "chunk_idx": 0
-      }
-    },
-    {
-      "id": "c22c92a1-c1b5-451d-8ba9-13fec31a4bdc",
+      "id": "spacy-28e4408a8caa4e0b821e7b41c01e6c25",
       "type": "PERSON",
-      "name": "Angela Merkel",
+      "name": "Convert",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "b01f5d54-d218-4fa7-9c93-225375bf078d",
-      "type": "ROLE",
-      "name": "Chancellor",
+      "id": "spacy-db99f9c8faaf4c60ab8248a1b33454a6",
+      "type": "GPE",
+      "name": "RAG",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "deef3473-c7ae-454c-ab39-a304f8344e88",
-      "type": "GEO_POLITICAL_ENTITY",
-      "name": "Germany",
+      "id": "spacy-3de71c6a096848a0a07d55b19355f736",
+      "type": "ORG",
+      "name": "BERT",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "2480074e-1b0e-4f69-b57a-1d44ca52d073",
+      "id": "spacy-b55079f3fd4d49a48cb17bde368928df",
+      "type": "ORG",
+      "name": "Sentence-BERT",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-ee09fb544dfa4a6db187a57fbdb5841e",
+      "type": "ORG",
+      "name": "Google Search API",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-3432c5b99f25401f84223b55e5b93aad",
+      "type": "ORG",
+      "name": "PyTorch",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-c90e125346c246f1bee506dc0a67e4a2",
+      "type": "PERSON",
+      "name": "RAG",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-113dbb5529534e3c8b75542c769c7833",
+      "type": "ORG",
+      "name": "AWS",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-075a767c71574fc9b41cb39609ee598f",
+      "type": "PERSON",
+      "name": "Google Cloud",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-8fd5baf0794b4400bdbd8c5dad4b0a48",
+      "type": "CARDINAL",
+      "name": "#",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-e889214dc8e149e49b5ca463d5d6f34a",
       "type": "DATE",
-      "name": "2005",
+      "name": "the early 2010s",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "6aa69068-07c6-410f-8435-a3bf84294eb8",
+      "id": "spacy-09fe93ff16574b04a6d5c085c76100b0",
+      "type": "PERSON",
+      "name": "GloVe",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-fb076fc7eeea457eadbca4a3d58bed9b",
       "type": "DATE",
-      "name": "2021",
+      "name": "2017",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "7d78d159-d851-45e1-8472-1e9b148d182e",
-      "type": "LOCATION",
-      "name": "Hamburg",
+      "id": "spacy-bb0074000e5d4e7d809dfcac68c7bc11",
+      "type": "WORK_OF_ART",
+      "name": "Attention is All You Need",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     },
     {
-      "id": "36d21533-a711-45aa-a60e-c2b250812e99",
-      "type": "EVENT",
-      "name": "European financial crisis",
+      "id": "spacy-899a02494f914bad8f9c026fd6054960",
+      "type": "PERSON",
+      "name": "Vaswani",
       "metadata": {
-        "start_char": null,
-        "end_char": null,
-        "source_document_id": "example_doc_2",
-        "chunk_idx": 0
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-94089b30d0bc4a59b37e1b62e305bf3e",
+      "type": "ORG",
+      "name": "BERT",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-9cca27eb3b8242ee8581d1348ad6e231",
+      "type": "GPE",
+      "name": "AI",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-564291c7edde49a4b0a845347eabe87d",
+      "type": "GPE",
+      "name": "AI",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-1eb9bc69d52c4b0bb9013252974f3aa1",
+      "type": "DATE",
+      "name": "2019",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-8bb2a4a747a34964ba66d6f46fdc2e18",
+      "type": "CARDINAL",
+      "name": "1.5 billion",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-e6a2be9ae1dc408585a9bda13b3277c5",
+      "type": "ORG",
+      "name": "GPT-3",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-04ba9afb866d4fb697e63dcc578c2645",
+      "type": "DATE",
+      "name": "2020",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-2fc57fca84fa42fdba45e8a4f4ae737a",
+      "type": "CARDINAL",
+      "name": "175 billion",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-949c5c3d6cff49fdb4fe0aeeab3fed41",
+      "type": "CARDINAL",
+      "name": "zero",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-f63580dab8a74a6f8e73c2b0a56d1175",
+      "type": "WORK_OF_ART",
+      "name": "Optimization and Accessibility",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-fd8328365b454d99a77949d322e6a912",
+      "type": "WORK_OF_ART",
+      "name": "Optimization and Accessibility\n\n",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-46bbac136aff461e9935694d3417591e",
+      "type": "DATE",
+      "name": "early 2020s",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-87dbb6e5d03d489d800874fb861d1a9a",
+      "type": "ORG",
+      "name": "T5",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-5e7f3c551ae64017ac9bdd8aed3fd062",
+      "type": "ORG",
+      "name": "BART",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-1d4ba31f48eb428e827e11370befbbb9",
+      "type": "ORG",
+      "name": "Hugging Face\u2019s Transformers",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-8897d68469be4ec2a660afb717110dc8",
+      "type": "ORG",
+      "name": "LLM",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-865a1aa1b7194fd0a906c40ca7941999",
+      "type": "DATE",
+      "name": "2020",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-2d81a270477d4455bd0d28532b406c73",
+      "type": "ORG",
+      "name": "Retrieval-Augmented Generation",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-61da5b092657406b87be79ac828c92cc",
+      "type": "PERSON",
+      "name": "RAG",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-a8dd2699cdea4ab09eae49aa3be1f865",
+      "type": "PERSON",
+      "name": "RAG",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-c316d82feeba446d9caad387d83f9829",
+      "type": "PERSON",
+      "name": "Multimodal",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-c0c991e98fe14d629c1a0b02a3af0eb2",
+      "type": "ORG",
+      "name": "Adaptive Models",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-2ceb811558214ea0b59669d3acc9778f",
+      "type": "ORG",
+      "name": "Adaptive Models\n\n",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-199362a6368f4502b28a49992adac775",
+      "type": "ORG",
+      "name": "CLIP",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-c8abb5de64094eadb0cc6245020de837",
+      "type": "CARDINAL",
+      "name": "#",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
+      }
+    },
+    {
+      "id": "spacy-74c0f0408f974f7fa88b53e9f5a7db6b",
+      "type": "GPE",
+      "name": "AI",
+      "metadata": {
+        "source": "C:\\dev\\RAGdoll\\tests\\test_data\\test_docx.docx",
+        "success": true,
+        "conversion_success": true,
+        "file_name": "test_docx.docx",
+        "file_size": 328097,
+        "author": "Nathan Sasto",
+        "created": "2025-04-08 13:25:00+00:00",
+        "modified": "2025-05-28 19:59:00+00:00",
+        "last_modified_by": "Nathan Sasto",
+        "revision": "3",
+        "content_type": "document_full"
       }
     }
   ],
-  "edges": [
-    {
-      "id": "1b7f7d9a-d723-463d-8e35-97659a6a4480",
-      "source": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
-      "target": "dfee3845-0d62-4d1f-90a3-0896ff6b41f1",
-      "type": "HAS_ROLE",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "cc26c295-a116-4c50-ae8f-18c3cb9a481f",
-      "source": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
-      "target": "fe8befd3-dc5c-41f8-8105-25db52f41d4a",
-      "type": "HAS_ROLE",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "ca3d25e5-5a87-4499-a4a1-ee303ba2202d",
-      "source": "fe8befd3-dc5c-41f8-8105-25db52f41d4a",
-      "target": "5f086c56-81c4-4278-811e-ec368810e634",
-      "type": "BELONGS_TO",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "1495263f-4d84-4985-908d-bac4644599d6",
-      "source": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
-      "target": "7ed09e2d-1fc7-4c7d-be46-74967477dade",
-      "type": "BORN_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "476a9590-8c14-4ff9-9b73-488e576f2049",
-      "source": "7ed09e2d-1fc7-4c7d-be46-74967477dade",
-      "target": "0ab7eeeb-2fab-4df8-92c0-b5973163636b",
-      "type": "LOCATED_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "59409d09-9098-4acd-bc30-f3341713e492",
-      "source": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
-      "target": "ec330e56-b95b-4d16-baca-87d31c1bb15a",
-      "type": "SPOUSE_OF",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "d9948279-b47d-4dae-85c9-238b55a24970",
-      "source": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
-      "target": "60f15ebf-8dca-44cb-9f78-ddd51776c8a4",
-      "type": "PARENT_OF",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "17f2e361-92cf-4319-a1e5-71825c3282ae",
-      "source": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
-      "target": "96e89382-098c-4536-8f0e-d59594f36c77",
-      "type": "PARENT_OF",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "68c8eae1-6eae-4128-8809-1fbebaf4059f",
-      "source": "ab7ddf74-af1d-4c26-9bd7-a02e5b4dbb05",
-      "target": "536c089c-fa99-479d-b94c-fd2a07ac0a3f",
-      "type": "HAS_ROLE",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "cb44143b-8796-4474-8874-08dd187dbbbe",
-      "source": "536c089c-fa99-479d-b94c-fd2a07ac0a3f",
-      "target": "7e922738-44e6-497d-a241-67e2c1907e1f",
-      "type": "BELONGS_TO",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_1"
-    },
-    {
-      "id": "4a02c962-9965-404d-9b0e-a10f98cd8f66",
-      "source": "c22c92a1-c1b5-451d-8ba9-13fec31a4bdc",
-      "target": "b01f5d54-d218-4fa7-9c93-225375bf078d",
-      "type": "HAS_ROLE",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "1ff1314f-b5ef-4b2d-a3fd-b423895a465f",
-      "source": "c22c92a1-c1b5-451d-8ba9-13fec31a4bdc",
-      "target": "deef3473-c7ae-454c-ab39-a304f8344e88",
-      "type": "WORKS_FOR",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "26d244ec-8713-4bab-b33b-b0d299e27676",
-      "source": "c22c92a1-c1b5-451d-8ba9-13fec31a4bdc",
-      "target": "7d78d159-d851-45e1-8472-1e9b148d182e",
-      "type": "BORN_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "9c7cdb2e-cbb2-4e5e-988f-b2bfd71f4241",
-      "source": "7d78d159-d851-45e1-8472-1e9b148d182e",
-      "target": "deef3473-c7ae-454c-ab39-a304f8344e88",
-      "type": "LOCATED_IN",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    },
-    {
-      "id": "5e4eeb37-8c94-4644-b8ad-c8793d039783",
-      "source": "c22c92a1-c1b5-451d-8ba9-13fec31a4bdc",
-      "target": "36d21533-a711-45aa-a60e-c2b250812e99",
-      "type": "MANAGES",
-      "metadata": {
-        "chunk_idx": 0
-      },
-      "source_document_id": "example_doc_2"
-    }
-  ]
+  "edges": []
 }

@@ -179,7 +179,7 @@ llm_prompts:
   entity_relationship_gleaning_continue: entity_relationship_gleaning_continue
 
 llms:
-  default_model: gpt-4o-nano
+  default_model: gpt-4o-mini
   model_list:
     - model_name: gpt-4o
       provider: openai
@@ -188,10 +188,10 @@ llms:
         api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 8192
-    - model_name: gpt-4o-nano
+    - model_name: gpt-4o-mini
       provider: openai
       params:
-        model: gpt-4o-nano
+        model: gpt-4o-mini
         api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 4096

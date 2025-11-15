@@ -17,6 +17,8 @@ from ragdoll.app_config import AppConfig
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings.fake import FakeEmbeddings
 
+from ragdoll.utils.env import resolve_env_reference
+
 logger = logging.getLogger("ragdoll.embeddings")
 
 
@@ -155,11 +157,11 @@ def _create_openai_embeddings(model_params: Dict[str, Any]) -> Optional[Embeddin
         model = model_params.pop("model", "text-embedding-3-large")
         dimensions = model_params.pop("dimensions", None)
         api_key = model_params.pop("api_key", os.environ.get("OPENAI_API_KEY"))
-
-        # Handle environment variable references
-        if api_key and isinstance(api_key, str) and api_key.startswith("#"):
-            env_var = api_key[1:]
-            api_key = os.environ.get(env_var)
+        api_key = resolve_env_reference(
+            api_key,
+            label="OpenAI embeddings API key",
+            warn=lambda msg: logger.warning(msg),
+        )
 
         # Create embeddings model
         if dimensions is not None:
@@ -217,11 +219,11 @@ def _create_cohere_embeddings(model_params: Dict[str, Any]) -> Optional[Embeddin
 
         # Extract API key
         api_key = model_params.pop("api_key", os.environ.get("COHERE_API_KEY"))
-
-        # Handle environment variable references
-        if api_key and isinstance(api_key, str) and api_key.startswith("#"):
-            env_var = api_key[1:]
-            api_key = os.environ.get(env_var)
+        api_key = resolve_env_reference(
+            api_key,
+            label="Cohere embeddings API key",
+            warn=lambda msg: logger.warning(msg),
+        )
 
         # Create embeddings model
         return CohereEmbeddings(cohere_api_key=api_key, **model_params)

@@ -14,6 +14,7 @@ from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 from ragdoll import settings
 from ragdoll.app_config import AppConfig, bootstrap_app
 from ragdoll.config import Config
+from ragdoll.utils.env import resolve_env_reference
 from .callers import BaseLLMCaller, LangChainLLMCaller
 
 logger = logging.getLogger("ragdoll.llms")
@@ -26,19 +27,22 @@ def _resolve_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
     """Resolves environment variable references in a configuration dictionary."""
     processed_config = {}
     for key, value in config.items():
-        if isinstance(value, str) and value.startswith("os.environ/"):
-            env_var = value.split("/", 1)[1]
-            env_value = os.environ.get(env_var)
-            if env_value is None:
-                logger.warning(f"Environment variable '{env_var}' not found for key '{key}'")
-            processed_config[key] = env_value
-        else:
-            processed_config[key] = value
+        resolved = resolve_env_reference(
+            value,
+            label=f"LLM config key '{key}'",
+            warn=lambda msg: logger.warning(msg),
+        )
+        processed_config[key] = resolved
     return processed_config
 
 def _set_api_key_from_config(provider: Optional[str], config: Dict[str, Any]) -> None:
     """Sets the API key as an environment variable if provided in the config."""
     api_key = config.pop("api_key", None)
+    api_key = resolve_env_reference(
+        api_key,
+        label="LLM API key",
+        warn=lambda msg: logger.warning(msg),
+    )
     if api_key:
         if provider == "openai":
             os.environ["OPENAI_API_KEY"] = api_key

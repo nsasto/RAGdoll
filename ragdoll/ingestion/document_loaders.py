@@ -281,20 +281,12 @@ class DocumentLoaderService(BaseIngestionService):
         if loader_entry is None:
             return None
 
-        if inspect.isclass(loader_entry):
-            return loader_entry
-
         if not isinstance(loader_entry, str):
-            self.logger.warning(
-                "Loader entry for extension %s is neither class nor import string: %r",
-                extension,
-                loader_entry,
-            )
-            return None
+            return loader_entry
 
         with self._loader_lock:
             loader_entry = self.loaders.get(extension)
-            if inspect.isclass(loader_entry):
+            if not isinstance(loader_entry, str):
                 return loader_entry
             try:
                 loader_class = self._import_loader_from_path(loader_entry, extension)
