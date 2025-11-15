@@ -231,8 +231,10 @@ class GraphPersistenceService:
         driver = GraphDatabase.driver(uri, auth=(user, password))
         logger.info("Writing graph to Neo4j at %s", uri)
 
+        clear_before_save = self.neo4j_config.get("clear_before_save", False)
         with driver.session() as session:
-            session.run("MATCH (n) DETACH DELETE n")
+            if clear_before_save:
+                session.run("MATCH (n) DETACH DELETE n")
 
             for node in graph.nodes:
                 session.run(

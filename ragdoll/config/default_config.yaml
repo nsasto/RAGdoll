@@ -153,6 +153,7 @@ entity_extraction:
   output_format: "json"
   graph_database_config:
     output_file: "graph_output.json"
+    clear_before_save: false
   relationship_parsing:
     preferred_format: "auto"
     parser_class:

@@ -33,6 +33,7 @@ Graph stores manage relationships between document chunks, entities, or concepts
 - Flexible graph schema.
 - Relationship and entity management.
 - Useful for advanced retrieval and reasoning.
+- Neo4j persistence supports optional database clearing via `graph_database_config.clear_before_save`.
 
 ---
 
@@ -72,6 +73,10 @@ store.add_node("doc1", {"title": "Document 1"})
 store.add_edge("doc1", "doc2", "references", {})
 results = store.query_graph("MATCH (n)-[r]->(m) RETURN n, r, m")
 ```
+
+### Neo4j Configuration Tips
+
+- Set `entity_extraction.graph_database_config.clear_before_save: true` if you want RAGdoll to wipe the destination database before each ingestion run. It defaults to `false` to avoid accidental data loss.
 
 ---
 
