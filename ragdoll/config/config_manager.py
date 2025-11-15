@@ -208,91 +208,24 @@ class ConfigManager:
 
         return LLMPromptsConfig.model_validate(self._config.get("llm_prompts", {}))
 
-    def get_loader_mapping(self) -> Dict[str, Type]:
+    def get_loader_mapping(self) -> Dict[str, Type | str]:
         """
-        Get the loader mapping with imported classes.
+        Get the loader mapping with deferred imports.
 
         Returns:
-            Dictionary mapping file extensions to loader classes.
+            Dictionary mapping file extensions to loader classes or import paths.
         """
 
-        # import registry lazily to avoid circular imports at module import time
-        from ragdoll.ingestion import get_loader as registry_get_loader
-
         loaders_config: LoadersConfig | None = self.ingestion_config.loaders
-        result: Dict[str, Type] = {}
+        result: Dict[str, Type | str] = {}
         file_mappings = getattr(loaders_config, "file_mappings", None)
         self.logger.info("Raw file mappings from config: %s", file_mappings or "None")
 
         if file_mappings:
             for ext, class_path in file_mappings.items():
-                self.logger.debug("Loading loader for extension '%s' via %s", ext, class_path)
-                module_path: str | None = None
-
-                try:
-                    # First try the short-name registry (preferred)
-                    loader_class = registry_get_loader(class_path)
-                    if loader_class:
-                        self.logger.debug("Resolved loader for %s via registry: %s", ext, class_path)
-                        try:
-                            from ragdoll.ingestion import register_loader_class
-
-                            norm_ext = ext.lstrip(".").lower() if isinstance(ext, str) else ext
-                            register_loader_class(norm_ext, loader_class)
-                        except Exception:
-                            pass
-                    else:
-                        module_path, class_name = class_path.rsplit(".", 1)
-                        self.logger.debug("Importing module %s, class %s", module_path, class_name)
-                        module = import_module(module_path)
-
-                        if not hasattr(module, class_name):
-                            self.logger.warning(
-                                "Module %s does not have attribute %s for extension %s. Skipping.",
-                                module_path,
-                                class_name,
-                                ext,
-                            )
-                            continue
-
-                        loader_class = getattr(module, class_name)
-                        try:
-                            from ragdoll.ingestion import register_loader_class
-
-                            norm_ext = ext.lstrip(".").lower() if isinstance(ext, str) else ext
-                            register_loader_class(norm_ext, loader_class)
-                        except Exception:
-                            pass
-                    self.logger.info(
-                        "For extension %s: loaded %s from %s",
-                        ext,
-                        loader_class.__name__,
-                        loader_class.__module__,
-                    )
-                    result[ext] = loader_class
-
-                except ImportError:
-                    self.logger.warning(
-                        "Module %s for extension %s could not be imported. "
-                        "This extension will not be supported.",
-                        module_path or class_path,
-                        ext,
-                    )
-                except (AttributeError, ValueError) as exc:
-                    self.logger.warning(
-                        "Error loading loader for extension %s: %s",
-                        ext,
-                        exc,
-                    )
-
-        if result:
-            self.logger.info("Loaded %s file extension loaders.", len(result))
-            for ext, loader in result.items():
-                self.logger.info(
-                    "Final loader mapping: %s -> %s from %s",
-                    ext,
-                    loader.__name__,
-                    loader.__module__,
+                result[ext] = class_path
+                self.logger.debug(
+                    "Registered loader path for extension '%s': %s", ext, class_path
                 )
         else:
             self.logger.warning("No file extension loaders were registered.")

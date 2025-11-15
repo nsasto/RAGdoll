@@ -8,7 +8,7 @@ How it works
 
 - Modules can register a loader class with the registry using the `@register_loader("name")` decorator found in `ragdoll.ingestion`.
 - The configuration may contain `file_mappings` that map file extensions to either a short registry name (preferred) or a full import string (legacy).
-- `ConfigManager.get_loader_mapping()` prefers registry names and falls back to dynamic import when necessary.
+- `DocumentLoaderService` resolves configured entries lazily, preferring registry names and importing modules only when the loader is first needed.
 
 Example
 
@@ -69,7 +69,7 @@ and receive the same class.
 
 Validation and migration
 
-- To surface misconfigured loader names early, instantiate a `ConfigManager` at startup — it will attempt to resolve configured loaders when `DocumentLoaderService` initializes.
+- To surface misconfigured loader names early, run an ingestion pass (or the import smoke tests) — loader modules are only imported when the service encounters a matching extension.
 - For a migration path, replace import-strings in your configs with short registry names once you register the desired loader classes.
 
 Debugging

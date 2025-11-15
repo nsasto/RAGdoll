@@ -1,6 +1,8 @@
 import concurrent.futures
 import logging
 import inspect
+from importlib import import_module
+from threading import Lock
 from glob import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -89,6 +91,7 @@ class DocumentLoaderService(BaseIngestionService):
             self.metrics_manager = MetricsManager()
 
         self.loaders = self.config_manager.get_loader_mapping()
+        self._loader_lock = Lock()
         self.logger.debug(f"Available loaders: {list(self.loaders.keys())}")
 
         if custom_loaders:
@@ -184,8 +187,13 @@ class DocumentLoaderService(BaseIngestionService):
                         )
                         return cached
 
-            if source.extension in self.loaders:
-                loader_class = self.loaders[source.extension]
+            loader_class = (
+                self._get_loader_class(source.extension)
+                if source.extension is not None
+                else None
+            )
+
+            if loader_class:
 
                 # Log which loader is being used for which file
                 loader_name = getattr(loader_class, "__name__", repr(loader_class))
@@ -264,6 +272,75 @@ class DocumentLoaderService(BaseIngestionService):
                 metrics_info, batch_id, source, 0, 0, success=False, error=str(e)
             )
             return []
+
+    def _get_loader_class(self, extension: Optional[str]) -> Optional[type]:
+        if not extension:
+            return None
+
+        loader_entry = self.loaders.get(extension)
+        if loader_entry is None:
+            return None
+
+        if inspect.isclass(loader_entry):
+            return loader_entry
+
+        if not isinstance(loader_entry, str):
+            self.logger.warning(
+                "Loader entry for extension %s is neither class nor import string: %r",
+                extension,
+                loader_entry,
+            )
+            return None
+
+        with self._loader_lock:
+            loader_entry = self.loaders.get(extension)
+            if inspect.isclass(loader_entry):
+                return loader_entry
+            try:
+                loader_class = self._import_loader_from_path(loader_entry, extension)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                self.logger.warning(
+                    "Failed to import loader %s for extension %s: %s",
+                    loader_entry,
+                    extension,
+                    exc,
+                )
+                return None
+
+            self.loaders[extension] = loader_class
+            return loader_class
+
+    def _import_loader_from_path(self, class_path: str, extension: str) -> type:
+        from ragdoll.ingestion import get_loader as registry_get_loader
+
+        loader_class = registry_get_loader(class_path)
+
+        if not loader_class:
+            module_path, class_name = class_path.rsplit(".", 1)
+            module = import_module(module_path)
+            if not hasattr(module, class_name):
+                raise AttributeError(
+                    f"Module {module_path} does not have attribute {class_name}"
+                )
+            loader_class = getattr(module, class_name)
+
+        try:
+            from ragdoll.ingestion import register_loader_class
+
+            norm_ext = (
+                extension.lstrip(".").lower() if isinstance(extension, str) else extension
+            )
+            register_loader_class(norm_ext, loader_class)
+        except Exception:
+            pass
+
+        self.logger.info(
+            "Resolved loader for extension %s: %s from %s",
+            extension,
+            loader_class.__name__,
+            loader_class.__module__,
+        )
+        return loader_class
 
     def _record_metrics(
         self,

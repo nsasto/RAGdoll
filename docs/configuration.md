@@ -66,9 +66,9 @@ Initializes the config manager with a path to the YAML config file (or uses defa
 
 Properties to access validated config objects for each module.
 
-#### `get_loader_mapping() -> Dict[str, Type]`
+#### `get_loader_mapping() -> Dict[str, Type | str]`
 
-Returns a mapping of file extensions to loader classes, loaded dynamically from config.
+Returns a mapping of file extensions to loader classes or import strings. Loader modules are imported lazily by the ingestion service when each extension is encountered.
 
 ---
 
