@@ -142,7 +142,7 @@ class IngestionPipeline:
             vector_overrides = self.options.vector_store_options or {}
             for key, value in vector_overrides.items():
                 if key == "params" and isinstance(value, dict):
-                    vector_config.params.update(value)
+                    vector_config.params = value
                 elif hasattr(vector_config, key):
                     setattr(vector_config, key, value)
 
