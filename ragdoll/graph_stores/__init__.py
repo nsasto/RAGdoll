@@ -13,6 +13,7 @@ from ragdoll import settings
 from ragdoll.app_config import AppConfig
 from ragdoll.config.base_config import GraphDatabaseConfig
 from ragdoll.entity_extraction.models import Graph, GraphNode, GraphEdge
+from ragdoll.entity_extraction.graph_persistence import GraphPersistenceService
 
 logger = logging.getLogger("ragdoll.graph_stores")
 
@@ -105,54 +106,23 @@ def get_graph_store(
 def _create_neo4j_graph_store(config: Dict[str, Any], graph: Optional[Graph] = None) -> Any:
     """Create a Neo4j graph store."""
     try:
-        from py2neo import Graph as Neo4jGraph, Node, Relationship
-        
-        # Check for required config
+        from py2neo import Graph as Neo4jGraph
+
         uri = config.get("uri", "bolt://localhost:7687")
         user = config.get("user", "neo4j")
         password = config.get("password", "password")
-            
-        # Connect to Neo4j
+
         neo4j_graph = Neo4jGraph(uri, auth=(user, password))
-        
-        # If graph is provided, store it
+
         if graph:
-            # Create transaction
-            tx = neo4j_graph.begin()
-            
-            # Create nodes
-            neo4j_nodes = {}
-            for node in graph.nodes:
-                neo4j_node = Node(
-                    node.type,
-                    id=node.id,
-                    name=node.name,
-                    **node.metadata
-                )
-                neo4j_nodes[node.id] = neo4j_node
-                tx.create(neo4j_node)
-            
-            # Create relationships
-            for edge in graph.edges:
-                if edge.source in neo4j_nodes and edge.target in neo4j_nodes:
-                    source_node = neo4j_nodes[edge.source]
-                    target_node = neo4j_nodes[edge.target]
-                    relationship = Relationship(
-                        source_node, 
-                        edge.type, 
-                        target_node,
-                        id=edge.id,
-                        source_document_id=edge.source_document_id,
-                        **edge.metadata
-                    )
-                    tx.create(relationship)
-            
-            # Commit transaction
-            tx.commit()
-            logger.info(f"Graph stored in Neo4j at {uri}")
-        
+            persistence = GraphPersistenceService(
+                output_format="neo4j",
+                neo4j_config=config,
+            )
+            persistence.save(graph)
+
         return GraphStoreWrapper("neo4j", neo4j_graph, config)
-    
+
     except ImportError:
         logger.error("py2neo not installed. Install with: pip install py2neo")
         return None
@@ -317,43 +287,13 @@ class GraphStoreWrapper:
     def _save_to_neo4j(self, graph: Graph) -> bool:
         """Save graph to Neo4j."""
         try:
-            neo4j_graph = self.store
-            
-            # Create transaction
-            tx = neo4j_graph.begin()
-            
-            # Create nodes
-            neo4j_nodes = {}
-            for node in graph.nodes:
-                neo4j_node = self.store.__class__.Node(
-                    node.type,
-                    id=node.id,
-                    name=node.name,
-                    **node.metadata
-                )
-                neo4j_nodes[node.id] = neo4j_node
-                tx.create(neo4j_node)
-            
-            # Create relationships
-            for edge in graph.edges:
-                if edge.source in neo4j_nodes and edge.target in neo4j_nodes:
-                    source_node = neo4j_nodes[edge.source]
-                    target_node = neo4j_nodes[edge.target]
-                    relationship = self.store.__class__.Relationship(
-                        source_node, 
-                        edge.type, 
-                        target_node,
-                        id=edge.id,
-                        source_document_id=edge.source_document_id,
-                        **edge.metadata
-                    )
-                    tx.create(relationship)
-            
-            # Commit transaction
-            tx.commit()
-            logger.info(f"Graph saved to Neo4j")
+            persistence = GraphPersistenceService(
+                output_format="neo4j",
+                neo4j_config=self.config,
+            )
+            persistence.save(graph)
             return True
-            
+
         except Exception as e:
             logger.error(f"Error saving to Neo4j: {e}")
             return False
