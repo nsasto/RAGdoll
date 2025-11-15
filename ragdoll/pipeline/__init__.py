@@ -221,12 +221,25 @@ class IngestionPipeline:
             source for source in sources if isinstance(source, Document)
         ]
 
+        def _coerce_to_document(obj: Any) -> Document:
+            if isinstance(obj, Document):
+                return obj
+            if isinstance(obj, dict):
+                page_content = obj.get("page_content") or obj.get("text") or ""
+                metadata = obj.get("metadata") or {}
+                return Document(page_content=page_content, metadata=metadata)
+            if hasattr(obj, "page_content"):
+                # Support simple objects that expose the same attributes
+                metadata = getattr(obj, "metadata", {}) or {}
+                return Document(page_content=getattr(obj, "page_content"), metadata=metadata)
+            raise TypeError(
+                f"Unsupported document payload type: {type(obj)!r}. "
+                "Expected langchain Document, dict, or object with 'page_content'."
+            )
+
         if string_sources:
             extracted = self.content_extraction_service.ingest_documents(string_sources)
-            raw_docs.extend(
-                Document(page_content=doc["page_content"], metadata=doc["metadata"])
-                for doc in extracted
-            )
+            raw_docs.extend(_coerce_to_document(doc) for doc in extracted)
 
         raw_docs.extend(document_sources)
         self.stats["documents_processed"] = len(raw_docs)

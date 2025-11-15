@@ -179,42 +179,8 @@ llm_prompts:
   entity_relationship_gleaning_continue: entity_relationship_gleaning_continue
 
 llms:
+  default_model: gpt-4o-nano
   model_list:
-    - model_name: basic_model
-      provider: openai
-      params:
-        model: gpt-3.5-turbo
-        api_key: "os.environ/OPENAI_API_KEY"
-        temperature: 0.0
-        max_tokens: 1024
-    - model_name: default_model
-      provider: openai
-      params:
-        model: gpt-4o
-        api_key: "os.environ/OPENAI_API_KEY"
-        temperature: 0.0
-        max_tokens: 8192
-    - model_name: reasoning_model
-      provider: openai
-      params:
-        model: gpt-4o
-        api_key: "os.environ/OPENAI_API_KEY"
-        temperature: 0.0
-        max_tokens: 8192
-    - model_name: vision_model
-      provider: openai
-      params:
-        model: gpt-4o
-        api_key: "os.environ/OPENAI_API_KEY"
-        temperature: 0.0
-        max_tokens: 8192
-    - model_name: gpt-3.5-turbo
-      provider: openai
-      params:
-        model: gpt-3.5-turbo
-        api_key: "os.environ/OPENAI_API_KEY"
-        temperature: 0.0
-        max_tokens: 1024
     - model_name: gpt-4o
       provider: openai
       params:
@@ -222,6 +188,13 @@ llms:
         api_key: "os.environ/OPENAI_API_KEY"
         temperature: 0.0
         max_tokens: 8192
+    - model_name: gpt-4o-nano
+      provider: openai
+      params:
+        model: gpt-4o-nano
+        api_key: "os.environ/OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 4096
     - model_name: claude-3-5-sonnet
       provider: anthropic
       params:
