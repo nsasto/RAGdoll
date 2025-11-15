@@ -228,16 +228,16 @@ def split_markdown_documents(
     """
     result = []
     for doc in documents:
-        # The MarkdownHeaderTextSplitter needs to be used differently:
-        # First split the text into chunks with headers
-        headers_to_split_on = markdown_splitter.headers_to_split_on
         splits = markdown_splitter.split_text(doc.page_content)
 
-        # Create new documents with original metadata
-        for i, split_text in enumerate(splits):
-            metadata = doc.metadata.copy()
+        for i, chunk in enumerate(splits):
+            metadata = dict(doc.metadata or {})
+            page_text = chunk
+            if isinstance(chunk, Document):
+                page_text = chunk.page_content
+                metadata.update(chunk.metadata or {})
             metadata["chunk"] = i
-            result.append(Document(page_content=split_text, metadata=metadata))
+            result.append(Document(page_content=str(page_text), metadata=metadata))
 
     return result
 
@@ -273,6 +273,10 @@ def split_documents(
     """
     if not documents:
         return []
+
+    splitter_override = kwargs.pop("splitter", None)
+    if text_splitter is None and splitter_override is not None:
+        text_splitter = splitter_override
 
     # First, fix any nested Document objects
     valid_documents = []
@@ -351,8 +355,10 @@ def split_documents(
                 **kwargs,
             )
 
-        # Use the standard split_documents method for all splitter types
-        result = text_splitter.split_documents(documents)
+        if isinstance(text_splitter, MarkdownHeaderTextSplitter):
+            result = split_markdown_documents(documents, text_splitter, **kwargs)
+        else:
+            result = text_splitter.split_documents(documents)
 
         logger.debug(f"Split {len(documents)} documents into {len(result)} chunks")
         return result

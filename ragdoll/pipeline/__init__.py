@@ -1,10 +1,9 @@
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 from pathlib import Path
+import math
 import logging
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-
 from langchain_core.documents import Document
 
 
@@ -14,6 +13,7 @@ from ragdoll.config import Config
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.embeddings import get_embedding_model
 from ragdoll.entity_extraction import EntityExtractionService
+from ragdoll.entity_extraction.models import Graph
 from ragdoll.vector_stores import vector_store_from_config
 from ragdoll.graph_stores import get_graph_store
 from ragdoll.ingestion import DocumentLoaderService
@@ -265,15 +265,41 @@ class IngestionPipeline:
         logger.info("Extracting entities from %s chunks", len(chunks))
 
         if self.options.parallel_extraction:
-            loop = asyncio.get_event_loop()
-            with ThreadPoolExecutor(max_workers=self.options.max_workers) as executor:
-                tasks = [
-                    loop.run_in_executor(
-                        executor, self.entity_extractor.extract, [chunk]
-                    )
-                    for chunk in chunks
-                ]
-                await asyncio.gather(*tasks)
+            groups = self._build_parallel_groups(chunks)
+            tasks = [
+                asyncio.create_task(self.entity_extractor.extract(group))
+                for group in groups
+                if group
+            ]
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                merged_nodes = []
+                merged_edges = []
+                for idx, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        logger.warning(
+                            "Parallel extraction task %s failed: %s", idx, result
+                        )
+                        continue
+                    if result is None:
+                        continue
+                    merged_nodes.extend(result.nodes)
+                    merged_edges.extend(result.edges)
+
+                if merged_nodes or merged_edges:
+                    graph = Graph(nodes=merged_nodes, edges=merged_edges)
+                    self.last_graph = graph
+                    self.stats["graph_entries_added"] = len(graph.edges)
+                    if getattr(self.entity_extractor, "graph_retriever_enabled", False):
+                        try:
+                            self.graph_retriever = (
+                                self.entity_extractor.create_graph_retriever(
+                                    graph=graph
+                                )
+                            )
+                            self.stats["graph_retriever_available"] = True
+                        except Exception as exc:  # pragma: no cover - defensive
+                            logger.warning("Unable to create graph retriever: %s", exc)
         else:
             graph = await self.entity_extractor.extract(chunks)
             self.last_graph = graph
@@ -291,6 +317,19 @@ class IngestionPipeline:
 
     def get_graph_retriever(self):
         return self.graph_retriever
+
+    def _build_parallel_groups(self, chunks: List[Document]) -> List[List[Document]]:
+        if not chunks:
+            return []
+        max_workers = max(1, self.options.max_workers)
+        if max_workers <= 1 or len(chunks) <= 1:
+            return [chunks]
+
+        group_size = max(1, math.ceil(len(chunks) / max_workers))
+        groups = [
+            chunks[idx : idx + group_size] for idx in range(0, len(chunks), group_size)
+        ]
+        return groups
 
     def _resolve_llm_caller(
         self,

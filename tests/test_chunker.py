@@ -2,6 +2,7 @@ import pytest
 from langchain_core.documents import Document
 from langchain_text_splitters import (
     CharacterTextSplitter,
+    MarkdownHeaderTextSplitter,
     MarkdownTextSplitter,
     PythonCodeTextSplitter,
     RecursiveCharacterTextSplitter,
@@ -105,6 +106,23 @@ def test_split_documents_with_custom_splitter():
     assert all(isinstance(chunk, Document) for chunk in chunks)
 
 
+def test_split_documents_accepts_splitter_kwarg():
+    doc = Document(page_content="alpha beta gamma", metadata={"id": 1})
+
+    class DummySplitter:
+        def __init__(self):
+            self.called = False
+
+        def split_documents(self, docs):
+            self.called = True
+            return ["dummy"]
+
+    splitter = DummySplitter()
+    chunks = split_documents([doc], splitter=splitter)
+    assert splitter.called is True
+    assert chunks == ["dummy"]
+
+
 def test_split_documents_markdown_strategy_preserves_headers():
     doc = Document(
         page_content="# Title\n\n## Section\nContent line.",
@@ -118,3 +136,16 @@ def test_split_documents_markdown_strategy_preserves_headers():
     chunks = split_documents([doc], text_splitter=splitter)
     assert len(chunks) >= 1
     assert chunks[0].metadata["source"] == "md"
+
+
+def test_split_documents_handles_markdown_header_splitter():
+    doc = Document(
+        page_content="# Section\n\nparagraph text\n\n## Sub\nAnother paragraph",
+        metadata={"source": "markdown"},
+    )
+    splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=[("#", "Header"), ("##", "Subheader")]
+    )
+    chunks = split_documents([doc], text_splitter=splitter)
+    assert len(chunks) >= 2
+    assert all(chunk.metadata.get("chunk") is not None for chunk in chunks)

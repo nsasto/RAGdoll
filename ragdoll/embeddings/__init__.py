@@ -15,6 +15,7 @@ from ragdoll.app_config import AppConfig
 
 # Import embedding models for direct access in tests
 from langchain_openai import OpenAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.embeddings.fake import FakeEmbeddings
 
 from ragdoll.utils.env import resolve_env_reference
