@@ -74,6 +74,7 @@ async def main():
     print(result["graph"])           # pydantic Graph object
     retriever = result["graph_retriever"]
     answers = retriever.invoke("How does the widget fail-safe work?")
+    graph_store = result["graph_store"]  # Neo4j/NetworkX/JSON handle if configured
 
 asyncio.run(main())
 ```

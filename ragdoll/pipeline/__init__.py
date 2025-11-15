@@ -320,6 +320,9 @@ class IngestionPipeline:
     def get_graph_retriever(self):
         return self.graph_retriever
 
+    def get_graph_store(self):
+        return self.graph_store
+
     def _build_parallel_groups(self, chunks: List[Document]) -> List[List[Document]]:
         if not chunks:
             return []
@@ -381,9 +384,8 @@ async def ingest_documents(
     return {
         "stats": stats,
         "graph": getattr(pipeline, "last_graph", None),
-        "graph_retriever": pipeline.get_graph_retriever()
-        if hasattr(pipeline, "get_graph_retriever")
-        else None,
+        "graph_retriever": pipeline.get_graph_retriever(),
+        "graph_store": pipeline.get_graph_store(),
     }
 
 

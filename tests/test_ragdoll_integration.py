@@ -88,6 +88,7 @@ class FakePipeline:
     def __init__(self, *args, **kwargs):
         self.last_graph = "graph-object"
         self._retriever = "retriever"
+        self._graph_store = "graph-store"
 
     async def ingest(self, sources):
         self.sources = sources
@@ -95,6 +96,9 @@ class FakePipeline:
 
     def get_graph_retriever(self):
         return self._retriever
+
+    def get_graph_store(self):
+        return self._graph_store
 
 
 def test_ragdoll_ingest_with_graph_sync(monkeypatch, base_documents):
@@ -114,5 +118,7 @@ def test_ragdoll_ingest_with_graph_sync(monkeypatch, base_documents):
     result = ragdoll.ingest_with_graph_sync(["file.pdf"])
     assert result["stats"]["documents_processed"] == 1
     assert result["graph_retriever"] == "retriever"
+    assert result["graph_store"] == "graph-store"
     assert ragdoll.graph_retriever == "retriever"
     assert ragdoll.last_graph == "graph-object"
+    assert ragdoll.graph_store == "graph-store"

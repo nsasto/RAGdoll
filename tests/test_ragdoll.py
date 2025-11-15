@@ -92,6 +92,7 @@ async def test_ragdoll_ingest_with_graph_exposes_retriever(monkeypatch):
         def __init__(self, *args, **kwargs):
             self.last_graph = "graph-object"
             self._retriever = "retriever-obj"
+            self._graph_store = "store-obj"
 
         async def ingest(self, sources):
             self.sources = sources
@@ -100,10 +101,15 @@ async def test_ragdoll_ingest_with_graph_exposes_retriever(monkeypatch):
         def get_graph_retriever(self):
             return self._retriever
 
+        def get_graph_store(self):
+            return self._graph_store
+
     monkeypatch.setattr("ragdoll.ragdoll.IngestionPipeline", DummyPipeline)
 
     result = await ragdoll.ingest_with_graph(["foo.txt"])
 
     assert result["graph_retriever"] == "retriever-obj"
+    assert result["graph_store"] == "store-obj"
     assert ragdoll.graph_retriever == "retriever-obj"
     assert ragdoll.last_graph == "graph-object"
+    assert ragdoll.graph_store == "store-obj"

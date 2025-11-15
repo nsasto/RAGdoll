@@ -82,6 +82,7 @@ class Ragdoll:
         self.graph_retriever: Optional[Any] = None
         self.last_graph: Optional[Graph] = None
         self.graph_ingestion_stats: Optional[Dict[str, Any]] = None
+        self.graph_store: Optional[Any] = None
 
     def ingest_data(self, sources: Sequence[str]) -> List[Document]:
         """
@@ -218,12 +219,19 @@ class Ragdoll:
         stats = await pipeline.ingest(list(sources))
         retriever = pipeline.get_graph_retriever()
         graph = pipeline.last_graph
+        graph_store = pipeline.get_graph_store()
 
         self.graph_ingestion_stats = stats
         self.graph_retriever = retriever
         self.last_graph = graph
+        self.graph_store = graph_store
 
-        return {"stats": stats, "graph": graph, "graph_retriever": retriever}
+        return {
+            "stats": stats,
+            "graph": graph,
+            "graph_retriever": retriever,
+            "graph_store": graph_store,
+        }
 
     def ingest_with_graph_sync(
         self,
