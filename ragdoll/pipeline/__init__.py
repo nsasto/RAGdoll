@@ -290,6 +290,7 @@ class IngestionPipeline:
                     graph = Graph(nodes=merged_nodes, edges=merged_edges)
                     self.last_graph = graph
                     self.stats["graph_entries_added"] = len(graph.edges)
+                    self.stats["relationships_extracted"] = len(graph.edges)
                     if getattr(self.entity_extractor, "graph_retriever_enabled", False):
                         try:
                             self.graph_retriever = (
@@ -304,6 +305,7 @@ class IngestionPipeline:
             graph = await self.entity_extractor.extract(chunks)
             self.last_graph = graph
             self.stats["graph_entries_added"] = len(graph.edges)
+            self.stats["relationships_extracted"] = len(graph.edges)
             if getattr(self.entity_extractor, "graph_retriever_enabled", False):
                 try:
                     self.graph_retriever = self.entity_extractor.create_graph_retriever(
@@ -375,7 +377,14 @@ async def ingest_documents(
         app_config=app_config,
         options=options or IngestionOptions(),
     )
-    return await pipeline.ingest(sources)
+    stats = await pipeline.ingest(sources)
+    return {
+        "stats": stats,
+        "graph": getattr(pipeline, "last_graph", None),
+        "graph_retriever": pipeline.get_graph_retriever()
+        if hasattr(pipeline, "get_graph_retriever")
+        else None,
+    }
 
 
 __all__ = ["IngestionPipeline", "IngestionOptions", "ingest_documents"]

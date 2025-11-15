@@ -45,12 +45,12 @@ ingestion:
 
 embeddings:
   enabled: true
-  default_model: "text-embedding-ada-002"
+  default_model: "text-embedding-3-small"
   models:
-    text-embedding-ada-002:
+    text-embedding-3-small:
       provider: "openai"
       api_key: "os.environ/OPENAI_API_KEY"
-      model: "text-embedding-ada-002"
+      model: "text-embedding-3-small"
     all-mpnet-base-v2:
       provider: "huggingface"
       model_name: "sentence-transformers/all-mpnet-base-v2"

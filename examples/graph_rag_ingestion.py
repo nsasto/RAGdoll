@@ -15,6 +15,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from ragdoll.pipeline import ingest_documents, IngestionOptions
 from ragdoll.llms import get_llm_caller
+from ragdoll.utils import visualize_graph
 
 
 class ExampleFallbackLLM:
@@ -28,7 +29,7 @@ class ExampleFallbackLLM:
         )
 
 
-async def main(model_name: Optional[str] = None):
+async def main(model_name: Optional[str] = None, visualize: bool = False):
     # Set up logging
     logging.basicConfig(level=logging.INFO)
 
@@ -94,18 +95,23 @@ async def main(model_name: Optional[str] = None):
     )
 
     # Run the ingestion
-    stats = await ingest_documents(sources, options=options)
+    result = await ingest_documents(sources, options=options)
+    stats = result.get("stats", {})
+    graph = result.get("graph")
 
     # Print results
     print(f"\n✅ Ingestion complete!")
-    print(f"Documents processed: {stats['documents_processed']}")
-    print(f"Chunks created: {stats['chunks_created']}")
-    print(f"Entities extracted: {stats['entities_extracted']}")
-    print(f"Relationships extracted: {stats['relationships_extracted']}")
-    print(f"Vector entries added: {stats['vector_entries_added']}")
-    print(f"Graph entries added: {stats['graph_entries_added']}")
+    print(f"Documents processed: {stats.get('documents_processed')}")
+    print(f"Chunks created: {stats.get('chunks_created')}")
+    print(f"Entities extracted: {stats.get('entities_extracted')}")
+    print(f"Relationships extracted: {stats.get('relationships_extracted')}")
+    print(f"Vector entries added: {stats.get('vector_entries_added')}")
+    print(f"Graph entries added: {stats.get('graph_entries_added')}")
 
-    if stats["errors"]:
+    if visualize and graph:
+        visualize_graph(graph)
+
+    if stats.get("errors"):
         print(f"\n⚠️ Warnings/Errors:")
         for error in stats["errors"]:
             print(f"  - {error}")
@@ -116,6 +122,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Graph RAG ingestion example")
     parser.add_argument("--model", type=str, default=None, help="Specify a model name")
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Render the resulting graph to graph_output.json/png",
+    )
     args = parser.parse_args()
 
-    asyncio.run(main(model_name=args.model))
+    asyncio.run(main(model_name=args.model, visualize=args.visualize))

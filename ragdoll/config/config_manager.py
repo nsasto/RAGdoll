@@ -91,7 +91,9 @@ class ConfigManager:
                 "works with": "AFFILIATED_WITH",
             },
         )
-        entity_config.setdefault("graph_database_config", {"output_file": "graph_output.json"})
+        entity_config.setdefault(
+            "graph_database_config", {"output_file": "graph_output.json"}
+        )
         parsing_defaults = entity_config.setdefault("relationship_parsing", {})
         parsing_defaults.setdefault("preferred_format", "auto")
         parsing_defaults.setdefault("parser_class", None)
@@ -129,7 +131,9 @@ class ConfigManager:
                 "Unable to normalize 'vector_stores' configuration. Falling back to defaults."
             )
 
-    def _coerce_vector_store_block(self, block: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    def _coerce_vector_store_block(
+        self, block: Dict[str, Any] | None
+    ) -> Dict[str, Any] | None:
         if not isinstance(block, dict):
             return None
 
@@ -199,7 +203,9 @@ class ConfigManager:
         # Backfill OpenAI API keys when omitted.
         openai_section = embeddings.get("openai")
         if isinstance(openai_section, dict):
-            api_key = openai_section.get("api_key") or openai_section.get("openai_api_key")
+            api_key = openai_section.get("api_key") or openai_section.get(
+                "openai_api_key"
+            )
             if not api_key:
                 openai_section["api_key"] = os.environ.get("OPENAI_API_KEY")
 
@@ -258,7 +264,9 @@ class ConfigManager:
     def entity_extraction_config(self) -> EntityExtractionConfig:
         """Typed entity extraction configuration."""
 
-        return EntityExtractionConfig.model_validate(self._config.get("entity_extraction", {}))
+        return EntityExtractionConfig.model_validate(
+            self._config.get("entity_extraction", {})
+        )
 
     @property
     def graph_database_config(self) -> GraphDatabaseConfig:
@@ -285,7 +293,10 @@ class ConfigManager:
         loaders_config: LoadersConfig | None = self.ingestion_config.loaders
         result: Dict[str, Type | str] = {}
         file_mappings = getattr(loaders_config, "file_mappings", None)
-        self.logger.info("Raw file mappings from config: %s", file_mappings or "None")
+        self.logger.info(
+            "Raw file mappings from config:\n%s",
+            json.dumps(file_mappings or {}, indent=2),
+        )
 
         if file_mappings:
             for ext, class_path in file_mappings.items():
@@ -327,7 +338,9 @@ class ConfigManager:
                     try:
                         from ragdoll.ingestion import register_loader_class
 
-                        norm_ext = ext.lstrip(".").lower() if isinstance(ext, str) else ext
+                        norm_ext = (
+                            ext.lstrip(".").lower() if isinstance(ext, str) else ext
+                        )
                         register_loader_class(norm_ext, loader_class)
                     except Exception:
                         pass
@@ -476,4 +489,3 @@ class ConfigManager:
 
         log_lines.append("")  # Final newline
         return "\n".join(log_lines)
-

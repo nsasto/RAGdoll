@@ -71,6 +71,7 @@ async def test_pipeline_exposes_graph_retriever():
     assert pipeline.graph_retriever == "retriever"
     assert pipeline.stats["graph_retriever_available"] is True
     assert pipeline.last_graph == fake_extractor.graph
+    assert pipeline.stats["relationships_extracted"] == len(fake_extractor.graph.edges)
 
 
 @pytest.mark.anyio
@@ -100,3 +101,5 @@ async def test_parallel_extraction_merges_graphs():
     assert extractor.calls >= 1
     assert pipeline.last_graph is not None
     assert len(pipeline.last_graph.nodes) == extractor.calls
+    assert pipeline.stats["graph_entries_added"] == len(pipeline.last_graph.edges)
+    assert pipeline.stats["relationships_extracted"] == len(pipeline.last_graph.edges)
