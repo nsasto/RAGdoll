@@ -295,6 +295,8 @@ class DocumentLoaderService(BaseIngestionService):
             self._record_metrics(
                 metrics_info, batch_id, source, 0, 0, success=False, error=str(e)
             )
+            if isinstance(e, (ConnectionError, TimeoutError)):
+                raise
             return []
 
     def _get_loader_class(self, extension: Optional[str]) -> Optional[type]:
