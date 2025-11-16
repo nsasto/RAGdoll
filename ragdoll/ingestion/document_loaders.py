@@ -41,10 +41,6 @@ class DocumentLoaderService(BaseIngestionService):
         config_manager: Optional[Config] = None,
         app_config: Optional[AppConfig] = None,
     ):
-        logging.basicConfig(
-            level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-        )
-
         if sum(1 for item in (app_config, config_manager, config_path) if item) > 1:
             raise ValueError(
                 "Provide only one of app_config, config_manager, or config_path."
