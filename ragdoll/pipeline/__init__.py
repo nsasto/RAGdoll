@@ -4,6 +4,7 @@ from pathlib import Path
 import math
 import logging
 import asyncio
+import copy
 from langchain_core.documents import Document
 
 
@@ -106,6 +107,8 @@ class IngestionPipeline:
             **(self.options.embedding_options or {}),
         )
 
+        self._entity_extractor_factory_kwargs: Optional[Dict[str, Any]] = None
+
         if self.options.extract_entities:
             extraction_options = self.options.entity_extraction_options or {}
             config_overrides = extraction_options.get("config", {})
@@ -120,15 +123,22 @@ class IngestionPipeline:
                 llm_override, llm_caller_override
             )
 
+            self._entity_extractor_factory_kwargs = {
+                "config": entity_config,
+                "llm_caller": resolved_llm_caller,
+                "text_splitter": self.text_splitter,
+                "chunk_documents": False,
+                "app_config": self.app_config,
+            }
+
+            self._custom_entity_extractor_supplied = entity_extractor is not None
+
             self.entity_extractor = entity_extractor or EntityExtractionService(
-                config=entity_config,
-                llm_caller=resolved_llm_caller,
-                text_splitter=self.text_splitter,
-                chunk_documents=False,
-                app_config=self.app_config,
+                **self._entity_extractor_factory_kwargs
             )
         else:
             self.entity_extractor = None
+            self._custom_entity_extractor_supplied = False
 
         if not self.options.skip_vector_store:
             if self.embedding_model is None:
@@ -264,10 +274,18 @@ class IngestionPipeline:
 
         logger.info("Extracting entities from %s chunks", len(chunks))
 
-        if self.options.parallel_extraction:
+        parallel_enabled = self._can_parallelize_entity_extraction()
+
+        if self.options.parallel_extraction and not parallel_enabled:
+            logger.warning(
+                "Parallel entity extraction requested but unavailable (custom extractor or missing config). "
+                "Falling back to sequential processing."
+            )
+
+        if parallel_enabled:
             groups = self._build_parallel_groups(chunks)
             tasks = [
-                asyncio.create_task(self.entity_extractor.extract(group))
+                asyncio.create_task(self._run_parallel_entity_extraction(group))
                 for group in groups
                 if group
             ]
@@ -357,6 +375,32 @@ class IngestionPipeline:
             chunks[idx : idx + group_size] for idx in range(0, len(chunks), group_size)
         ]
         return groups
+
+    async def _run_parallel_entity_extraction(
+        self, documents: List[Document]
+    ) -> Optional[Graph]:
+        extractor = self._build_entity_extractor_instance()
+        if extractor is None:
+            return await self.entity_extractor.extract(documents)
+        return await extractor.extract(documents)
+
+    def _build_entity_extractor_instance(self) -> Optional[EntityExtractionService]:
+        if not self._entity_extractor_factory_kwargs:
+            return None
+        kwargs = copy.deepcopy(self._entity_extractor_factory_kwargs)
+        extractor = EntityExtractionService(**kwargs)
+        extractor.graph_persistence = None
+        extractor.graph_retriever_enabled = False
+        extractor.graph_retriever_config = {}
+        return extractor
+
+    def _can_parallelize_entity_extraction(self) -> bool:
+        return (
+            self.options.parallel_extraction
+            and self.entity_extractor is not None
+            and self._entity_extractor_factory_kwargs is not None
+            and not getattr(self, "_custom_entity_extractor_supplied", False)
+        )
 
     def _resolve_llm_caller(
         self,
