@@ -114,10 +114,14 @@ class DocumentLoaderService(BaseIngestionService):
         return "arxiv.org" in url
 
     def _parse_url_sources(self, url: str) -> Source:
+        from urllib.parse import urlparse
+
         if self._is_arxiv_url(url):
             return Source(identifier=url, extension="arxiv", is_file=False)
 
-        extension = "website" if not Path(url).suffix else Path(url).suffix.lower()
+        parsed = urlparse(url)
+        suffix = Path(parsed.path).suffix.lower()
+        extension = suffix if suffix else "website"
         return Source(identifier=url, extension=extension, is_file=False)
 
     def _parse_file_sources(self, pattern: str) -> List[Source]:
