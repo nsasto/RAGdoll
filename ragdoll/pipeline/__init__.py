@@ -291,6 +291,7 @@ class IngestionPipeline:
                     self.last_graph = graph
                     self.stats["graph_entries_added"] = len(graph.edges)
                     self.stats["relationships_extracted"] = len(graph.edges)
+                    self.stats["entities_extracted"] = len(graph.nodes)
                     self._persist_graph_to_store(graph)
                     if getattr(self.entity_extractor, "graph_retriever_enabled", False):
                         try:
@@ -305,8 +306,11 @@ class IngestionPipeline:
         else:
             graph = await self.entity_extractor.extract(chunks)
             self.last_graph = graph
-            self.stats["graph_entries_added"] = len(graph.edges)
-            self.stats["relationships_extracted"] = len(graph.edges)
+            edge_count = len(graph.edges) if graph else 0
+            node_count = len(graph.nodes) if graph else 0
+            self.stats["graph_entries_added"] = edge_count
+            self.stats["relationships_extracted"] = edge_count
+            self.stats["entities_extracted"] = node_count
             self._persist_graph_to_store(graph)
             if getattr(self.entity_extractor, "graph_retriever_enabled", False):
                 try:
@@ -316,8 +320,6 @@ class IngestionPipeline:
                     self.stats["graph_retriever_available"] = True
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.warning("Unable to create graph retriever: %s", exc)
-
-        self.stats["entities_extracted"] = len(chunks)
 
     def get_graph_retriever(self):
         return self.graph_retriever
