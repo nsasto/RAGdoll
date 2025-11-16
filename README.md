@@ -207,50 +207,54 @@ For a visual walkthrough of how the ingestion, knowledge build, and query-time p
 
 ```mermaid
 graph TD
-    %% Ingestion + Chunking
-    subgraph Ingestion
-        A["Input sources<br/>(files, URLs, loaders)"] --> B["Loader pipeline"]
-        B --> C["Chunking Service<br/>(BaseChunkingService + plugins)"]
-    end
-    C --> D["Chunks (GTChunk)"]
-
-    %% Knowledge Construction
-    subgraph Knowledge_Build
-        D --> E["Information Extraction<br/>(entities & relations)"]
-        E --> F["Knowledge Graph Upsert<br/>(policy interface)"]
-        E --> G["Embedding Pipeline<br/>(single pass)"]
-        G --> H["VectorStoreAdapter<br/>(dynamic class e.g. Chroma/Hnswlib)"]
-        F --> I(("Graph Storage<br/>(IGraphStorage, Neo4j, etc.)"))
-        H --> J(("Vector DB"))
+    subgraph Shared_Config["Bootstrap & Shared Services"]
+        CFG["AppConfig / Config Manager"]
+        CACHE["CacheManager"]
+        METRICS["MetricsManager"]
+        CFG --> CACHE
+        CFG --> METRICS
     end
 
-    %% Query + Reasoning
-    subgraph Query_Runtime
-        Q["User Query"] --> R["State Manager<br/>(retrieval orchestration)"]
-        R --> H
-        R --> I
-        R --> S["Context Assembly<br/>(chunks + KG facts)"]
-        S --> T["Prompt Builder"]
-        T --> U["LLM Caller<br/>(LangChain adapters)"]
-        U --> V["Answer"]
+    subgraph Ingestion["Ingestion & Index Build"]
+        SRC["Sources<br/>(files, URLs, loader registry)"] --> LOADER["DocumentLoaderService<br/>(auto loaders + caching + metrics)"]
+        CACHE -.-> LOADER
+        METRICS -.-> LOADER
+        CFG --> LOADER
+        LOADER --> DOCS["LangChain Documents"]
+        DOCS --> CHUNK["Chunkers<br/>(split_documents)"]
+        CFG --> CHUNK
+        CHUNK --> EMB["Embedding Resolver<br/>(get_embedding_model)"]
+        CFG --> EMB
+        EMB --> VSTORE["BaseVectorStore<br/>(Chroma/FAISS/etc.)"]
+        CHUNK --> ENT["EntityExtractionService<br/>(spaCy + LLM prompts)"]
+        CFG --> ENT
+        ENT --> GPERSIST["GraphPersistenceService<br/>(JSON/NetworkX/Neo4j)"]
+        GPERSIST --> GRAPHSTORE[("Graph Store Handle")]
+        GPERSIST --> GRETR["Graph Retriever<br/>(simple/Neo4j)"]
     end
 
-    style A fill:#ccf,stroke:#333,stroke-width:2px
-    style B fill:#ccf,stroke:#333,stroke-width:2px
-    style C fill:#f9f,stroke:#333,stroke-width:2px
-    style D fill:#fef3c7,stroke:#333,stroke-width:2px
-    style E fill:#f9f,stroke:#333,stroke-width:2px
-    style F fill:#f9f,stroke:#333,stroke-width:2px
-    style G fill:#f9f,stroke:#333,stroke-width:2px
-    style H fill:#d1fae5,stroke:#333,stroke-width:2px
-    style I fill:#dbeafe,stroke:#333,stroke-width:2px
-    style J fill:#dbeafe,stroke:#333,stroke-width:2px
-    style Q fill:#fde68a,stroke:#333,stroke-width:2px
-    style R fill:#f9f,stroke:#333,stroke-width:2px
-    style S fill:#fef3c7,stroke:#333,stroke-width:2px
-    style T fill:#f9f,stroke:#333,stroke-width:2px
-    style U fill:#e0e7ff,stroke:#333,stroke-width:2px
-    style V fill:#ccf,stroke:#333,stroke-width:2px
+    subgraph Query["Query & Reasoning"]
+        USER["User Query"] --> RAG["Ragdoll Orchestrator"]
+        CFG --> RAG
+        RAG --> VSTORE
+        RAG --> GRETR
+        VSTORE --> CONTEXT["Retrieved chunks"]
+        GRETR --> CONTEXT
+        RAG --> LLM["BaseLLMCaller / call_llm_sync"]
+        CFG --> LLM
+        LLM --> ANSWER["Answer / structured output"]
+        CONTEXT --> ANSWER
+    end
+
+    classDef service fill:#f9f,stroke:#333,stroke-width:1.5px;
+    classDef storage fill:#dbeafe,stroke:#333,stroke-width:1.5px;
+    classDef data fill:#fef3c7,stroke:#333,stroke-width:1.5px;
+    classDef io fill:#fde68a,stroke:#333,stroke-width:1.5px;
+
+    class CFG,LOADER,CHUNK,ENT,GPERSIST,RAG,LLM service;
+    class CACHE,METRICS,GRAPHSTORE,VSTORE storage;
+    class DOCS,CONTEXT data;
+    class SRC,USER,ANSWER io;
 ```
 
 ## Extensibility
