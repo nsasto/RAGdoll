@@ -335,17 +335,32 @@ class EntityExtractionService(BaseEntityExtractor):
         name: str,
         metadata: Optional[dict],
     ) -> str:
+        mention_payload = self._build_mention_payload(metadata)
         for node in nodes:
             if node.name == name:
+                if mention_payload:
+                    node.metadata.setdefault("mentions", []).append(mention_payload)
                 return node.id
+        node_metadata: Dict[str, Any] = {}
+        if mention_payload:
+            node_metadata["mentions"] = [mention_payload]
         node = GraphNode(
             id=f"llm-{uuid.uuid4().hex}",
             type="ENTITY",
             name=name,
-            metadata=metadata or {},
+            metadata=node_metadata,
         )
         nodes.append(node)
         return node.id
+
+    @staticmethod
+    def _build_mention_payload(metadata: Optional[dict]) -> Optional[Dict[str, Any]]:
+        if not metadata:
+            return None
+        try:
+            return dict(metadata)
+        except Exception:  # pragma: no cover - defensive
+            return None
 
     async def _store_graph(self, graph: Graph) -> None:
         if not self.graph_persistence:
