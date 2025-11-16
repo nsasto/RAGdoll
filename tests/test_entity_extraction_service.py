@@ -4,6 +4,7 @@ import pytest
 from langchain_core.documents import Document
 
 from ragdoll.entity_extraction.entity_extraction_service import EntityExtractionService
+from ragdoll.entity_extraction.models import GraphNode
 
 
 class DummyLLMCaller:
@@ -71,3 +72,21 @@ def test_relationship_prompt_falls_back_to_default():
     )
 
     assert "relationship extraction expert" in prompt
+
+
+def test_ensure_node_tracks_mentions_without_overwriting_metadata():
+    service = EntityExtractionService(config={}, llm_caller=DummyLLMCaller("openai"))
+    nodes: list[GraphNode] = []
+
+    first_meta = {"source": "doc-1", "id": "1"}
+    node_id_1 = service._ensure_node(nodes, name="Acme Corp", metadata=first_meta)
+
+    assert len(nodes) == 1
+    assert nodes[0].metadata["mentions"] == [first_meta]
+
+    second_meta = {"source": "doc-2", "id": "2"}
+    node_id_2 = service._ensure_node(nodes, name="Acme Corp", metadata=second_meta)
+
+    assert node_id_1 == node_id_2
+    assert len(nodes) == 1
+    assert nodes[0].metadata["mentions"] == [first_meta, second_meta]
