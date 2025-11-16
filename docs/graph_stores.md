@@ -25,8 +25,7 @@ Graph stores manage relationships between document chunks, entities, or concepts
 
 ## Key Components
 
-- `base_graph_store.py`: Abstract base for graph store implementations.
-- `__init__.py`: Module exports.
+- `__init__.py`: Graph store utilities, factory helpers, and `GraphStoreWrapper`.
 
 ## Features
 
@@ -66,12 +65,15 @@ Query the graph and return results as a list of dictionaries.
 ## Usage Example
 
 ```python
-from ragdoll.graph_stores.base_graph_store import BaseGraphStore
-# Implement a concrete graph store subclass, then:
-store = MyGraphStore()
-store.add_node("doc1", {"title": "Document 1"})
-store.add_edge("doc1", "doc2", "references", {})
-results = store.query_graph("MATCH (n)-[r]->(m) RETURN n, r, m")
+from ragdoll.graph_stores import get_graph_store
+from ragdoll.entity_extraction.models import Graph, GraphNode, GraphEdge
+
+graph = Graph(
+    nodes=[GraphNode(id="doc1", type="Document", name="Document 1")],
+    edges=[],
+)
+store = get_graph_store(store_type="json", graph=graph, output_file="graph.json")
+store.save_graph(graph)
 ```
 
 ### Neo4j Configuration Tips

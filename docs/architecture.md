@@ -7,9 +7,9 @@ graph TD
     %% Ingestion + Chunking
     subgraph Ingestion
         A["Input sources<br/>(files, URLs, loaders)"] --> B["Loader pipeline"]
-        B --> C["Chunking Service<br/>(BaseChunkingService + plugins)"]
+        B --> C["Chunking Service<br/>(split_documents + LC splitters)"]
     end
-    C --> D["Chunks (GTChunk)"]
+    C --> D["Chunks (LangChain Document)"]
 
     %% Knowledge Construction
     subgraph Knowledge_Build

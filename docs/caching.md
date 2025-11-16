@@ -21,7 +21,7 @@
 
 ## Purpose
 
-Caching improves performance by storing intermediate results (e.g., embeddings, retrievals) to avoid redundant computation and speed up pipelines.
+Caching improves performance by storing remote document loader results so repeated ingestion runs can skip network downloads.
 
 ## Key Components
 
@@ -39,7 +39,7 @@ Caching improves performance by storing intermediate results (e.g., embeddings, 
 ## How It Works
 
 1. **Initialization**: The cache manager is initialized with a cache directory and TTL (time-to-live).
-2. **Caching**: Results from network or expensive operations are stored in cache (disk and memory). `DocumentLoaderService` automatically persists non-file sources (websites, Arxiv links, remote PDFs, etc.) when `use_cache=True`.
+2. **Caching**: `DocumentLoaderService` caches remote sources (websites, Arxiv links, presigned PDFs, etc.) on disk/in memory when `use_cache=True`.
 3. **Retrieval**: Cached results are loaded if available and valid; otherwise, new results are computed and cached.
 
 ---
@@ -58,7 +58,7 @@ Initializes the cache manager with a directory and TTL.
 
 #### `get_from_cache(source_type: str, identifier: str) -> Optional[List]`
 
-Retrieve documents from cache for a given source type and identifier.
+Retrieve documents from cache for a given remote source type and identifier.
 
 #### `clear_cache(source_type: Optional[str] = None, identifier: Optional[str] = None) -> int`
 
