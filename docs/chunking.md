@@ -25,8 +25,7 @@ Chunking is the process of splitting documents into manageable pieces for downst
 
 ## Key Components
 
-- `chunker.py`: Implements chunking logic.
-- `__init__.py`: Exposes chunker functionality.
+- `ragdoll/chunkers/__init__.py`: exposes `get_text_splitter` and `split_documents`.
 - Example: `examples/chunker.ipynb` demonstrates chunking workflows.
 
 ## Features
@@ -47,23 +46,36 @@ Chunking is the process of splitting documents into manageable pieces for downst
 
 ## Public API and Function Documentation
 
-### `Chunker`
-
-#### Constructor
+### `get_text_splitter`
 
 ```python
-Chunker(config: Optional[dict] = None, text_splitter: Optional[TextSplitter] = None)
+from ragdoll.chunkers import get_text_splitter
+
+splitter = get_text_splitter(
+    splitter_type="markdown",
+    chunk_size=1500,
+    chunk_overlap=200,
+)
 ```
 
-Initializes the chunker with a config and optional text splitter. If no config is provided, loads the default config.
+- Reads configuration from an explicit `config_manager`, supplied `config` dict, or the global `settings.get_app()` fallback.
+- Returns a LangChain splitter (Markdown, RecursiveCharacter, etc.) configured with chunk size/overlap/separators.
 
-#### `from_config()`
+### `split_documents`
 
-Class method to instantiate a chunker from the default configuration.
+```python
+from ragdoll.chunkers import split_documents
+from langchain_core.documents import Document
 
-#### `get_text_splitter() -> TextSplitter`
+chunks = split_documents(
+    documents=[Document(page_content="hello", metadata={"source": "demo"})],
+    splitter=text_splitter,
+    batch_size=50,
+)
+```
 
-Returns a LangChain text splitter object, configured from `default_config.yaml`.
+- Accepts LangChain `Document` objects and either an explicit splitter instance or the same keyword overrides as `get_text_splitter`.
+- Cleans up nested/invalid `Document` payloads before splitting to avoid downstream crashes.
 
 **Splitter types:**
 
@@ -75,18 +87,20 @@ Returns a LangChain text splitter object, configured from `default_config.yaml`.
 ## Usage Example
 
 ```python
-from ragdoll.chunkers.chunker import Chunker
-chunker = Chunker.from_config()
-splitter = chunker.get_text_splitter()
-chunks = splitter.split_text("Your document text here.")
+from ragdoll.chunkers import get_text_splitter, split_documents
+from langchain_core.documents import Document
+
+splitter = get_text_splitter(splitter_type="recursive", chunk_size=1000, chunk_overlap=200)
+docs = [Document(page_content="Your document text here.", metadata={})]
+chunks = split_documents(docs, splitter=splitter)
 ```
 
 ---
 
 ## Extending Chunking
 
-- Implement new chunkers by subclassing `Chunker` and overriding methods as needed.
-- Add new splitter types by extending the logic in `get_text_splitter()`.
+- Register additional LangChain splitters or custom ones by extending `get_text_splitter`.
+- Wrap non-Document payloads before calling `split_documents` if you need bespoke preprocessing.
 
 ---
 
