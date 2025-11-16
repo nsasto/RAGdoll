@@ -20,9 +20,22 @@ class BaseVectorStore:
         """Expose the underlying LangChain VectorStore instance."""
         return self._store
 
-    def add_documents(self, documents: Sequence[Document]) -> List[str]:
-        """Add documents by delegating to the wrapped VectorStore."""
-        return self._store.add_documents(list(documents))
+    def add_documents(
+        self, documents: Sequence[Document], batch_size: int | None = None
+    ) -> List[str]:
+        """Add documents, splitting into batches if the backend advertises a limit."""
+        docs = list(documents)
+        if not docs:
+            return []
+
+        limit = batch_size or self._detect_batch_limit()
+        if not limit or limit <= 0 or len(docs) <= limit:
+            return self._store.add_documents(docs)
+
+        ids: List[str] = []
+        for start in range(0, len(docs), limit):
+            ids.extend(self._store.add_documents(docs[start : start + limit]))
+        return ids
 
     def similarity_search(self, query: str, k: int = 4) -> List[Document]:
         """Return the top-k similar documents from the wrapped store."""
@@ -47,3 +60,27 @@ class BaseVectorStore:
         """Build a wrapped store pre-populated with the provided documents."""
         store = store_cls.from_documents(documents=documents, embedding=embedding, **kwargs)
         return cls(store)
+
+    def _detect_batch_limit(self) -> int | None:
+        """Infer the max batch size supported by the underlying store, if exposed."""
+        direct_limit = getattr(self._store, "max_batch_size", None)
+        if isinstance(direct_limit, int) and direct_limit > 0:
+            return direct_limit
+
+        client = getattr(self._store, "_client", None)
+        if client is None:
+            return None
+
+        getter = getattr(client, "get_max_batch_size", None)
+        if callable(getter):
+            try:
+                value = getter()
+                if isinstance(value, int) and value > 0:
+                    return value
+            except Exception:
+                pass
+
+        client_limit = getattr(client, "max_batch_size", None)
+        if isinstance(client_limit, int) and client_limit > 0:
+            return client_limit
+        return None
