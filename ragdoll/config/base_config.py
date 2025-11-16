@@ -186,7 +186,7 @@ class GraphDatabaseConfig(BaseModel):
     )
     output_format: str = Field(
         default="json",
-        description="Format for graph output (json, neo4j, networkx, memgraph).",
+        description="Format for graph output (json, neo4j, networkx).",
     )
     output_file: Optional[str] = Field(
         default="graph_output.json",
@@ -202,17 +202,6 @@ class GraphDatabaseConfig(BaseModel):
     user: str = Field(default="neo4j", description="Neo4j username.")
     password: str = Field(default="password", description="Neo4j password.")
 
-    # Memgraph specific settings
-    host: str = Field(default="localhost", description="Memgraph server host.")
-    port: int = Field(default=7687, description="Memgraph server port.")
-    memgraph_username: str = Field(
-        default="",
-        description="Memgraph username when authentication is enabled.",
-    )
-    memgraph_password: str = Field(
-        default="",
-        description="Memgraph password when authentication is enabled.",
-    )
     clear_database: bool = Field(
         default=False, description="Clear the database before storing results."
     )
