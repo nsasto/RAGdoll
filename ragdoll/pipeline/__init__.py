@@ -291,6 +291,7 @@ class IngestionPipeline:
                     self.last_graph = graph
                     self.stats["graph_entries_added"] = len(graph.edges)
                     self.stats["relationships_extracted"] = len(graph.edges)
+                    self._persist_graph_to_store(graph)
                     if getattr(self.entity_extractor, "graph_retriever_enabled", False):
                         try:
                             self.graph_retriever = (
@@ -306,6 +307,7 @@ class IngestionPipeline:
             self.last_graph = graph
             self.stats["graph_entries_added"] = len(graph.edges)
             self.stats["relationships_extracted"] = len(graph.edges)
+            self._persist_graph_to_store(graph)
             if getattr(self.entity_extractor, "graph_retriever_enabled", False):
                 try:
                     self.graph_retriever = self.entity_extractor.create_graph_retriever(
@@ -322,6 +324,24 @@ class IngestionPipeline:
 
     def get_graph_store(self):
         return self.graph_store
+
+    def _persist_graph_to_store(self, graph: Optional[Graph]) -> None:
+        if not graph or not self.graph_store:
+            return
+
+        save_fn = getattr(self.graph_store, "save_graph", None)
+        try:
+            if callable(save_fn):
+                save_fn(graph)
+            elif hasattr(self.graph_store, "save"):
+                self.graph_store.save(graph)
+            else:
+                logger.debug(
+                    "Graph store %s has no save_graph/save method; skipping persistence",
+                    type(self.graph_store).__name__,
+                )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Unable to persist graph to graph store: %s", exc)
 
     def _build_parallel_groups(self, chunks: List[Document]) -> List[List[Document]]:
         if not chunks:
