@@ -1,0 +1,45 @@
+cache:
+  enabled: true
+  cache_ttl: 45
+
+monitor:
+  enabled: true
+  collect_metrics: true
+
+ingestion:
+  max_threads: 4
+  batch_size: 3
+  retry_attempts: 2
+  retry_delay: 2
+  retry_backoff: 1.5
+  loaders:
+    file_mappings:
+      .md: langchain_community.document_loaders.TextLoader
+      .txt: langchain_community.document_loaders.TextLoader
+      arxiv: langchain_community.retrievers.ArxivRetriever
+
+vector_stores:
+  default_store: demo_chroma
+  stores:
+    demo_chroma:
+      store_type: chroma
+      enabled: true
+      params:
+        persist_directory: "./demo_state/app_config_chroma"
+        collection_name: "app-config-demo"
+
+embeddings:
+  default_model: "all-mpnet-base-v2"
+  models:
+    all-mpnet-base-v2:
+      provider: huggingface
+      model_name: "sentence-transformers/all-mpnet-base-v2"
+
+llm_prompts:
+  entity_extraction: "custom_entity_extraction_template"
+
+entity_extraction:
+  gleaning_enabled: false
+  relationship_type_mapping:
+    "custom relation": "CUSTOM_RELATION"
+  llm_provider_hint: "openai"
