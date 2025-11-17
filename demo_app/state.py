@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 from langchain_community.vectorstores import FAISS
 from ragdoll.entity_extraction.models import Graph
@@ -12,6 +13,7 @@ VECTOR_DIR = STATE_DIR / "vector_store"
 GRAPH_JSON = STATE_DIR / "graph.json"
 GRAPH_PICKLE = STATE_DIR / "graph_output.gpickle"
 UPLOAD_DIR = STATE_DIR / "uploads"
+STAGED_MANIFEST = STATE_DIR / "staged_manifest.json"
 
 
 def ensure_state_dirs() -> None:
@@ -20,6 +22,7 @@ def ensure_state_dirs() -> None:
     STATE_DIR.mkdir(exist_ok=True)
     VECTOR_DIR.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    STAGED_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
 
 
 def reset_state_dir() -> None:
@@ -70,3 +73,51 @@ def save_vector_store(store: FAISS) -> None:
 def upload_directory() -> Path:
     ensure_state_dirs()
     return UPLOAD_DIR
+
+
+def staged_manifest_path() -> Path:
+    ensure_state_dirs()
+    return STAGED_MANIFEST
+
+
+def read_staged_manifest() -> dict:
+    path = staged_manifest_path()
+    if not path.exists():
+        return {"files": []}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write_staged_manifest(manifest: dict) -> None:
+    staged_manifest_path().write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def add_staged_files(entries: Iterable[dict]) -> list[dict]:
+    manifest = read_staged_manifest()
+    existing = {entry["filename"] for entry in manifest.get("files", [])}
+    for entry in entries:
+        if entry["filename"] not in existing:
+            manifest.setdefault("files", []).append(entry)
+            existing.add(entry["filename"])
+    write_staged_manifest(manifest)
+    return manifest["files"]
+
+
+def staged_file_entries() -> list[dict]:
+    return read_staged_manifest().get("files", [])
+
+
+def staged_file_paths() -> list[Path]:
+    entries = staged_file_entries()
+    return [UPLOAD_DIR / entry["filename"] for entry in entries if (UPLOAD_DIR / entry["filename"]).exists()]
+
+
+def clear_staged_manifest(delete_files: bool = False) -> None:
+    manifest = read_staged_manifest()
+    if delete_files:
+        for entry in manifest.get("files", []):
+            path = UPLOAD_DIR / entry["filename"]
+            if path.exists():
+                path.unlink()
+    manifest_path = staged_manifest_path()
+    if manifest_path.exists():
+        manifest_path.unlink()

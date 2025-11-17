@@ -104,3 +104,12 @@
     </div>
   </section>
 </div>
+<script>
+  window.dispatchEvent(
+    new CustomEvent("ragdoll:loader-update", {
+      detail: {
+        items: {{ loader_items | tojson }},
+      },
+    })
+  );
+</script>

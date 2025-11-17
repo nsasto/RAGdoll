@@ -6,8 +6,8 @@
     <title>RAGdoll Orchestrator Demo (Fixed Sidebar)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -92,7 +92,7 @@
         class="pointer-events-none fixed right-6 top-6 z-40"
       >
         <div
-          x-text="toast.message"
+          x-text="toast?.message"
           :class="{
             'bg-ragdoll-green text-white border border-ragdoll-green/80': toast?.type === 'success',
             'bg-yellow-500 text-white border border-yellow-600': toast?.type === 'warning',
@@ -137,6 +137,10 @@
               <div :class="dotClasses('ingestion')"></div>
               📥
             </button>
+            <button @click="activeTab = 'loaders'" :class="buttonClasses('loaders')" class="text-xl">
+              <div :class="dotClasses('loaders')"></div>
+              🧾
+            </button>
             <button @click="activeTab = 'pipeline'" :class="buttonClasses('pipeline')" class="text-xl">
               <div :class="dotClasses('pipeline')"></div>
               ▶️
@@ -164,7 +168,7 @@
                   x-show="activeTab === 'ingestion'"
                   x-cloak
                   x-transition.opacity
-                  class="bg-ragdoll-light-green border border-ragdoll-green/30 p-6 rounded-xl shadow-md"
+                  class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm"
                 >
                   <h2 class="text-xl font-bold text-gray-800 flex items-center mb-4">
                     <svg
@@ -252,11 +256,62 @@
                         type="submit"
                         class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
                       >
-                        Ingest & Build Index (<code class="bg-white/10 rounded px-1 py-0.5 text-xs">ragdoll.ingest_data()</code>)
+                        Ingest
                       </button>
                       <span id="loader-indicator" class="htmx-indicator text-sm text-gray-500">Processing…</span>
                     </div>
+                    <p class="text-[11px] text-gray-500">
+                      Document loaders execute immediately, so the Loaders tab is read-only and shows the converted markdown.
+                    </p>
+                    <div class="space-y-1 mt-3">
+                      <div class="flex items-center justify-between text-xs text-gray-500">
+                        <p class="font-semibold text-gray-600">Staged ingestion list (editable)</p>
+                        <button
+                          type="button"
+                          id="manifest-sync"
+                          class="text-xs text-ragdoll-green underline underline-offset-2 hover:text-ragdoll-green/80"
+                        >
+                          Refresh list
+                        </button>
+                      </div>
+                      <textarea
+                        id="ingest-manifest"
+                        class="w-full min-h-[120px] rounded-2xl border border-gray-200 bg-white p-3 text-xs font-mono text-gray-700 focus:border-ragdoll-green focus:ring-ragdoll-green"
+                      ></textarea>
+                      <p class="text-[10px] uppercase tracking-wide text-gray-400">
+                        Files are saved to <code class="bg-slate-900 text-white px-1 rounded">demo_state/uploads</code>
+                        when the pipeline is triggered. Edit names, URLs, or inline snippets here before document loading/markdown conversion.
+                      </p>
+                    </div>
                   </form>
+                </section>
+
+                <section
+                  x-show="activeTab === 'loaders'"
+                  x-cloak
+                  x-transition.opacity
+                  class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm"
+                >
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">2. Loaders (Read only)</h3>
+                  <div class="text-xs text-gray-500 mb-4">
+                    File/url/text staging is frozen after ingestion; click entries to preview the generated markdown on the right.
+                  </div>
+                  <div class="grid gap-4 lg:grid-cols-[1fr,2fr]">
+                    <div class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-3 overflow-y-auto" id="loader-source-list">
+                      <p class="text-xs text-gray-400">No documents loaded yet. Run ingestion to populate sources.</p>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-2">
+                      <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-semibold text-gray-800">Markdown Preview</h4>
+                        <span class="text-[10px] uppercase tracking-wide text-gray-400">rendered</span>
+                      </div>
+                      <div id="loader-preview-title" class="text-sm text-gray-600 font-semibold">Select a source</div>
+                      <pre
+                        id="loader-preview-content"
+                        class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto max-h-[260px]"
+                      >No preview yet.</pre>
+                    </div>
+                  </div>
                 </section>
 
                 <section
@@ -265,7 +320,7 @@
                   x-transition.opacity
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200"
                 >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">2. End-to-End Orchestration View</h3>
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">3. End-to-End Orchestration View</h3>
                   <div class="text-sm text-gray-600 mb-4">
                     This view visualizes the entire RAG pipeline from ingestion to response, showcasing RAGdoll's modular flow control.
                   </div>
@@ -314,7 +369,7 @@
                   x-transition.opacity
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200"
                 >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">4. Chunking Strategy (`chunking.md`)</h3>
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">5. Chunking Strategy (`chunking.md`)</h3>
                   <p class="text-sm text-gray-600 mb-4">
                     RAGdoll uses `RecursiveCharacterTextSplitter` based on detected document structure.
                   </p>
@@ -344,7 +399,7 @@ def get_text_splitter(strategy="recursive", chunk_size=1000, overlap=200):
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200"
                 >
                   <h3 class="text-lg font-semibold mb-3 text-gray-800">
-                    5. Data Stores (`vector_stores.md`, `graph_stores.md`)
+                    6. Data Stores (`vector_stores.md`, `graph_stores.md`)
                   </h3>
                   <p class="text-sm text-gray-600 mb-4">
                     RAGdoll supports flexible persistence layers via a standardized factory pattern.
@@ -374,7 +429,7 @@ def get_embedding_model(model_name="gemini-embedding-001"):
                   x-transition.opacity
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200"
                 >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">6. LLM Integration (`llm_integration.md`)</h3>
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">7. LLM Integration (`llm_integration.md`)</h3>
                   <p class="text-sm text-gray-600 mb-4">
                     The core component for response generation and agentic tool use.
                   </p>
@@ -506,5 +561,246 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
         </div>
       </div>
     </div>
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        const fileInput = document.getElementById("file-upload");
+        const textInput = document.querySelector("textarea[name='text_input']");
+        const urlsInput = document.querySelector("textarea[name='urls']");
+        const manifest = document.getElementById("ingest-manifest");
+        const syncBtn = document.getElementById("manifest-sync");
+        let manifestAuto = true;
+        let stagedEntries = [];
+
+        const sanitize = (value) =>
+          value.replace(/[\r\n]+/g, " ").trim().slice(0, 220);
+
+        const stagedDisplayEntries = () =>
+          stagedEntries.map((entry) => `File: ${entry.original_name || entry.filename || ""}`);
+
+        const buildEntries = () => {
+          const entries = [...stagedDisplayEntries()];
+
+          if (urlsInput) {
+            const urlLines = urlsInput.value
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter(Boolean);
+            entries.push(...urlLines.map((line) => `URL: ${line}`));
+          }
+
+          if (textInput && textInput.value.trim()) {
+            entries.push(`Text: ${sanitize(textInput.value)}`);
+          }
+
+          return entries.length ? entries.join("\n") : "No sources staged yet.";
+        };
+
+        const refreshManifest = () => {
+          if (!manifest || !manifestAuto) {
+            return;
+          }
+          manifest.value = buildEntries();
+        };
+
+        const attachChange = (element) => {
+          element.addEventListener("input", () => {
+            refreshManifest();
+          });
+        };
+
+        const ensureManifestShowsStage = (entries) => {
+          if (!manifest) {
+            return;
+          }
+          const stageLines = entries
+            .map((entry) => (entry ? `File: ${entry.original_name || entry.filename}` : ""))
+            .filter(Boolean);
+          if (stageLines.length) {
+            manifest.value = stageLines.join("\n");
+            return;
+          }
+          manifest.value = buildEntries();
+        };
+
+        const updateStagedEntries = (entries, { force = false } = {}) => {
+          stagedEntries = entries || [];
+          if (manifest) {
+            manifest.value = buildEntries();
+          }
+          if (force) {
+            manifestAuto = true;
+          }
+        };
+
+        const loadExistingStaged = async () => {
+          try {
+            const response = await fetch("/stage", { method: "POST" });
+            if (response.ok) {
+              const data = await response.json();
+              const files = data.staged_files || [];
+              if (files.length) {
+                updateStagedEntries(files, { force: true });
+                ensureManifestShowsStage(files);
+              }
+            }
+          } catch {
+            // ignore
+          }
+        };
+
+        const stageSelectedFiles = async () => {
+          if (!fileInput?.files?.length) {
+            return;
+          }
+          // Immediately reflect selection with local-only entries before server responds.
+          const immediateEntries = Array.from(fileInput.files).map((file) => ({
+            filename: file.name,
+            original_name: file.name,
+            local_only: true,
+          }));
+          stagedEntries = immediateEntries;
+          ensureManifestShowsStage(stagedEntries);
+          manifestAuto = true;
+          const formData = new FormData();
+          Array.from(fileInput.files).forEach((file) => formData.append("files", file));
+
+          try {
+            const response = await fetch("/stage", {
+              method: "POST",
+              body: formData,
+            });
+            if (!response.ok) {
+              throw new Error(`Stage failed: ${response.status}`);
+            }
+            const data = await response.json();
+            const staged = data.staged_files || [];
+            if (staged.length) {
+              updateStagedEntries(staged, { force: true });
+              ensureManifestShowsStage(staged);
+            }
+            manifestAuto = true;
+            window.dispatchEvent(
+              new CustomEvent("ragdoll:toast", {
+                detail: { message: "Files staged successfully." },
+              })
+            );
+            loadExistingStaged();
+          } catch (error) {
+            console.error("Staging files failed", error);
+          } finally {
+            if (fileInput) {
+              fileInput.value = "";
+            }
+          }
+        };
+
+        if (fileInput) {
+          fileInput.addEventListener("change", () => {
+            stageSelectedFiles();
+          });
+        }
+
+        if (textInput) {
+          attachChange(textInput);
+        }
+        if (urlsInput) {
+          attachChange(urlsInput);
+        }
+
+        if (manifest) {
+          manifest.addEventListener("input", () => {
+            manifestAuto = false;
+          });
+        }
+
+        if (syncBtn) {
+          syncBtn.addEventListener("click", () => {
+            manifestAuto = true;
+            refreshManifest();
+          });
+        }
+
+        loadExistingStaged();
+        refreshManifest();
+      });
+    </script>
+    <script>
+      const escapeHtml = (value = "") =>
+        value
+          .toString()
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      const loaderListEl = document.getElementById("loader-source-list");
+      const loaderPreviewTitle = document.getElementById("loader-preview-title");
+      const loaderPreviewContent = document.getElementById("loader-preview-content");
+      let loaderItems = [];
+      let loaderActiveIndex = -1;
+
+      const updateLoaderPreview = (index) => {
+        if (!loaderPreviewTitle || !loaderPreviewContent) {
+          return;
+        }
+        if (index == null || loaderItems.length === 0) {
+          loaderPreviewTitle.textContent = "Select a source";
+          loaderPreviewContent.textContent = "No preview yet.";
+          return;
+        }
+        const item = loaderItems[index];
+        if (!item) {
+          return;
+        }
+        loaderPreviewTitle.textContent = item.title;
+        loaderPreviewContent.textContent = item.content || item.preview || "No content available.";
+      };
+
+      const renderLoaderList = () => {
+        if (!loaderListEl) {
+          return;
+        }
+        if (!loaderItems.length) {
+          loaderListEl.innerHTML =
+            '<p class="text-xs text-gray-400">No documents loaded yet. Run ingestion to populate sources.</p>';
+          return;
+        }
+        loaderListEl.innerHTML = loaderItems
+          .map((item, idx) => {
+            const isActive = idx === loaderActiveIndex;
+            return `
+              <button
+                type="button"
+                data-index="${idx}"
+                class="w-full text-left rounded-2xl border px-3 py-2 transition ${isActive ? 'border-ragdoll-green/70 bg-ragdoll-light-green/30' : 'border-gray-100 bg-gray-50 hover:border-gray-300'}"
+              >
+                <p class="text-sm font-semibold text-gray-800 truncate">${escapeHtml(item.title)}</p>
+                <p class="text-[11px] text-gray-500">${escapeHtml(item.source)}</p>
+              </button>
+            `;
+          })
+          .join("");
+        loaderListEl.querySelectorAll("button[data-index]").forEach((button) => {
+          button.addEventListener("click", () => {
+            loaderActiveIndex = Number(button.dataset.index);
+            renderLoaderList();
+            updateLoaderPreview(loaderActiveIndex);
+          });
+        });
+      };
+
+      const setLoaderItems = (items) => {
+        loaderItems = items || [];
+        loaderActiveIndex = loaderItems.length ? 0 : -1;
+        renderLoaderList();
+        updateLoaderPreview(loaderActiveIndex);
+      };
+
+      window.addEventListener("ragdoll:loader-update", (event) => {
+        setLoaderItems(event.detail.items || []);
+      });
+
+      setLoaderItems([]);
+    </script>
   </body>
 </html>

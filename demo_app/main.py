@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from langchain_core.documents import Document
 
 from . import state
-from .config_state import current_config_source, current_config_yaml, apply_config_yaml
+from .config_state import apply_config_yaml, current_config_source, current_config_yaml
 from .pipeline_demo import (
     answer_question,
     run_ingestion_demo,
@@ -96,9 +96,11 @@ async def ingest(request: Request) -> HTMLResponse:
             )
         )
 
+    staged_paths = [str(path) for path in state.staged_file_paths()]
+    combined_sources = staged_paths + saved_paths + url_list
     try:
         payload = await run_ingestion_demo(
-            sources=saved_paths + url_list,
+            sources=combined_sources,
             extra_documents=manual_docs,
             augment=augment,
         )
@@ -114,6 +116,7 @@ async def ingest(request: Request) -> HTMLResponse:
                 Path(path).unlink(missing_ok=True)
             except OSError:
                 pass
+        state.clear_staged_manifest(delete_files=True)
 
     context = {
         "request": request,
@@ -123,6 +126,7 @@ async def ingest(request: Request) -> HTMLResponse:
         "vector_hits": summarize_documents(payload.vector_hits),
         "graph_nodes": summarize_graph_nodes(payload.graph.nodes),
         "graph_edges": summarize_graph_edges(payload.graph.edges),
+        "loader_items": payload.loader_items,
     }
     return templates.TemplateResponse("partials/pipeline_results.html", context)
 
@@ -140,6 +144,41 @@ async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
 
     context = {"request": request, **result}
     return templates.TemplateResponse("partials/chat_response.html", context)
+
+
+@app.post("/stage")
+async def stage_files(request: Request) -> JSONResponse:
+    form = await request.form()
+    file_inputs: List[UploadFile] = [
+        upload for upload in form.getlist("files") if isinstance(upload, UploadFile)
+    ]
+    if not file_inputs:
+        return JSONResponse({"staged_files": state.staged_file_entries()}, status_code=200)
+
+    # Always reset the staged manifest and uploaded temp files when new files arrive.
+    state.clear_staged_manifest(delete_files=True)
+    entries = await _stage_uploads(file_inputs)
+    staged = state.add_staged_files(entries)
+    return JSONResponse({"staged_files": staged})
+
+
+async def _stage_uploads(files: List[UploadFile]) -> List[dict]:
+    saved_entries: List[dict] = []
+    upload_dir = state.upload_directory()
+    for upload in files:
+        if not upload.filename:
+            continue
+        suffix = Path(upload.filename).suffix
+        dest = upload_dir / f"{uuid.uuid4().hex}{suffix}"
+        content = await upload.read()
+        dest.write_bytes(content)
+        saved_entries.append(
+            {
+                "filename": dest.name,
+                "original_name": upload.filename,
+            }
+        )
+    return saved_entries
 
 
 async def _persist_uploads(files: List[UploadFile]) -> List[str]:

@@ -32,6 +32,7 @@ class StagePayload:
     vector_hits: List[Document]
     graph: Graph
     stats: Dict[str, int]
+    loader_items: List[Dict[str, str]]
 
 
 async def run_ingestion_demo(
@@ -119,6 +120,7 @@ async def run_ingestion_demo(
         vector_hits=vector_hits,
         graph=graph,
         stats=stats,
+        loader_items=_build_loader_items(all_documents),
     )
 
 
@@ -130,6 +132,25 @@ def summarize_documents(docs: Sequence[Document], *, limit: int = 5) -> List[Dic
             content = f"{content[:200]}..."
         summary.append({"content": content, "metadata": doc.metadata or {}})
     return summary
+
+
+def _build_loader_items(docs: Sequence[Document], *, limit: int = 10) -> List[Dict[str, str]]:
+    items = []
+    for idx, doc in enumerate(list(docs)[:limit]):
+        text = doc.page_content or ""
+        preview = " ".join(text.strip().splitlines())[:320]
+        source = doc.metadata.get("source") or f"source_{idx+1}"
+        title = doc.metadata.get("title") or source
+        items.append(
+            {
+                "id": f"doc-{idx}",
+                "title": title,
+                "source": source,
+                "preview": preview,
+                "content": text.strip(),
+            }
+        )
+    return items
 
 
 def summarize_graph_nodes(nodes: Sequence[GraphNode], limit: int = 5) -> List[Dict]:
