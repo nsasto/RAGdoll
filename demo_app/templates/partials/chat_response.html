@@ -1,0 +1,38 @@
+<div class="space-y-3">
+  <div class="flex justify-end">
+    <div class="bg-ragdoll-green text-white p-3 rounded-2xl rounded-br-none max-w-xs shadow-md">
+      <p class="text-sm font-semibold">You</p>
+      <p class="text-sm break-words">{{ question }}</p>
+    </div>
+  </div>
+  <div class="flex justify-start">
+    <div class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200">
+      <p class="text-sm font-semibold text-gray-800 mb-1">RAG Engine</p>
+      <p class="text-sm break-words whitespace-pre-wrap">{{ answer }}</p>
+    </div>
+  </div>
+  {% if vector_docs or graph_docs %}
+  <div class="bg-white border border-gray-200 rounded-2xl p-3 text-xs text-gray-500 space-y-2">
+    {% if vector_docs %}
+    <div>
+      <p class="font-semibold text-gray-700">Vector hits</p>
+      <ul class="list-disc pl-4 space-y-1">
+        {% for doc in vector_docs %}
+        <li>{{ doc.content[:180] }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if graph_docs %}
+    <div>
+      <p class="font-semibold text-gray-700">Graph hits</p>
+      <ul class="list-disc pl-4 space-y-1">
+        {% for doc in graph_docs %}
+        <li>{{ doc.content[:180] }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

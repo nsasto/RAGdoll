@@ -1,0 +1,106 @@
+<div class="space-y-6 text-gray-700">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center text-sm">
+    <div class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm">
+      <p class="text-xs text-gray-400">Documents</p>
+      <p class="text-2xl font-semibold text-gray-900">{{ stats.document_count }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm">
+      <p class="text-xs text-gray-400">Chunks</p>
+      <p class="text-2xl font-semibold text-gray-900">{{ stats.chunk_count }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm">
+      <p class="text-xs text-gray-400">Vectors</p>
+      <p class="text-2xl font-semibold text-gray-900">{{ stats.vector_count }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm">
+      <p class="text-xs text-gray-400">Graph Nodes</p>
+      <p class="text-2xl font-semibold text-gray-900">{{ stats.graph_nodes }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm">
+      <p class="text-xs text-gray-400">Graph Edges</p>
+      <p class="text-2xl font-semibold text-gray-900">{{ stats.graph_edges }}</p>
+    </div>
+  </div>
+
+  <section class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-semibold text-gray-800">Loader Output</h3>
+      <span class="text-xs text-gray-400">{{ stats.document_count }} document{{ 's' if stats.document_count != 1 else '' }}</span>
+    </div>
+    <p class="text-xs text-gray-500">
+      Normalized LangChain documents produced by <code class="bg-slate-900 text-white px-1 rounded">DocumentLoaderService</code>.
+    </p>
+    <div class="space-y-3">
+      {% for doc in documents %}
+      <div class="rounded-2xl border border-gray-100 bg-slate-50 p-3">
+        <p class="font-semibold text-sm text-gray-900">{{ doc.content[:280] }}</p>
+        <pre class="mt-2 text-xs text-gray-500 bg-slate-900 text-white p-2 rounded-lg overflow-x-auto">{{ doc.metadata | tojson(indent=2) }}</pre>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-semibold text-gray-800">Chunking Preview</h3>
+      <span class="text-xs text-gray-400">{{ chunks | length }} chunk{{ 's' if chunks | length != 1 else '' }} shown</span>
+    </div>
+    <p class="text-xs text-gray-500">
+      Splits created via <code class="bg-slate-900 text-white px-1 rounded">split_documents</code> and your configured splitter.
+    </p>
+    <ol class="list-decimal ml-5 space-y-2 text-sm">
+      {% for chunk in chunks[:5] %}
+      <li class="bg-slate-50 rounded-2xl border border-gray-100 p-3">
+        {{ chunk.content[:200] }}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-semibold text-gray-800">Embeddings & Vector Store</h3>
+      <span class="text-xs text-gray-400">Top {{ vector_hits | length }} similarity hits</span>
+    </div>
+    <p class="text-xs text-gray-500">
+      Vectors generated from <code class="bg-slate-900 text-white px-1 rounded">get_embedding_model()</code> and stored in FAISS or your configured index.
+    </p>
+    <div class="space-y-3">
+      {% for hit in vector_hits %}
+      <div class="rounded-2xl border border-gray-100 bg-slate-50 p-3">
+        <p class="font-semibold text-sm text-gray-900">{{ hit.content[:220] }}</p>
+        <pre class="mt-2 text-xs text-gray-500 bg-slate-900 text-white p-2 rounded-lg overflow-x-auto">{{ hit.metadata | tojson(indent=2) }}</pre>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-semibold text-gray-800">Graph Store Snapshot</h3>
+      <span class="text-xs text-gray-400">{{ graph.nodes | length }} nodes · {{ graph.edges | length }} edges</span>
+    </div>
+    <p class="text-xs text-gray-500">
+      Entities and relationships extracted via <code class="bg-slate-900 text-white px-1 rounded">EntityExtractionService</code>.
+    </p>
+    <div class="grid md:grid-cols-2 gap-3 text-sm">
+      <div class="space-y-2">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Nodes</p>
+        {% for node in graph_nodes %}
+        <div class="border border-gray-100 rounded-2xl p-3">
+          <p class="font-semibold text-gray-900">{{ node.name }}</p>
+          <p class="text-xs text-gray-500">{{ node.type }} · {{ node.id }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="space-y-2">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Edges</p>
+        {% for edge in graph_edges %}
+        <div class="border border-gray-100 rounded-2xl p-3 text-xs text-gray-600 bg-slate-50">
+          {{ edge.source }} <span class="text-xs text-gray-400">- [{{ edge.type }}] -</span> {{ edge.target }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>

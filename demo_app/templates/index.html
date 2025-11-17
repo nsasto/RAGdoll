@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAGdoll Orchestrator Demo (Fixed Sidebar)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+            },
+            colors: {
+              "ragdoll-green": "#10b981",
+              "ragdoll-light-green": "#d1fae5",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f7f7f9;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f7f7f9;
+      }
+      @keyframes pulse-green-shadow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+        }
+      }
+      .pulse-active {
+        animation: pulse-green-shadow 1.5s infinite;
+        position: relative;
+      }
+      [x-cloak] {
+        display: none !important;
+      }
+      .htmx-indicator {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+      .htmx-request .htmx-indicator {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body class="p-8 h-screen overflow-hidden">
+    <div
+      x-data="{
+        toast: null,
+        toastTimeout: null,
+      }"
+      x-init="
+        window.addEventListener('ragdoll:toast', (event) => {
+          toast = {
+            message: event.detail.message,
+            type: event.detail.type || 'success',
+          };
+          if (toastTimeout) {
+            clearTimeout(toastTimeout);
+          }
+          toastTimeout = setTimeout(() => {
+            toast = null;
+          }, 3500);
+        });
+      "
+      class="max-w-7xl mx-auto h-full flex flex-col"
+    >
+      <div
+        x-show="toast"
+        x-cloak
+        x-transition.opacity
+        class="pointer-events-none fixed right-6 top-6 z-40"
+      >
+        <div
+          x-text="toast.message"
+          :class="{
+            'bg-ragdoll-green text-white border border-ragdoll-green/80': toast?.type === 'success',
+            'bg-yellow-500 text-white border border-yellow-600': toast?.type === 'warning',
+            'bg-red-500 text-white border border-red-600': toast?.type === 'error',
+            'bg-gray-800 text-white border border-gray-700': toast?.type === 'info',
+          }"
+          class="rounded-2xl px-4 py-3 text-sm shadow-2xl whitespace-pre-line"
+        ></div>
+      </div>
+
+      <div
+        x-data="{ activeTab: 'config' }"
+        class="flex-grow flex relative bg-white rounded-2xl shadow-2xl overflow-hidden"
+      >
+        <div class="absolute left-0 top-0 bottom-0 w-24 flex-shrink-0 bg-white py-6 z-10 border-r border-gray-100">
+          <div class="absolute top-8 bottom-8 left-1/2 transform -translate-x-1/2 w-0.5 bg-gray-200"></div>
+          <nav
+            class="flex flex-col space-y-4 px-2"
+            x-data="{
+              buttonClasses(tab) {
+                return {
+                  'bg-ragdoll-light-green text-ragdoll-green font-semibold pulse-active': activeTab === tab,
+                  'bg-white text-gray-700 hover:bg-gray-50': activeTab !== tab,
+                  'relative flex items-center justify-center p-3 rounded-xl transition duration-300 cursor-pointer w-full': true,
+                  'ring-2 ring-ragdoll-green/70': activeTab === tab,
+                };
+              },
+              dotClasses(tab) {
+                return {
+                  'bg-ragdoll-green border-2 border-white ring-4 ring-ragdoll-light-green': activeTab === tab,
+                  'bg-gray-400': activeTab !== tab,
+                  'absolute left-1/2 transform -translate-x-1/2 w-3 h-3 rounded-full z-20': true,
+                };
+              },
+            }"
+          >
+            <button @click="activeTab = 'config'" :class="buttonClasses('config')" class="text-xl">
+              <div :class="dotClasses('config')"></div>
+              ⚙️
+            </button>
+            <button @click="activeTab = 'ingestion'" :class="buttonClasses('ingestion')" class="text-xl">
+              <div :class="dotClasses('ingestion')"></div>
+              📥
+            </button>
+            <button @click="activeTab = 'pipeline'" :class="buttonClasses('pipeline')" class="text-xl">
+              <div :class="dotClasses('pipeline')"></div>
+              ▶️
+            </button>
+            <button @click="activeTab = 'chunking'" :class="buttonClasses('chunking')" class="text-xl">
+              <div :class="dotClasses('chunking')"></div>
+              🔪
+            </button>
+            <button @click="activeTab = 'stores'" :class="buttonClasses('stores')" class="text-xl">
+              <div :class="dotClasses('stores')"></div>
+              💾
+            </button>
+            <button @click="activeTab = 'llm'" :class="buttonClasses('llm')" class="text-xl">
+              <div :class="dotClasses('llm')"></div>
+              🧠
+            </button>
+          </nav>
+        </div>
+
+        <div class="ml-24 flex-grow flex gap-8 p-6">
+          <div class="w-2/3 flex overflow-hidden">
+            <div class="flex-grow min-h-0 overflow-y-auto">
+              <div class="mt-4 space-y-6">
+                <section
+                  x-show="activeTab === 'ingestion'"
+                  x-cloak
+                  x-transition.opacity
+                  class="bg-ragdoll-light-green border border-ragdoll-green/30 p-6 rounded-xl shadow-md"
+                >
+                  <h2 class="text-xl font-bold text-gray-800 flex items-center mb-4">
+                    <svg
+                      class="w-6 h-6 mr-2 text-ragdoll-green"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      ></path>
+                    </svg>
+                    1. Document Ingestion (Auto Loader)
+                  </h2>
+                  <form
+                    hx-post="/ingest"
+                    hx-target="#pipeline-results"
+                    hx-swap="innerHTML"
+                    hx-indicator="#loader-indicator"
+                    enctype="multipart/form-data"
+                    class="space-y-4"
+                  >
+                    <div>
+                      <label class="block text-sm font-semibold text-gray-700 mb-2">Drag & Drop Files</label>
+                      <label
+                        for="file-upload"
+                        class="block border-2 border-dashed border-ragdoll-green/70 rounded-2xl bg-white p-6 text-center cursor-pointer hover:border-ragdoll-green focus-within:ring-2 focus-within:ring-ragdoll-green focus-within:border-ragdoll-green transition"
+                      >
+                        <div class="flex flex-col items-center justify-center space-y-1">
+                          <span class="text-2xl">📂</span>
+                          <p class="text-sm text-gray-600">PDF, DOCX, MD (or paste URLs/text below)</p>
+                        </div>
+                        <input id="file-upload" type="file" name="files" multiple class="sr-only" />
+                      </label>
+                    </div>
+
+                    <div>
+                      <label class="font-semibold text-sm text-gray-700 block mb-1">URLs (one per line)</label>
+                      <textarea
+                        name="urls"
+                        rows="3"
+                        class="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-700 focus:ring-ragdoll-green focus:border-ragdoll-green transition"
+                        placeholder="https://example.com/doc"
+                      ></textarea>
+                    </div>
+
+                    <div>
+                      <label class="font-semibold text-sm text-gray-700 block mb-1">Text snippet</label>
+                      <textarea
+                        name="text_input"
+                        rows="4"
+                        class="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-700 focus:ring-ragdoll-green focus:border-ragdoll-green transition"
+                        placeholder="Paste any text you want to ingest"
+                      ></textarea>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-4 text-sm text-gray-700">
+                      <label class="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="mode"
+                          value="augment"
+                          checked
+                          class="form-radio h-4 w-4 text-ragdoll-green border-gray-300 focus:ring-ragdoll-green"
+                        />
+                        Augment existing store
+                      </label>
+                      <label class="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="mode"
+                          value="reset"
+                          class="form-radio h-4 w-4 text-ragdoll-green border-gray-300 focus:ring-ragdoll-green"
+                        />
+                        Start from scratch
+                      </label>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                      <button
+                        type="submit"
+                        class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
+                      >
+                        Ingest & Build Index (<code class="bg-white/10 rounded px-1 py-0.5 text-xs">ragdoll.ingest_data()</code>)
+                      </button>
+                      <span id="loader-indicator" class="htmx-indicator text-sm text-gray-500">Processing…</span>
+                    </div>
+                  </form>
+                </section>
+
+                <section
+                  x-show="activeTab === 'pipeline'"
+                  x-cloak
+                  x-transition.opacity
+                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
+                >
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">2. End-to-End Orchestration View</h3>
+                  <div class="text-sm text-gray-600 mb-4">
+                    This view visualizes the entire RAG pipeline from ingestion to response, showcasing RAGdoll's modular flow control.
+                  </div>
+                  <div class="p-4 bg-white rounded-2xl border border-gray-300 space-y-3 shadow-sm">
+                    <p class="font-mono text-xs text-gray-700 mb-2">[RUNNING: ragdoll.run_pipeline(source_data)]</p>
+                    <div class="flex justify-between items-center text-xs font-medium text-gray-700">
+                      <span>Loaders</span>
+                      <span>Chunking</span>
+                      <span>Embeddings</span>
+                      <span>Vector Store</span>
+                      <span>Graph Store</span>
+                    </div>
+                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div class="h-2 bg-green-500 rounded-full w-[80%] transition-all duration-1000"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Status: Indexing 42/50 chunks…</p>
+                    <p class="text-xs text-gray-500">Total Ingestion Time: 12.4s (3s per 100 docs)</p>
+                  </div>
+
+                  <div id="pipeline-results" class="mt-6 space-y-6">
+                    <p class="text-sm text-gray-500">
+                      Run the ingestion pipeline above to populate documents, chunks, vectors, and graph insights here.
+                    </p>
+                  </div>
+
+                  <div class="mt-6">
+                    <h4 class="font-medium text-gray-800 mb-2">🕸️ Graph Visualizer</h4>
+                    <div class="h-64 w-full bg-white rounded-2xl border border-gray-300 flex items-center justify-center text-gray-500">
+                      Interactive Visualization Area (Nodes, Edges, Relationships)
+                    </div>
+                  </div>
+                </section>
+
+                <section
+                  x-show="activeTab === 'config'"
+                  x-cloak
+                  x-transition.opacity
+                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
+                >
+                  {% include "partials/config_panel.html" %}
+                </section>
+
+                <section
+                  x-show="activeTab === 'chunking'"
+                  x-cloak
+                  x-transition.opacity
+                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
+                >
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">4. Chunking Strategy (`chunking.md`)</h3>
+                  <p class="text-sm text-gray-600 mb-4">
+                    RAGdoll uses `RecursiveCharacterTextSplitter` based on detected document structure.
+                  </p>
+                  <h4 class="font-medium text-gray-800 mb-2">Code Snippet: <code>get_text_splitter</code></h4>
+                  <pre class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap">
+def get_text_splitter(strategy="recursive", chunk_size=1000, overlap=200):
+    # logic to select supported strategies
+    if strategy == "recursive":
+        return RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=overlap
+        )
+    # ... supported strategies
+                  </pre>
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Sample Output Chunk (Normalization)</h4>
+                  <div class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700 italic">
+                    "The full pipeline run orchestrates the loading, chunking, and embedding stages sequentially, followed
+                    by concurrent vector and graph storage if configured. This ensures all knowledge is indexed efficiently
+                    before the query phase begins."
+                  </div>
+                </section>
+
+                <section
+                  x-show="activeTab === 'stores'"
+                  x-cloak
+                  x-transition.opacity
+                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
+                >
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                    5. Data Stores (`vector_stores.md`, `graph_stores.md`)
+                  </h3>
+                  <p class="text-sm text-gray-600 mb-4">
+                    RAGdoll supports flexible persistence layers via a standardized factory pattern.
+                  </p>
+                  <h4 class="font-medium text-gray-800 mb-2">Vector Store</h4>
+                  <div class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700">
+                    <span class="font-medium">Active:</span> ChromaDB
+                    <span class="ml-4 text-xs text-ragdoll-green">ragdoll.factory.get_vector_store()</span>
+                  </div>
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Embeddings Code Snippet</h4>
+                  <pre class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap">
+# See embeddings.md
+def get_embedding_model(model_name="gemini-embedding-001"):
+    # Uses ModelFactory for provider hints
+    return HuggingFaceEmbeddings.from_model_name(model_name)
+                  </pre>
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Graph Store (Persistence)</h4>
+                  <div class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700">
+                    <span class="font-medium">Active:</span> Neo4j (Disabled via Config)
+                    <span class="ml-4 text-xs text-ragdoll-green">ragdoll.factory.get_graph_store()</span>
+                  </div>
+                </section>
+
+                <section
+                  x-show="activeTab === 'llm'"
+                  x-cloak
+                  x-transition.opacity
+                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
+                >
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">6. LLM Integration (`llm_integration.md`)</h3>
+                  <p class="text-sm text-gray-600 mb-4">
+                    The core component for response generation and agentic tool use.
+                  </p>
+                  <h4 class="font-medium text-gray-800 mb-2">Code Snippet: <code>get_llm_caller</code></h4>
+                  <pre class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap">
+# See llm_integration.md
+def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
+    # Wraps the LLM for chat/streaming/context injection
+    return LangChainLLM(model=model_name, temperature=0.1)
+                  </pre>
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Enabled Agent Tools</h4>
+                  <div class="space-y-1">
+                    <div class="flex items-center text-sm text-gray-700">
+                      <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span> Suggested Queries
+                    </div>
+                    <div class="flex items-center text-sm text-gray-700">
+                      <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span> Google Search (Fallback)
+                    </div>
+                    <div class="flex items-center text-sm text-gray-700">
+                      <span class="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"></span> Calculator (Available)
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+
+          <div x-data="{ showTrace: false }" class="w-1/3 flex flex-col space-y-6">
+            <div class="flex-grow bg-white p-6 rounded-2xl border border-gray-200 shadow-inner overflow-y-auto">
+              <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                <span class="text-ragdoll-green">RAG Engine</span> Interaction
+              </h2>
+              <div class="bg-gray-50 p-4 rounded-xl shadow-sm mb-6 border-l-4 border-ragdoll-green/70">
+                <p class="font-semibold text-gray-800 mb-1">System Message:</p>
+                <p class="text-gray-700 text-sm">
+                  Index built successfully! Ask questions about the ingested documents now. Caching and monitoring are active.
+                </p>
+              </div>
+              <div id="chat-thread" class="space-y-4 text-sm">
+                <div class="flex justify-end">
+                  <div class="bg-ragdoll-green text-white p-3 rounded-2xl rounded-br-none max-w-xs shadow-md">
+                    Summarize the key features of the RAGdoll ingestion pipeline.
+                  </div>
+                </div>
+                <div class="flex justify-start">
+                  <div class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200">
+                    The RAGdoll ingestion pipeline is designed for modularity and high performance. Key features include
+                    <strong>Unified Data Loading</strong>, <strong>Automated Chunking Strategies</strong>, and concurrent indexing
+                    into both <strong>Vector Stores</strong> and <strong>Graph Stores</strong>.
+                  </div>
+                </div>
+              </div>
+              <div class="mt-6 border-t border-gray-200 pt-4">
+                <button
+                  @click="showTrace = !showTrace"
+                  class="flex items-center text-xs font-semibold text-ragdoll-green hover:text-ragdoll-green/80 transition"
+                >
+                  <svg
+                    x-show="!showTrace"
+                    class="w-4 h-4 mr-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                  <svg
+                    x-show="showTrace"
+                    class="w-4 h-4 mr-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                  </svg>
+                  Show Retrieval Trace (Context Used)
+                </button>
+                <div x-show="showTrace" x-collapse class="mt-3 space-y-3 p-3 bg-ragdoll-light-green/30 rounded-2xl text-xs">
+                  <p class="font-medium text-gray-800">Source 1: Vector Chunks (Top 3)</p>
+                  <div class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600">
+                    "Vector Store: RAGdoll standardizes the interface for popular vector databases like ChromaDB and Pinecone,
+                    allowing seamless switching via the configuration manager..."
+                  </div>
+                  <div class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600">
+                    "Graph Store: The entity extraction service uses Neo4j for relationship storage, which is useful for
+                    highly structured querying..."
+                  </div>
+                  <p class="font-medium text-gray-800 pt-2">Source 2: Graph Facts (Triples)</p>
+                  <div class="bg-white p-2 rounded-xl border border-gray-300 font-mono text-gray-700">
+                    (RAGdoll) -[HAS_FEATURE]-> (Orchestration)<br />
+                    (RAGdoll) -[USES_STORE]-> (ChromaDB)
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-between items-center text-xs text-gray-500 px-1 pt-1 border-t border-gray-200">
+              <span class="font-medium">Metrics:</span>
+              <span>Query Time: <span class="text-ragdoll-green font-semibold">550ms</span></span>
+              <span>Cache Status: <span class="text-green-600 font-semibold">HIT</span></span>
+              <span>Source: Vector + Graph Retriever</span>
+            </div>
+            <div class="relative">
+              <form
+                hx-post="/chat"
+                hx-target="#chat-thread"
+                hx-swap="beforeend"
+                class="relative"
+              >
+                <input
+                  type="text"
+                  name="question"
+                  class="w-full py-4 pl-4 pr-16 border-2 border-gray-300 rounded-2xl focus:ring-ragdoll-green focus:border-ragdoll-green text-gray-800 placeholder-gray-500 transition"
+                  placeholder="Ask whatever you want about the ingested data..."
+                  required
+                />
+                <button
+                  type="submit"
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-ragdoll-green text-white rounded-lg shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
+                >
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
