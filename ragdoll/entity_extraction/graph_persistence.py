@@ -47,6 +47,12 @@ else:  # pragma: no cover - exercised indirectly in tests
             class Config:
                 arbitrary_types_allowed = True
 
+        def get_relevant_documents(self, query: str, **kwargs):
+            return self._get_relevant_documents(query, **kwargs)
+
+        async def aget_relevant_documents(self, query: str, **kwargs):
+            return self._get_relevant_documents(query, **kwargs)
+
 from .models import Graph, GraphNode
 
 logger = logging.getLogger(__name__)
