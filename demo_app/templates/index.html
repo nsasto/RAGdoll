@@ -192,6 +192,7 @@
                     hx-target="#pipeline-results"
                     hx-swap="innerHTML"
                     hx-indicator="#loader-indicator"
+                    hx-on:htmx:beforeRequest="activeTab = 'loaders'"
                     enctype="multipart/form-data"
                     class="space-y-4"
                   >
@@ -310,6 +311,15 @@
                         id="loader-preview-content"
                         class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto max-h-[260px]"
                       >No preview yet.</pre>
+                    </div>
+                  </div>
+                  <div class="bg-white rounded-2xl border border-gray-100 p-4 mt-4">
+                    <h5 class="text-xs font-semibold text-gray-700 mb-2">Loader &amp; Parsing Logs</h5>
+                    <div
+                      id="loader-log-box"
+                      class="text-[11px] text-gray-600 bg-gray-50 rounded-2xl border border-gray-200 p-3 space-y-1 max-h-[200px] overflow-auto"
+                    >
+                      <p class="text-gray-400">No logs yet. Ingest to see loader/monitor output.</p>
                     </div>
                   </div>
                 </section>
@@ -638,9 +648,13 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
             if (response.ok) {
               const data = await response.json();
               const files = data.staged_files || [];
-              if (files.length) {
-                updateStagedEntries(files, { force: true });
-                ensureManifestShowsStage(files);
+              if (files.length && manifest) {
+                stagedEntries = files;
+                const lines = files
+                  .map((entry) => `File: ${entry.original_name || entry.filename}`)
+                  .filter(Boolean);
+                manifest.value = lines.length ? lines.join("\n") : "No sources staged yet.";
+                manifestAuto = true;
               }
             }
           } catch {
@@ -675,8 +689,14 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
             const data = await response.json();
             const staged = data.staged_files || [];
             if (staged.length) {
-              updateStagedEntries(staged, { force: true });
-              ensureManifestShowsStage(staged);
+              stagedEntries = staged;
+              if (manifest) {
+                const lines = staged
+                  .map((entry) => `File: ${entry.original_name || entry.filename}`)
+                  .filter(Boolean);
+                manifest.value = lines.length ? lines.join("\n") : "No sources staged yet.";
+              }
+              manifestAuto = true;
             }
             manifestAuto = true;
             window.dispatchEvent(
@@ -688,9 +708,7 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
           } catch (error) {
             console.error("Staging files failed", error);
           } finally {
-            if (fileInput) {
-              fileInput.value = "";
-            }
+            // Keep the file input value intact so the form submission still carries the files even if staging failed.
           }
         };
 
@@ -736,8 +754,10 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
       const loaderListEl = document.getElementById("loader-source-list");
       const loaderPreviewTitle = document.getElementById("loader-preview-title");
       const loaderPreviewContent = document.getElementById("loader-preview-content");
+      const loaderLogBox = document.getElementById("loader-log-box");
       let loaderItems = [];
       let loaderActiveIndex = -1;
+      let loaderLogs = [];
 
       const updateLoaderPreview = (index) => {
         if (!loaderPreviewTitle || !loaderPreviewContent) {
@@ -796,11 +816,31 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
         updateLoaderPreview(loaderActiveIndex);
       };
 
+      const renderLoaderLogs = () => {
+        if (!loaderLogBox) {
+          return;
+        }
+        if (!loaderLogs.length) {
+          loaderLogBox.innerHTML = '<p class="text-gray-400">No logs yet. Ingest to see loader/monitor output.</p>';
+          return;
+        }
+        loaderLogBox.innerHTML = loaderLogs
+          .map((line) => `<p class="leading-snug">${escapeHtml(line)}</p>`)
+          .join("");
+      };
+
+      const setLoaderLogs = (logs) => {
+        loaderLogs = logs || [];
+        renderLoaderLogs();
+      };
+
       window.addEventListener("ragdoll:loader-update", (event) => {
         setLoaderItems(event.detail.items || []);
+        setLoaderLogs(event.detail.logs || []);
       });
 
       setLoaderItems([]);
+      setLoaderLogs([]);
     </script>
   </body>
 </html>

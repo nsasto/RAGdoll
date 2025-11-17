@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence
 
 from langchain_core.documents import Document
-from langchain_community.vectorstores import FAISS
 
 from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.embeddings import FakeEmbeddings, get_embedding_model, OpenAIEmbeddings
@@ -33,6 +31,7 @@ class StagePayload:
     graph: Graph
     stats: Dict[str, int]
     loader_items: List[Dict[str, str]]
+    loader_logs: List[str]
 
 
 async def run_ingestion_demo(
@@ -48,7 +47,7 @@ async def run_ingestion_demo(
     else:
         state.ensure_state_dirs()
 
-    loader = DocumentLoaderService(collect_metrics=False, use_cache=False)
+    loader = DocumentLoaderService(collect_metrics=True, use_cache=False)
 
     loaded_docs: List[Document] = []
     if sources:
@@ -65,62 +64,31 @@ async def run_ingestion_demo(
     if not all_documents:
         raise ValueError("Please provide at least one document, URL, or text snippet.")
 
-    splitter = get_text_splitter()
-    chunks = split_documents(all_documents, splitter=splitter, batch_size=25)
-
-    embedding = _resolve_embedding_model()
-    vector_store = state.load_vector_store(embedding) if augment else None
-    if vector_store:
-        vector_store.add_documents(chunks)
-    else:
-        vector_store = FAISS.from_documents(chunks, embedding)
-
-    state.save_vector_store(vector_store)
-
-    try:
-        entity_service = EntityExtractionService(
-            chunk_documents=False,
-            text_splitter=splitter,
-        )
-        graph = await entity_service.extract(chunks)
-    except Exception:
-        graph = Graph(nodes=[], edges=[])
-
-    if augment:
-        existing_graph = state.load_graph()
-        if existing_graph:
-            graph = Graph(
-                nodes=existing_graph.nodes + graph.nodes,
-                edges=existing_graph.edges + graph.edges,
-            )
-
-    state.save_graph(graph)
-
-    graph_service = GraphPersistenceService(
-        output_format="networkx",
-        output_path=str(state.graph_pickle_path()),
-    )
-    graph_service.save(graph)
-
-    vector_hits = vector_store.similarity_search(
-        "demo retrieval", k=min(3, len(chunks))
-    )
-
     stats = {
         "document_count": len(all_documents),
-        "chunk_count": len(chunks),
-        "vector_count": len(vector_store.index_to_docstore_id),
-        "graph_nodes": len(graph.nodes),
-        "graph_edges": len(graph.edges),
+        "chunk_count": 0,
+        "vector_count": 0,
+        "graph_nodes": 0,
+        "graph_edges": 0,
     }
+
+    loader_logs: List[str] = []
+    loader_logs.append(f"Sources submitted: files/paths={len(sources)}, extra_docs={len(extra_documents)}")
+    loader_logs.append(f"Documents loaded: {len(all_documents)}")
+    loader_logs.append("Chunking/embeddings/graph steps are skipped in this loader-only view.")
+    if loader.collect_metrics:
+        loader_logs.append("Monitoring enabled for ingestion stage")
+    else:
+        loader_logs.append("Monitoring disabled for ingestion stage")
 
     return StagePayload(
         documents=all_documents,
-        chunks=chunks,
-        vector_hits=vector_hits,
-        graph=graph,
+        chunks=[],
+        vector_hits=[],
+        graph=Graph(nodes=[], edges=[]),
         stats=stats,
         loader_items=_build_loader_items(all_documents),
+        loader_logs=loader_logs,
     )
 
 
@@ -195,7 +163,14 @@ def _resolve_embedding_model():
                 f"OpenAI embeddings requested but failed to initialize: {e}"
             )
 
-    model = get_embedding_model()
+    try:
+        model = get_embedding_model()
+    except Exception as exc:
+        logger.warning(
+            "Falling back to FakeEmbeddings because get_embedding_model failed: %s", exc
+        )
+        model = None
+
     if model is None:
         model = FakeEmbeddings(size=1536)
         logger.info("Using fake embeddings (no embeddings configured)")

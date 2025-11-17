@@ -56,7 +56,7 @@ def graph_pickle_path() -> Path:
 def load_vector_store(embedding) -> Optional[FAISS]:
     """Load the persisted FAISS store if available."""
 
-    if not VECTOR_DIR.exists():
+    if not VECTOR_DIR.exists() or not (VECTOR_DIR / "index.faiss").exists():
         return None
     return FAISS.load_local(
         str(VECTOR_DIR), embedding, allow_dangerous_deserialization=True

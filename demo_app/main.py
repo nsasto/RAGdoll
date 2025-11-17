@@ -19,6 +19,10 @@ from .pipeline_demo import (
     summarize_graph_nodes,
 )
 
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
+
 app = FastAPI(title="RAGdoll Demo")
 templates = Jinja2Templates(directory="demo_app/templates")
 
@@ -32,7 +36,9 @@ def _config_context(
 ) -> dict:
     """Build the context shared between the index page and config partial."""
 
-    yaml_text = current_config_yaml() if config_yaml_override is None else config_yaml_override
+    yaml_text = (
+        current_config_yaml() if config_yaml_override is None else config_yaml_override
+    )
     return {
         "request": request,
         "config_yaml": yaml_text,
@@ -98,25 +104,30 @@ async def ingest(request: Request) -> HTMLResponse:
 
     staged_paths = [str(path) for path in state.staged_file_paths()]
     combined_sources = staged_paths + saved_paths + url_list
+    success = False
     try:
         payload = await run_ingestion_demo(
             sources=combined_sources,
             extra_documents=manual_docs,
             augment=augment,
         )
+        success = True
     except ValueError as exc:
+        # Preserve staged files on error so the user can retry.
+        message = f"{exc} (staged_files={len(staged_paths)}, uploads_in_form={len(saved_paths)}, urls={len(url_list)}, text={'yes' if manual_docs else 'no'})"
         return templates.TemplateResponse(
             "partials/error.html",
-            {"request": request, "message": str(exc)},
+            {"request": request, "message": message},
             status_code=400,
         )
     finally:
-        for path in saved_paths:
-            try:
-                Path(path).unlink(missing_ok=True)
-            except OSError:
-                pass
-        state.clear_staged_manifest(delete_files=True)
+        if success:
+            for path in saved_paths:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except OSError:
+                    pass
+            state.clear_staged_manifest(delete_files=True)
 
     context = {
         "request": request,
@@ -127,6 +138,7 @@ async def ingest(request: Request) -> HTMLResponse:
         "graph_nodes": summarize_graph_nodes(payload.graph.nodes),
         "graph_edges": summarize_graph_edges(payload.graph.edges),
         "loader_items": payload.loader_items,
+        "loader_logs": payload.loader_logs,
     }
     return templates.TemplateResponse("partials/pipeline_results.html", context)
 
@@ -153,7 +165,9 @@ async def stage_files(request: Request) -> JSONResponse:
         upload for upload in form.getlist("files") if isinstance(upload, UploadFile)
     ]
     if not file_inputs:
-        return JSONResponse({"staged_files": state.staged_file_entries()}, status_code=200)
+        return JSONResponse(
+            {"staged_files": state.staged_file_entries()}, status_code=200
+        )
 
     # Always reset the staged manifest and uploaded temp files when new files arrive.
     state.clear_staged_manifest(delete_files=True)

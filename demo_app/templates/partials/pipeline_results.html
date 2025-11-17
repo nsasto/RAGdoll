@@ -78,7 +78,9 @@
   <section class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm">
     <div class="flex justify-between items-center">
       <h3 class="text-lg font-semibold text-gray-800">Graph Store Snapshot</h3>
-      <span class="text-xs text-gray-400">{{ graph.nodes | length }} nodes · {{ graph.edges | length }} edges</span>
+      <span class="text-xs text-gray-400">
+        {{ graph_nodes | length }} nodes · {{ graph_edges | length }} edges
+      </span>
     </div>
     <p class="text-xs text-gray-500">
       Entities and relationships extracted via <code class="bg-slate-900 text-white px-1 rounded">EntityExtractionService</code>.
@@ -109,6 +111,7 @@
     new CustomEvent("ragdoll:loader-update", {
       detail: {
         items: {{ loader_items | tojson }},
+        logs: {{ loader_logs | tojson }},
       },
     })
   );

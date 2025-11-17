@@ -192,10 +192,11 @@ class GraphPersistenceService:
     def _save_networkx(self, graph: Graph) -> None:
         try:
             import networkx as nx
-        except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ImportError(
-                "networkx is required for networkx graph persistence. Install with `pip install networkx`."
-            ) from exc
+        except ImportError:  # pragma: no cover - optional dependency
+            logger.warning(
+                "networkx is required for networkx graph persistence. Install with `pip install networkx`. Skipping save."
+            )
+            return
 
         nx_graph = nx.DiGraph()
         for node in graph.nodes:
@@ -216,8 +217,17 @@ class GraphPersistenceService:
             )
 
         output_path = Path(self.output_path or "graph_output.gpickle")
-        nx.write_gpickle(nx_graph, output_path)
-        logger.info("Graph saved to NetworkX pickle at %s", output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # networkx 3.x removed the top-level write_gpickle; pickle directly instead.
+            import pickle
+
+            with output_path.open("wb") as f:
+                pickle.dump(nx_graph, f)
+            logger.info("Graph saved to NetworkX pickle at %s", output_path)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to pickle NetworkX graph: %s", exc)
 
     # ------------------------------------------------------------------ #
     # Neo4j persistence
