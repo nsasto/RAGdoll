@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 from langchain_core.documents import Document
@@ -39,26 +41,54 @@ async def run_ingestion_demo(
     sources: Sequence[str],
     extra_documents: Sequence[Document],
     augment: bool,
+    loader_only: bool = False,
 ) -> StagePayload:
-    """Execute the ingestion stages and collect artifacts for visualization."""
+    """Execute the ingestion stages and collect artifacts for visualization.
+    
+    Args:
+        sources: File paths, URLs, or other source identifiers
+        extra_documents: Pre-created Document objects to include
+        augment: If True, add to existing vector/graph stores. If False, reset them.
+        loader_only: If True, only load documents (no chunking/embedding/graph). Don't touch stores.
+    """
 
-    if not augment:
-        state.reset_state_dir()
-    else:
+    print(f"run_ingestion_demo called with sources={sources}, extra_docs count={len(extra_documents)}, augment={augment}, loader_only={loader_only}")
+    logger.info(f"run_ingestion_demo called with sources={sources}, extra_docs count={len(extra_documents)}, augment={augment}, loader_only={loader_only}")
+
+    # Ensure directories exist but don't delete anything yet
+    state.ensure_state_dirs()
+    
+    # Only reset stores if we're doing full ingestion AND not augmenting
+    if not loader_only and not augment:
+        # Reset vector/graph stores but keep uploads intact
+        if state.VECTOR_DIR.exists():
+            shutil.rmtree(state.VECTOR_DIR)
+        if state.GRAPH_JSON.exists():
+            state.GRAPH_JSON.unlink()
+        if state.GRAPH_PICKLE.exists():
+            state.GRAPH_PICKLE.unlink()
         state.ensure_state_dirs()
 
     loader = DocumentLoaderService(collect_metrics=True, use_cache=False)
 
     loaded_docs: List[Document] = []
     if sources:
+        print(f"Calling loader.ingest_documents with {len(sources)} sources")
+        logger.info(f"Calling loader.ingest_documents with {len(sources)} sources")
         raw_docs = loader.ingest_documents(list(sources))
+        # raw_docs are already Document objects, not dicts
         for doc in raw_docs:
-            loaded_docs.append(
-                Document(
-                    page_content=doc.get("page_content", ""),
-                    metadata=doc.get("metadata") or {},
+            if isinstance(doc, dict):
+                # Handle dict format if returned
+                loaded_docs.append(
+                    Document(
+                        page_content=doc.get("page_content", ""),
+                        metadata=doc.get("metadata") or {},
+                    )
                 )
-            )
+            else:
+                # Already a Document object
+                loaded_docs.append(doc)
 
     all_documents = loaded_docs + list(extra_documents)
     if not all_documents:

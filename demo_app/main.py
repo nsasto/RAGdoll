@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import Path
 from typing import List, Optional
@@ -22,6 +23,9 @@ from .pipeline_demo import (
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
+
+# Add logger configuration
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RAGdoll Demo")
 templates = Jinja2Templates(directory="demo_app/templates")
@@ -109,7 +113,8 @@ async def ingest(request: Request) -> HTMLResponse:
         payload = await run_ingestion_demo(
             sources=combined_sources,
             extra_documents=manual_docs,
-            augment=augment,
+            augment=augment,  # User's choice: add to existing stores or reset them
+            loader_only=False,  # Full pipeline: load, chunk, embed, store
         )
         success = True
     except ValueError as exc:
@@ -164,32 +169,55 @@ async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
 
 
 @app.post("/stage")
-async def stage_files(request: Request) -> JSONResponse:
-    form = await request.form()
-    file_inputs: List[UploadFile] = [
-        upload for upload in form.getlist("files") if isinstance(upload, UploadFile)
-    ]
-    if not file_inputs:
+async def stage_files(files: List[UploadFile] = Form(default=[])) -> JSONResponse:
+    """
+    Stage uploaded files without processing them yet.
+    """
+    print("=== /stage endpoint called ===")
+    logger.info("=== /stage endpoint called ===")
+    
+    print(f"Number of files received: {len(files)}")
+    logger.info(f"Number of files received: {len(files)}")
+    
+    for upload in files:
+        print(f"  - {upload.filename}")
+        logger.info(f"  - {upload.filename}")
+    
+    if not files:
+        print("No files provided, returning existing staged files")
+        logger.info("No files provided, returning existing staged files")
         return JSONResponse(
             {"staged_files": state.staged_file_entries()}, status_code=200
         )
-
+    
     # Always reset the staged manifest and uploaded temp files when new files arrive.
     state.clear_staged_manifest(delete_files=True)
-    entries = await _stage_uploads(file_inputs)
-    staged = state.add_staged_files(entries)
+    
+    saved_entries = await _stage_uploads(files)
+    print(f"Saved entries: {saved_entries}")
+    logger.info(f"Saved entries: {saved_entries}")
+    
+    staged = state.add_staged_files(saved_entries)
+    print(f"All staged files after adding: {staged}")
+    logger.info(f"All staged files after adding: {staged}")
+    
     return JSONResponse({"staged_files": staged})
 
 
 async def _stage_uploads(files: List[UploadFile]) -> List[dict]:
+    logger.info(f"_stage_uploads called with {len(files)} files")
     saved_entries: List[dict] = []
     upload_dir = state.upload_directory()
+    logger.info(f"Upload directory: {upload_dir}")
+    
     for upload in files:
         if not upload.filename:
+            logger.warning(f"Skipping file with no filename")
             continue
         suffix = Path(upload.filename).suffix
         dest = upload_dir / f"{uuid.uuid4().hex}{suffix}"
         content = await upload.read()
+        logger.info(f"Writing {len(content)} bytes to {dest}")
         dest.write_bytes(content)
         saved_entries.append(
             {
@@ -197,6 +225,7 @@ async def _stage_uploads(files: List[UploadFile]) -> List[dict]:
                 "original_name": upload.filename,
             }
         )
+    logger.info(f"_stage_uploads returning {len(saved_entries)} entries")
     return saved_entries
 
 
@@ -219,14 +248,22 @@ async def load_docs(request: Request) -> HTMLResponse:
     """
     Loader-only endpoint: pulls staged/form sources and converts them to markdown (no chunking/embeddings).
     """
-
+    print("=== /load endpoint called ===")
+    logger.info("=== /load endpoint called ===")
+    
     form = await request.form()
+    print(f"Form data keys: {list(form.keys())}")
+    logger.info(f"Form data keys: {list(form.keys())}")
 
     file_inputs: List[UploadFile] = [
         upload for upload in form.getlist("files") if isinstance(upload, UploadFile)
     ]
     urls = form.get("urls", "") or ""
     text_input = form.get("text_input", "") or ""
+
+    print(f"file_inputs count: {len(file_inputs)}")
+    print(f"urls: '{urls}'")
+    print(f"text_input: '{text_input[:100] if text_input else 'None'}'")
 
     saved_paths = await _persist_uploads(file_inputs)
     url_list = [line.strip() for line in urls.splitlines() if line.strip()]
@@ -243,15 +280,27 @@ async def load_docs(request: Request) -> HTMLResponse:
     staged_paths = [str(path) for path in state.staged_file_paths()]
     combined_sources = staged_paths + saved_paths + url_list
 
+    print(f"staged_paths: {staged_paths}")
+    print(f"saved_paths: {saved_paths}")
+    print(f"url_list: {url_list}")
+    print(f"combined_sources: {combined_sources}")
+    print(f"manual_docs count: {len(manual_docs)}")
+
     success = False
     try:
+        print("Calling run_ingestion_demo with loader_only=True (no vector/graph operations)")
+        logger.info("Calling run_ingestion_demo with loader_only=True (no vector/graph operations)")
         payload = await run_ingestion_demo(
             sources=combined_sources,
             extra_documents=manual_docs,
-            augment=False,
+            augment=False,  # Doesn't matter for loader_only, but semantically "fresh view"
+            loader_only=True,  # Don't touch vector/graph stores, just load and show markdown
         )
+        print("run_ingestion_demo succeeded")
+        logger.info("run_ingestion_demo succeeded")
         success = True
     except ValueError as exc:
+        logger.error(f"ValueError caught: {exc}")
         message = (
             f"{exc} "
             f"(staged_files={len(staged_paths)}, uploads_in_form={len(saved_paths)}, "
@@ -262,6 +311,13 @@ async def load_docs(request: Request) -> HTMLResponse:
             "partials/error.html",
             {"request": request, "message": message},
             status_code=400,
+        )
+    except Exception as exc:
+        logger.error(f"Unexpected error: {exc}", exc_info=True)
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {"request": request, "message": f"Unexpected error: {exc}"},
+            status_code=500,
         )
     finally:
         if success:
