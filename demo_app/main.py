@@ -11,7 +11,14 @@ from fastapi.templating import Jinja2Templates
 from langchain_core.documents import Document
 
 from . import state
-from .config_state import apply_config_yaml, current_config_source, current_config_yaml
+from .config_state import (
+    apply_config_yaml,
+    current_config_source,
+    current_config_yaml,
+    initialize_app_config,
+    get_app_config,
+)
+from ragdoll.ingestion import DocumentLoaderService
 from .pipeline_demo import (
     answer_question,
     run_ingestion_demo,
@@ -29,6 +36,13 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RAGdoll Demo")
 templates = Jinja2Templates(directory="demo_app/templates")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the global AppConfig on application startup."""
+    initialize_app_config()
+    logger.info("Global AppConfig initialized")
 
 
 def _config_context(
@@ -210,6 +224,111 @@ async def ingest(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("partials/pipeline_results.html", context)
 
 
+@app.post("/chunk", response_class=HTMLResponse)
+async def chunk_documents(
+    request: Request,
+    chunk_size: int = Form(1000),
+    chunk_overlap: int = Form(200)
+) -> HTMLResponse:
+    """
+    Chunk the loaded documents using the specified parameters.
+    """
+    from ragdoll.chunkers import get_text_splitter, split_documents
+    import time
+    
+    try:
+        logger.info(f"=== /chunk endpoint called with chunk_size={chunk_size}, chunk_overlap={chunk_overlap} ===")
+        
+        app_config = get_app_config()
+        
+        # Prefer persisted loaded documents saved by /load
+        saved = state.read_loaded_documents()
+        documents = []
+        if saved:
+            documents = [
+                Document(page_content=d.get("page_content", ""), metadata=d.get("metadata") or {})
+                for d in saved
+            ]
+        else:
+            # Fall back to staged paths and reload via loader
+            staged_paths = [str(path) for path in state.staged_file_paths()]
+            if not staged_paths:
+                return templates.TemplateResponse(
+                    "partials/error.html",
+                    {"request": request, "message": "No documents loaded. Please load documents first using the Loaders tab."},
+                    status_code=400,
+                )
+            loader = DocumentLoaderService(app_config=app_config, collect_metrics=False, use_cache=False)
+            chunk_start_time = time.time()
+            raw_docs = loader.ingest_documents(staged_paths)
+            documents = [
+                doc if isinstance(doc, Document) else Document(
+                    page_content=doc.get("page_content", ""),
+                    metadata=doc.get("metadata") or {},
+                )
+                for doc in raw_docs
+            ]
+        
+        # Get text splitter and chunk
+        chunk_start_time = time.time()
+        splitter = get_text_splitter(
+            splitter_type='recursive',
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            app_config=app_config,
+        )
+        chunks = split_documents(documents, text_splitter=splitter)
+        chunk_duration = time.time() - chunk_start_time
+        
+        # Calculate stats
+        total_chunks = len(chunks)
+        total_chunk_chars = sum(len(chunk.page_content) for chunk in chunks)
+        avg_chunk_size = total_chunk_chars / total_chunks if total_chunks > 0 else 0
+        
+        stats = {
+            "total_documents": len(documents),
+            "total_chunks": total_chunks,
+            "chunk_duration": round(chunk_duration, 2),
+            "avg_chunk_size": round(avg_chunk_size, 0),
+        }
+        
+        config_info = [
+            f"Chunker: RecursiveCharacterTextSplitter",
+            f"Chunk size: {chunk_size} characters",
+            f"Chunk overlap: {chunk_overlap} characters",
+            f"Total documents processed: {len(documents)}",
+            f"Total chunks created: {total_chunks}",
+            f"Chunking duration: {chunk_duration:.2f}s",
+            f"Avg chunks per document: {total_chunks / len(documents):.1f}" if documents else "N/A",
+            f"Avg chunk size: {avg_chunk_size:.0f} characters",
+        ]
+        
+        # Serialize chunks to JSON-compatible format
+        chunks_json = [
+            {
+                "page_content": chunk.page_content,
+                "metadata": chunk.metadata or {}
+            }
+            for chunk in chunks[:50]
+        ]
+        
+        context = {
+            "request": request,
+            "stats": stats,
+            "chunks": chunks_json,
+            "config_info": config_info,
+        }
+        return templates.TemplateResponse("partials/chunk_results.html", context)
+        
+    except Exception as exc:
+        logger.error(f"Chunking error: {exc}", exc_info=True)
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {"request": request, "message": f"Chunking failed: {exc}"},
+            status_code=500,
+        )
+
+
 @app.post("/chat", response_class=HTMLResponse)
 async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
     try:
@@ -352,63 +471,80 @@ async def load_docs(request: Request) -> HTMLResponse:
         source_filename_map[file_path] = original_name
     print(f"Filename mapping: {source_filename_map}")
 
-    success = False
+    # Simplified loader-only flow using DocumentLoaderService directly
     try:
-        print("Calling run_ingestion_demo with loader_only=True (no vector/graph operations)")
-        logger.info("Calling run_ingestion_demo with loader_only=True (no vector/graph operations)")
-        payload = await run_ingestion_demo(
-            sources=combined_sources,
-            extra_documents=manual_docs,
-            augment=False,  # Doesn't matter for loader_only, but semantically "fresh view"
-            loader_only=True,  # Don't touch vector/graph stores, just load and show markdown
-            source_filename_map=source_filename_map,
-        )
-        print("run_ingestion_demo succeeded")
-        logger.info("run_ingestion_demo succeeded")
-        success = True
+        app_config = get_app_config()
+        loader = DocumentLoaderService(app_config=app_config, use_cache=False, collect_metrics=False)
+        raw_documents = loader.ingest_documents(combined_sources)
+        # Normalize to langchain Document objects if needed
+        def normalize_documents(raw_docs):
+            docs = []
+            for entry in raw_docs:
+                if isinstance(entry, Document):
+                    docs.append(entry)
+                elif isinstance(entry, dict):
+                    docs.append(
+                        Document(
+                            page_content=str(entry.get('page_content', '')),
+                            metadata=entry.get('metadata', {}) or {},
+                        )
+                    )
+                else:
+                    docs.append(Document(page_content=str(entry), metadata={}))
+            return docs
+
+        documents = normalize_documents(raw_documents + manual_docs)
+
+        if not documents:
+            return templates.TemplateResponse(
+                "partials/error.html",
+                {"request": request, "message": "No documents found. Please stage files or provide URLs/text."},
+                status_code=400,
+            )
+
+        # Build loader items for UI and simple stats
+        from .pipeline_demo import _build_loader_items
+
+        stats = {
+            "document_count": len(documents),
+            "documents_loaded": len(raw_documents),
+            "load_duration_seconds": 0,
+            "total_characters": sum(len(d.page_content) for d in documents),
+        }
+
+        loader_logs = [f"Documents loaded: {len(raw_documents)}", f"Total documents: {len(documents)}"]
+
+        # Persist loaded documents for chunking endpoint
+        try:
+            simple_docs = [
+                {"page_content": d.page_content, "metadata": d.metadata or {}} for d in documents
+            ]
+            state.save_loaded_documents(simple_docs)
+        except Exception:
+            pass
+
+        context = {
+            "request": request,
+            "stats": stats,
+            "documents": summarize_documents(documents),
+            "chunks": [],
+            "vector_hits": [],
+            "graph_nodes": [],
+            "graph_edges": [],
+            "loader_items": _build_loader_items(documents),
+            "loader_logs": loader_logs,
+        }
+        return templates.TemplateResponse("partials/pipeline_results.html", context)
     except ValueError as exc:
-        logger.error(f"ValueError caught: {exc}")
-        message = (
-            f"{exc} "
-            f"(staged_files={len(staged_paths)}, "
-            f"urls={len(url_list)}, text={'yes' if manual_docs else 'no'}, "
-            f'sources={combined_sources[:3]}{"..." if len(combined_sources) > 3 else ""})'
-        )
         return templates.TemplateResponse(
             "partials/error.html",
-            {"request": request, "message": message},
+            {"request": request, "message": str(exc)},
             status_code=400,
         )
     except Exception as exc:
-        logger.error(f"Unexpected error: {exc}", exc_info=True)
+        logger.error(f"Loader failed: {exc}", exc_info=True)
         return templates.TemplateResponse(
             "partials/error.html",
-            {"request": request, "message": f"Unexpected error: {exc}"},
+            {"request": request, "message": f"Loader failed: {exc}"},
             status_code=500,
         )
-    finally:
-        if success:
-            # Clear staged manifest and attempt to delete files
-            try:
-                state.clear_staged_manifest(delete_files=True)
-            except (OSError, PermissionError) as e:
-                print(f"Could not clear staged files (may still be locked): {e}")
-                logger.warning(f"Could not clear staged files: {e}")
-                # At least clear the manifest even if files are locked
-                try:
-                    state.clear_staged_manifest(delete_files=False)
-                except Exception as e2:
-                    logger.error(f"Could not even clear manifest: {e2}")
-
-    context = {
-        "request": request,
-        "stats": payload.stats,
-        "documents": summarize_documents(payload.documents),
-        "chunks": summarize_documents(payload.chunks),
-        "vector_hits": summarize_documents(payload.vector_hits),
-        "graph_nodes": summarize_graph_nodes(payload.graph.nodes),
-        "graph_edges": summarize_graph_edges(payload.graph.edges),
-        "loader_items": payload.loader_items,
-        "loader_logs": payload.loader_logs,
-    }
-    return templates.TemplateResponse("partials/pipeline_results.html", context)

@@ -163,6 +163,14 @@
               <div :class="dotClasses('loaders')"></div>
               🧾
             </button>
+                        <button
+              @click="activeTab = 'chunking'"
+              :class="buttonClasses('chunking')"
+              class="text-xl"
+            >
+              <div :class="dotClasses('chunking')"></div>
+              🔪
+            </button>
             <button
               @click="activeTab = 'pipeline'"
               :class="buttonClasses('pipeline')"
@@ -171,14 +179,7 @@
               <div :class="dotClasses('pipeline')"></div>
               ▶️
             </button>
-            <button
-              @click="activeTab = 'chunking'"
-              :class="buttonClasses('chunking')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('chunking')"></div>
-              🔪
-            </button>
+
             <button
               @click="activeTab = 'stores'"
               :class="buttonClasses('stores')"
@@ -510,41 +511,84 @@ No preview yet.</pre
                   x-show="activeTab === 'chunking'"
                   x-cloak
                   x-transition.opacity
-                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
+                  class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm"
                 >
                   <h3 class="text-lg font-semibold mb-3 text-gray-800">
-                    5. Chunking Strategy (`chunking.md`)
+                    3. Document Chunking
                   </h3>
-                  <p class="text-sm text-gray-600 mb-4">
-                    RAGdoll uses `RecursiveCharacterTextSplitter` based on
-                    detected document structure.
-                  </p>
-                  <h4 class="font-medium text-gray-800 mb-2">
-                    Code Snippet: <code>get_text_splitter</code>
-                  </h4>
-                  <pre
-                    class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap"
-                  >
-def get_text_splitter(strategy="recursive", chunk_size=1000, overlap=200):
-    # logic to select supported strategies
-    if strategy == "recursive":
-        return RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=overlap
-        )
-    # ... supported strategies
-                  </pre>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
-                    Sample Output Chunk (Normalization)
-                  </h4>
-                  <div
-                    class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700 italic"
-                  >
-                    "The full pipeline run orchestrates the loading, chunking,
-                    and embedding stages sequentially, followed by concurrent
-                    vector and graph storage if configured. This ensures all
-                    knowledge is indexed efficiently before the query phase
-                    begins."
+                  <div class="text-xs text-gray-500 mb-4">
+                    Split loaded documents into chunks for embedding and retrieval. Documents must be loaded first.
+                  </div>
+                  
+                  <!-- Chunking Control Panel -->
+                  <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
+                    <h4 class="text-sm font-semibold text-gray-800 mb-3">Chunking Configuration</h4>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Chunk Size</label>
+                        <input 
+                          type="number" 
+                          id="chunk-size" 
+                          name="chunk_size"
+                          value="1000" 
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Chunk Overlap</label>
+                        <input 
+                          type="number" 
+                          id="chunk-overlap" 
+                          name="chunk_overlap"
+                          value="200" 
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      id="chunk-button"
+                      hx-post="/chunk"
+                      hx-target="#chunk-results"
+                      hx-swap="innerHTML"
+                      hx-indicator="#chunk-indicator"
+                      hx-include="[id='chunk-size'],[id='chunk-overlap']"
+                      class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
+                    >
+                      Chunk Documents
+                    </button>
+                    <span
+                      id="chunk-indicator"
+                      class="htmx-indicator text-sm text-gray-500 block mt-2"
+                    >Processing…</span>
+                  </div>
+                  
+                  <!-- Chunker Stats Panel -->
+                  <div id="chunker-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <!-- Stats populated via JavaScript -->
+                  </div>
+                  
+                  <!-- Chunk Results -->
+                  <div id="chunk-results" class="space-y-4">
+                    <div class="bg-white rounded-2xl border border-gray-200 p-4">
+                      <p class="text-sm text-gray-500">
+                        Click "Chunk Documents" to split your loaded documents into chunks for retrieval.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <!-- Chunker Configuration Display -->
+                  <div class="bg-white rounded-2xl border border-gray-200 p-4 mt-4">
+                    <h5 class="text-xs font-semibold text-gray-700 mb-2">
+                      Chunker Configuration
+                    </h5>
+                    <div
+                      id="chunker-config-box"
+                      class="text-[11px] text-gray-600 bg-gray-50 rounded-2xl border border-gray-200 p-3 space-y-1"
+                    >
+                      <p class="text-gray-400">
+                        Chunker configuration will appear here after chunking.
+                      </p>
+                    </div>
                   </div>
                 </section>
 
@@ -1156,6 +1200,72 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
       setLoaderItems([]);
       setLoaderLogs([]);
       setLoaderStats({});
+    </script>
+    <script>
+      // Chunker stats and config handling
+      const chunkerStatsEl = document.getElementById("chunker-stats");
+      const chunkerConfigBox = document.getElementById("chunker-config-box");
+      let chunkerStats = {};
+      let chunkerConfig = [];
+
+      const renderChunkerStats = () => {
+        if (!chunkerStatsEl || !Object.keys(chunkerStats).length) {
+          if (chunkerStatsEl) {
+            chunkerStatsEl.innerHTML = '';
+          }
+          return;
+        }
+        
+        const statCards = [
+          { label: 'Total Chunks', value: chunkerStats.total_chunks || 0, icon: '🧩' },
+          { label: 'Avg Size', value: chunkerStats.avg_chunk_size || 0, icon: '📏' },
+          { label: 'Chunk Time', value: `${chunkerStats.chunk_duration || 0}s`, icon: '⏱️' },
+          { label: 'Chunks/Doc', value: chunkerStats.total_documents > 0 ? 
+            Math.round((chunkerStats.total_chunks / chunkerStats.total_documents) * 10) / 10 : 0, icon: '📊' },
+        ];
+        
+        chunkerStatsEl.innerHTML = statCards.map(stat => `
+          <div class="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div class="text-2xl mb-1">${stat.icon}</div>
+            <div class="text-xs text-gray-500">${stat.label}</div>
+            <div class="text-lg font-semibold text-gray-800">${stat.value}</div>
+          </div>
+        `).join('');
+      };
+
+      const renderChunkerConfig = () => {
+        if (!chunkerConfigBox || !chunkerConfig.length) {
+          if (chunkerConfigBox) {
+            chunkerConfigBox.innerHTML = '';
+          }
+          return;
+        }
+        
+        chunkerConfigBox.innerHTML = chunkerConfig
+          .map((line) => `<p class="leading-snug">${escapeHtml(line)}</p>`)
+          .join("");
+      };
+
+      const setChunkerStats = (stats) => {
+        chunkerStats = stats || {};
+        renderChunkerStats();
+      };
+
+      const setChunkerConfig = (config) => {
+        chunkerConfig = config || [];
+        renderChunkerConfig();
+      };
+
+      window.addEventListener("ragdoll:chunker-update", (event) => {
+        console.log('ragdoll:chunker-update received:', event.detail);
+        console.log('Stats:', event.detail.stats);
+        console.log('Config:', event.detail.config);
+        setChunkerStats(event.detail.stats || {});
+        setChunkerConfig(event.detail.config || []);
+      });
+
+      setChunkerStats({});
+      setChunkerConfig([]);
     </script>
   </body>
 </html>

@@ -14,6 +14,7 @@ GRAPH_JSON = STATE_DIR / "graph.json"
 GRAPH_PICKLE = STATE_DIR / "graph_output.gpickle"
 UPLOAD_DIR = STATE_DIR / "uploads"
 STAGED_MANIFEST = STATE_DIR / "staged_manifest.json"
+LOADED_DOCUMENTS = STATE_DIR / "loaded_documents.json"
 
 
 def ensure_state_dirs() -> None:
@@ -126,3 +127,31 @@ def clear_staged_manifest(delete_files: bool = False) -> None:
     manifest_path = staged_manifest_path()
     if manifest_path.exists():
         manifest_path.unlink()
+
+
+def loaded_documents_path() -> Path:
+    ensure_state_dirs()
+    return LOADED_DOCUMENTS
+
+
+def save_loaded_documents(docs: list[dict]) -> None:
+    """Save a simple JSON representation of loaded documents.
+
+    Each doc should be a dict with keys: `page_content` and `metadata`.
+    """
+    ensure_state_dirs()
+    try:
+        loaded_documents_path().write_text(json.dumps(docs, indent=2), encoding="utf-8")
+    except Exception:
+        # Best-effort persistence; don't raise for demo UI
+        pass
+
+
+def read_loaded_documents() -> list[dict]:
+    path = loaded_documents_path()
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []

@@ -1,0 +1,107 @@
+<div class="space-y-4">
+  <!-- Chunk List with Preview -->
+  <div class="grid gap-4 lg:grid-cols-[1fr,2fr]">
+    <div
+      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-3 overflow-y-auto"
+      id="chunk-source-list"
+    >
+      {% if chunks %}
+        {% for chunk in chunks[:10] %}
+        <button
+          type="button"
+          data-chunk-idx="{{ loop.index0 }}"
+          class="w-full text-left rounded-2xl border px-3 py-2 transition {% if loop.index0 == 0 %}border-ragdoll-green/70 bg-ragdoll-light-green/30{% else %}border-gray-100 bg-gray-50 hover:border-gray-300{% endif %}"
+        >
+          <p class="text-sm font-semibold text-gray-800 truncate">Chunk {{ loop.index }}</p>
+          <p class="text-[11px] text-gray-500 truncate">{{ chunk.page_content[:80] }}...</p>
+          <p class="text-[10px] text-gray-400 mt-1">{{ chunk.page_content|length }} chars</p>
+        </button>
+        {% endfor %}
+        {% if chunks|length > 10 %}
+        <p class="text-xs text-gray-400 text-center pt-2">
+          Showing first 10 of {{ chunks|length }} chunks
+        </p>
+        {% endif %}
+      {% else %}
+        <p class="text-xs text-gray-400">No chunks created yet.</p>
+      {% endif %}
+    </div>
+    <div
+      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-2 overflow-hidden flex flex-col"
+    >
+      <div class="flex items-center justify-between flex-shrink-0">
+        <h4 class="text-sm font-semibold text-gray-800">
+          Chunk Preview
+        </h4>
+        <span
+          class="text-[10px] uppercase tracking-wide text-gray-400"
+          >content</span
+        >
+      </div>
+      <div
+        id="chunk-preview-title"
+        class="text-sm text-gray-600 font-semibold flex-shrink-0 truncate"
+      >
+        Select a chunk
+      </div>
+      <pre
+        id="chunk-preview-content"
+        class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto flex-1 min-h-0"
+      >
+Select a chunk from the list to preview its content.</pre
+      >
+    </div>
+  </div>
+</div>
+
+<script>
+  // Store all chunks data
+  const allChunks = {{ chunks | tojson }};
+  
+  // Chunk preview functionality
+  const chunkListEl = document.getElementById("chunk-source-list");
+  const chunkPreviewTitle = document.getElementById("chunk-preview-title");
+  const chunkPreviewContent = document.getElementById("chunk-preview-content");
+  
+  if (chunkListEl) {
+    chunkListEl.querySelectorAll("button[data-chunk-idx]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const idx = parseInt(button.dataset.chunkIdx);
+        const chunk = allChunks[idx];
+        
+        if (chunk) {
+          // Update active state
+          chunkListEl.querySelectorAll("button").forEach(b => {
+            b.className = "w-full text-left rounded-2xl border px-3 py-2 transition border-gray-100 bg-gray-50 hover:border-gray-300";
+          });
+          button.className = "w-full text-left rounded-2xl border px-3 py-2 transition border-ragdoll-green/70 bg-ragdoll-light-green/30";
+          
+          // Update preview
+          chunkPreviewTitle.textContent = `Chunk ${idx + 1} (${chunk.page_content.length} characters)`;
+          chunkPreviewContent.textContent = chunk.page_content;
+        }
+      });
+    });
+    
+    // Auto-select first chunk
+    const firstButton = chunkListEl.querySelector("button[data-chunk-idx='0']");
+    if (firstButton && allChunks.length > 0) {
+      const chunk = allChunks[0];
+      chunkPreviewTitle.textContent = `Chunk 1 (${chunk.page_content.length} characters)`;
+      chunkPreviewContent.textContent = chunk.page_content;
+    }
+  }
+  
+  // Dispatch stats update event
+  const stats = {{ stats | tojson }};
+  const configInfo = {{ config_info | tojson }};
+  
+  window.dispatchEvent(
+    new CustomEvent("ragdoll:chunker-update", {
+      detail: {
+        stats: stats,
+        config: configInfo,
+      },
+    })
+  );
+</script>
