@@ -108,7 +108,12 @@ def staged_file_entries() -> list[dict]:
 
 def staged_file_paths() -> list[Path]:
     entries = staged_file_entries()
-    return [UPLOAD_DIR / entry["filename"] for entry in entries if (UPLOAD_DIR / entry["filename"]).exists()]
+    paths: list[Path] = []
+    for entry in entries:
+        candidate = (UPLOAD_DIR / entry["filename"]).resolve()
+        if candidate.exists():
+            paths.append(candidate)
+    return paths
 
 
 def clear_staged_manifest(delete_files: bool = False) -> None:

@@ -62,6 +62,23 @@ async def run_ingestion_demo(
 
     all_documents = loaded_docs + list(extra_documents)
     if not all_documents:
+        fallback_docs: List[Document] = []
+        for src in list(sources):
+            path = Path(src)
+            if path.exists() and path.is_file():
+                try:
+                    text = path.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    text = ""
+                fallback_docs.append(
+                    Document(
+                        page_content=text,
+                        metadata={"source": str(path), "loader": "fallback_file_read"},
+                    )
+                )
+        all_documents.extend(fallback_docs)
+
+    if not all_documents:
         raise ValueError("Please provide at least one document, URL, or text snippet.")
 
     stats = {

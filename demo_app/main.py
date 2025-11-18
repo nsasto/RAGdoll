@@ -114,7 +114,12 @@ async def ingest(request: Request) -> HTMLResponse:
         success = True
     except ValueError as exc:
         # Preserve staged files on error so the user can retry.
-        message = f"{exc} (staged_files={len(staged_paths)}, uploads_in_form={len(saved_paths)}, urls={len(url_list)}, text={'yes' if manual_docs else 'no'})"
+        message = (
+            f"{exc} "
+            f"(staged_files={len(staged_paths)}, uploads_in_form={len(saved_paths)}, "
+            f"urls={len(url_list)}, text={'yes' if manual_docs else 'no'}, "
+            f'sources={combined_sources[:3]}{"..." if len(combined_sources) > 3 else ""})'
+        )
         return templates.TemplateResponse(
             "partials/error.html",
             {"request": request, "message": message},
@@ -207,3 +212,75 @@ async def _persist_uploads(files: List[UploadFile]) -> List[str]:
         dest.write_bytes(content)
         paths.append(str(dest))
     return paths
+
+
+@app.post("/load", response_class=HTMLResponse)
+async def load_docs(request: Request) -> HTMLResponse:
+    """
+    Loader-only endpoint: pulls staged/form sources and converts them to markdown (no chunking/embeddings).
+    """
+
+    form = await request.form()
+
+    file_inputs: List[UploadFile] = [
+        upload for upload in form.getlist("files") if isinstance(upload, UploadFile)
+    ]
+    urls = form.get("urls", "") or ""
+    text_input = form.get("text_input", "") or ""
+
+    saved_paths = await _persist_uploads(file_inputs)
+    url_list = [line.strip() for line in urls.splitlines() if line.strip()]
+
+    manual_docs: List[Document] = []
+    if text_input.strip():
+        manual_docs.append(
+            Document(
+                page_content=text_input.strip(),
+                metadata={"source": "manual_input"},
+            )
+        )
+
+    staged_paths = [str(path) for path in state.staged_file_paths()]
+    combined_sources = staged_paths + saved_paths + url_list
+
+    success = False
+    try:
+        payload = await run_ingestion_demo(
+            sources=combined_sources,
+            extra_documents=manual_docs,
+            augment=False,
+        )
+        success = True
+    except ValueError as exc:
+        message = (
+            f"{exc} "
+            f"(staged_files={len(staged_paths)}, uploads_in_form={len(saved_paths)}, "
+            f"urls={len(url_list)}, text={'yes' if manual_docs else 'no'}, "
+            f'sources={combined_sources[:3]}{"..." if len(combined_sources) > 3 else ""})'
+        )
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {"request": request, "message": message},
+            status_code=400,
+        )
+    finally:
+        if success:
+            for path in saved_paths:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except OSError:
+                    pass
+            state.clear_staged_manifest(delete_files=True)
+
+    context = {
+        "request": request,
+        "stats": payload.stats,
+        "documents": summarize_documents(payload.documents),
+        "chunks": summarize_documents(payload.chunks),
+        "vector_hits": summarize_documents(payload.vector_hits),
+        "graph_nodes": summarize_graph_nodes(payload.graph.nodes),
+        "graph_edges": summarize_graph_edges(payload.graph.edges),
+        "loader_items": payload.loader_items,
+        "loader_logs": payload.loader_logs,
+    }
+    return templates.TemplateResponse("partials/pipeline_results.html", context)

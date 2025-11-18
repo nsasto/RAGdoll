@@ -6,8 +6,14 @@
     <title>RAGdoll Orchestrator Demo (Fixed Sidebar)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"
+    ></script>
     <script>
       tailwind.config = {
         theme: {
@@ -107,8 +113,12 @@
         x-data="{ activeTab: 'config' }"
         class="flex-grow flex relative bg-white rounded-2xl shadow-2xl overflow-hidden"
       >
-        <div class="absolute left-0 top-0 bottom-0 w-24 flex-shrink-0 bg-white py-6 z-10 border-r border-gray-100">
-          <div class="absolute top-8 bottom-8 left-1/2 transform -translate-x-1/2 w-0.5 bg-gray-200"></div>
+        <div
+          class="absolute left-0 top-0 bottom-0 w-24 flex-shrink-0 bg-white py-6 z-10 border-r border-gray-100"
+        >
+          <div
+            class="absolute top-8 bottom-8 left-1/2 transform -translate-x-1/2 w-0.5 bg-gray-200"
+          ></div>
           <nav
             class="flex flex-col space-y-4 px-2"
             x-data="{
@@ -129,31 +139,59 @@
               },
             }"
           >
-            <button @click="activeTab = 'config'" :class="buttonClasses('config')" class="text-xl">
+            <button
+              @click="activeTab = 'config'"
+              :class="buttonClasses('config')"
+              class="text-xl"
+            >
               <div :class="dotClasses('config')"></div>
               ⚙️
             </button>
-            <button @click="activeTab = 'ingestion'" :class="buttonClasses('ingestion')" class="text-xl">
+            <button
+              @click="activeTab = 'ingestion'"
+              :class="buttonClasses('ingestion')"
+              class="text-xl"
+            >
               <div :class="dotClasses('ingestion')"></div>
               📥
             </button>
-            <button @click="activeTab = 'loaders'" :class="buttonClasses('loaders')" class="text-xl">
+            <button
+              @click="activeTab = 'loaders'"
+              :class="buttonClasses('loaders')"
+              class="text-xl"
+            >
               <div :class="dotClasses('loaders')"></div>
               🧾
             </button>
-            <button @click="activeTab = 'pipeline'" :class="buttonClasses('pipeline')" class="text-xl">
+            <button
+              @click="activeTab = 'pipeline'"
+              :class="buttonClasses('pipeline')"
+              class="text-xl"
+            >
               <div :class="dotClasses('pipeline')"></div>
               ▶️
             </button>
-            <button @click="activeTab = 'chunking'" :class="buttonClasses('chunking')" class="text-xl">
+            <button
+              @click="activeTab = 'chunking'"
+              :class="buttonClasses('chunking')"
+              class="text-xl"
+            >
               <div :class="dotClasses('chunking')"></div>
               🔪
             </button>
-            <button @click="activeTab = 'stores'" :class="buttonClasses('stores')" class="text-xl">
+            <button
+              @click="activeTab = 'stores'"
+              :class="buttonClasses('stores')"
+              class="text-xl"
+            >
               <div :class="dotClasses('stores')"></div>
               💾
             </button>
-            <button @click="activeTab = 'llm'" :class="buttonClasses('llm')" class="text-xl">
+            <button
+              @click="activeTab = 'llm'"
+              :class="buttonClasses('llm')"
+              class="text-xl"
+            >
               <div :class="dotClasses('llm')"></div>
               🧠
             </button>
@@ -170,7 +208,9 @@
                   x-transition.opacity
                   class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm"
                 >
-                  <h2 class="text-xl font-bold text-gray-800 flex items-center mb-4">
+                  <h2
+                    class="text-xl font-bold text-gray-800 flex items-center mb-4"
+                  >
                     <svg
                       class="w-6 h-6 mr-2 text-ragdoll-green"
                       fill="none"
@@ -188,30 +228,47 @@
                     1. Document Ingestion (Auto Loader)
                   </h2>
                   <form
-                    hx-post="/ingest"
+                    hx-post="/load"
                     hx-target="#pipeline-results"
                     hx-swap="innerHTML"
                     hx-indicator="#loader-indicator"
                     hx-on:htmx:beforeRequest="activeTab = 'loaders'"
                     enctype="multipart/form-data"
+                    hx-encoding="multipart/form-data"
                     class="space-y-4"
                   >
                     <div>
-                      <label class="block text-sm font-semibold text-gray-700 mb-2">Drag & Drop Files</label>
+                      <label
+                        class="block text-sm font-semibold text-gray-700 mb-2"
+                        >Drag & Drop Files</label
+                      >
                       <label
                         for="file-upload"
                         class="block border-2 border-dashed border-ragdoll-green/70 rounded-2xl bg-white p-6 text-center cursor-pointer hover:border-ragdoll-green focus-within:ring-2 focus-within:ring-ragdoll-green focus-within:border-ragdoll-green transition"
                       >
-                        <div class="flex flex-col items-center justify-center space-y-1">
+                        <div
+                          class="flex flex-col items-center justify-center space-y-1"
+                        >
                           <span class="text-2xl">📂</span>
-                          <p class="text-sm text-gray-600">PDF, DOCX, MD (or paste URLs/text below)</p>
+                          <p class="text-sm text-gray-600">
+                            PDF, DOCX, MD (or paste URLs/text below)
+                          </p>
                         </div>
-                        <input id="file-upload" type="file" name="files" multiple class="sr-only" />
+                        <input
+                          id="file-upload"
+                          type="file"
+                          name="files"
+                          multiple
+                          class="sr-only"
+                        />
                       </label>
                     </div>
 
                     <div>
-                      <label class="font-semibold text-sm text-gray-700 block mb-1">URLs (one per line)</label>
+                      <label
+                        class="font-semibold text-sm text-gray-700 block mb-1"
+                        >URLs (one per line)</label
+                      >
                       <textarea
                         name="urls"
                         rows="3"
@@ -221,7 +278,10 @@
                     </div>
 
                     <div>
-                      <label class="font-semibold text-sm text-gray-700 block mb-1">Text snippet</label>
+                      <label
+                        class="font-semibold text-sm text-gray-700 block mb-1"
+                        >Text snippet</label
+                      >
                       <textarea
                         name="text_input"
                         rows="4"
@@ -230,7 +290,9 @@
                       ></textarea>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-4 text-sm text-gray-700">
+                    <div
+                      class="flex flex-wrap items-center gap-4 text-sm text-gray-700"
+                    >
                       <label class="flex items-center gap-2">
                         <input
                           type="radio"
@@ -257,16 +319,25 @@
                         type="submit"
                         class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
                       >
-                        Ingest
+                        Load Documents
                       </button>
-                      <span id="loader-indicator" class="htmx-indicator text-sm text-gray-500">Processing…</span>
+                      <span
+                        id="loader-indicator"
+                        class="htmx-indicator text-sm text-gray-500"
+                        >Processing…</span
+                      >
                     </div>
                     <p class="text-[11px] text-gray-500">
-                      Document loaders execute immediately, so the Loaders tab is read-only and shows the converted markdown.
+                      Document loaders execute immediately, so the Loaders tab
+                      is read-only and shows the converted markdown.
                     </p>
                     <div class="space-y-1 mt-3">
-                      <div class="flex items-center justify-between text-xs text-gray-500">
-                        <p class="font-semibold text-gray-600">Staged ingestion list (editable)</p>
+                      <div
+                        class="flex items-center justify-between text-xs text-gray-500"
+                      >
+                        <p class="font-semibold text-gray-600">
+                          Staged ingestion list (editable)
+                        </p>
                         <button
                           type="button"
                           id="manifest-sync"
@@ -279,9 +350,16 @@
                         id="ingest-manifest"
                         class="w-full min-h-[120px] rounded-2xl border border-gray-200 bg-white p-3 text-xs font-mono text-gray-700 focus:border-ragdoll-green focus:ring-ragdoll-green"
                       ></textarea>
-                      <p class="text-[10px] uppercase tracking-wide text-gray-400">
-                        Files are saved to <code class="bg-slate-900 text-white px-1 rounded">demo_state/uploads</code>
-                        when the pipeline is triggered. Edit names, URLs, or inline snippets here before document loading/markdown conversion.
+                      <p
+                        class="text-[10px] uppercase tracking-wide text-gray-400"
+                      >
+                        Files are saved to
+                        <code class="bg-slate-900 text-white px-1 rounded"
+                          >demo_state/uploads</code
+                        >
+                        when the pipeline is triggered. Edit names, URLs, or
+                        inline snippets here before document loading/markdown
+                        conversion.
                       </p>
                     </div>
                   </form>
@@ -293,33 +371,62 @@
                   x-transition.opacity
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm"
                 >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">2. Loaders (Read only)</h3>
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                    2. Loaders (Read only)
+                  </h3>
                   <div class="text-xs text-gray-500 mb-4">
-                    File/url/text staging is frozen after ingestion; click entries to preview the generated markdown on the right.
+                    File/url/text staging is frozen after ingestion; click
+                    entries to preview the generated markdown on the right.
                   </div>
                   <div class="grid gap-4 lg:grid-cols-[1fr,2fr]">
-                    <div class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-3 overflow-y-auto" id="loader-source-list">
-                      <p class="text-xs text-gray-400">No documents loaded yet. Run ingestion to populate sources.</p>
+                    <div
+                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-3 overflow-y-auto"
+                      id="loader-source-list"
+                    >
+                      <p class="text-xs text-gray-400">
+                        No documents loaded yet. Run ingestion to populate
+                        sources.
+                      </p>
                     </div>
-                    <div class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-2">
+                    <div
+                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-2"
+                    >
                       <div class="flex items-center justify-between">
-                        <h4 class="text-sm font-semibold text-gray-800">Markdown Preview</h4>
-                        <span class="text-[10px] uppercase tracking-wide text-gray-400">rendered</span>
+                        <h4 class="text-sm font-semibold text-gray-800">
+                          Markdown Preview
+                        </h4>
+                        <span
+                          class="text-[10px] uppercase tracking-wide text-gray-400"
+                          >rendered</span
+                        >
                       </div>
-                      <div id="loader-preview-title" class="text-sm text-gray-600 font-semibold">Select a source</div>
+                      <div
+                        id="loader-preview-title"
+                        class="text-sm text-gray-600 font-semibold"
+                      >
+                        Select a source
+                      </div>
                       <pre
                         id="loader-preview-content"
                         class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto max-h-[260px]"
-                      >No preview yet.</pre>
+                      >
+No preview yet.</pre
+                      >
                     </div>
                   </div>
-                  <div class="bg-white rounded-2xl border border-gray-100 p-4 mt-4">
-                    <h5 class="text-xs font-semibold text-gray-700 mb-2">Loader &amp; Parsing Logs</h5>
+                  <div
+                    class="bg-white rounded-2xl border border-gray-100 p-4 mt-4"
+                  >
+                    <h5 class="text-xs font-semibold text-gray-700 mb-2">
+                      Loader &amp; Parsing Logs
+                    </h5>
                     <div
                       id="loader-log-box"
                       class="text-[11px] text-gray-600 bg-gray-50 rounded-2xl border border-gray-200 p-3 space-y-1 max-h-[200px] overflow-auto"
                     >
-                      <p class="text-gray-400">No logs yet. Ingest to see loader/monitor output.</p>
+                      <p class="text-gray-400">
+                        No logs yet. Ingest to see loader/monitor output.
+                      </p>
                     </div>
                   </div>
                 </section>
@@ -330,13 +437,22 @@
                   x-transition.opacity
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200"
                 >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">3. End-to-End Orchestration View</h3>
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                    3. End-to-End Orchestration View
+                  </h3>
                   <div class="text-sm text-gray-600 mb-4">
-                    This view visualizes the entire RAG pipeline from ingestion to response, showcasing RAGdoll's modular flow control.
+                    This view visualizes the entire RAG pipeline from ingestion
+                    to response, showcasing RAGdoll's modular flow control.
                   </div>
-                  <div class="p-4 bg-white rounded-2xl border border-gray-300 space-y-3 shadow-sm">
-                    <p class="font-mono text-xs text-gray-700 mb-2">[RUNNING: ragdoll.run_pipeline(source_data)]</p>
-                    <div class="flex justify-between items-center text-xs font-medium text-gray-700">
+                  <div
+                    class="p-4 bg-white rounded-2xl border border-gray-300 space-y-3 shadow-sm"
+                  >
+                    <p class="font-mono text-xs text-gray-700 mb-2">
+                      [RUNNING: ragdoll.run_pipeline(source_data)]
+                    </p>
+                    <div
+                      class="flex justify-between items-center text-xs font-medium text-gray-700"
+                    >
                       <span>Loaders</span>
                       <span>Chunking</span>
                       <span>Embeddings</span>
@@ -344,22 +460,34 @@
                       <span>Graph Store</span>
                     </div>
                     <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div class="h-2 bg-green-500 rounded-full w-[80%] transition-all duration-1000"></div>
+                      <div
+                        class="h-2 bg-green-500 rounded-full w-[80%] transition-all duration-1000"
+                      ></div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Status: Indexing 42/50 chunks…</p>
-                    <p class="text-xs text-gray-500">Total Ingestion Time: 12.4s (3s per 100 docs)</p>
+                    <p class="text-xs text-gray-500 mt-2">
+                      Status: Indexing 42/50 chunks…
+                    </p>
+                    <p class="text-xs text-gray-500">
+                      Total Ingestion Time: 12.4s (3s per 100 docs)
+                    </p>
                   </div>
 
                   <div id="pipeline-results" class="mt-6 space-y-6">
                     <p class="text-sm text-gray-500">
-                      Run the ingestion pipeline above to populate documents, chunks, vectors, and graph insights here.
+                      Run the ingestion pipeline above to populate documents,
+                      chunks, vectors, and graph insights here.
                     </p>
                   </div>
 
                   <div class="mt-6">
-                    <h4 class="font-medium text-gray-800 mb-2">🕸️ Graph Visualizer</h4>
-                    <div class="h-64 w-full bg-white rounded-2xl border border-gray-300 flex items-center justify-center text-gray-500">
-                      Interactive Visualization Area (Nodes, Edges, Relationships)
+                    <h4 class="font-medium text-gray-800 mb-2">
+                      🕸️ Graph Visualizer
+                    </h4>
+                    <div
+                      class="h-64 w-full bg-white rounded-2xl border border-gray-300 flex items-center justify-center text-gray-500"
+                    >
+                      Interactive Visualization Area (Nodes, Edges,
+                      Relationships)
                     </div>
                   </div>
                 </section>
@@ -379,12 +507,19 @@
                   x-transition.opacity
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200"
                 >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">5. Chunking Strategy (`chunking.md`)</h3>
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                    5. Chunking Strategy (`chunking.md`)
+                  </h3>
                   <p class="text-sm text-gray-600 mb-4">
-                    RAGdoll uses `RecursiveCharacterTextSplitter` based on detected document structure.
+                    RAGdoll uses `RecursiveCharacterTextSplitter` based on
+                    detected document structure.
                   </p>
-                  <h4 class="font-medium text-gray-800 mb-2">Code Snippet: <code>get_text_splitter</code></h4>
-                  <pre class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap">
+                  <h4 class="font-medium text-gray-800 mb-2">
+                    Code Snippet: <code>get_text_splitter</code>
+                  </h4>
+                  <pre
+                    class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap"
+                  >
 def get_text_splitter(strategy="recursive", chunk_size=1000, overlap=200):
     # logic to select supported strategies
     if strategy == "recursive":
@@ -394,11 +529,17 @@ def get_text_splitter(strategy="recursive", chunk_size=1000, overlap=200):
         )
     # ... supported strategies
                   </pre>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Sample Output Chunk (Normalization)</h4>
-                  <div class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700 italic">
-                    "The full pipeline run orchestrates the loading, chunking, and embedding stages sequentially, followed
-                    by concurrent vector and graph storage if configured. This ensures all knowledge is indexed efficiently
-                    before the query phase begins."
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
+                    Sample Output Chunk (Normalization)
+                  </h4>
+                  <div
+                    class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700 italic"
+                  >
+                    "The full pipeline run orchestrates the loading, chunking,
+                    and embedding stages sequentially, followed by concurrent
+                    vector and graph storage if configured. This ensures all
+                    knowledge is indexed efficiently before the query phase
+                    begins."
                   </div>
                 </section>
 
@@ -412,24 +553,40 @@ def get_text_splitter(strategy="recursive", chunk_size=1000, overlap=200):
                     6. Data Stores (`vector_stores.md`, `graph_stores.md`)
                   </h3>
                   <p class="text-sm text-gray-600 mb-4">
-                    RAGdoll supports flexible persistence layers via a standardized factory pattern.
+                    RAGdoll supports flexible persistence layers via a
+                    standardized factory pattern.
                   </p>
                   <h4 class="font-medium text-gray-800 mb-2">Vector Store</h4>
-                  <div class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700">
+                  <div
+                    class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700"
+                  >
                     <span class="font-medium">Active:</span> ChromaDB
-                    <span class="ml-4 text-xs text-ragdoll-green">ragdoll.factory.get_vector_store()</span>
+                    <span class="ml-4 text-xs text-ragdoll-green"
+                      >ragdoll.factory.get_vector_store()</span
+                    >
                   </div>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Embeddings Code Snippet</h4>
-                  <pre class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap">
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
+                    Embeddings Code Snippet
+                  </h4>
+                  <pre
+                    class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap"
+                  >
 # See embeddings.md
 def get_embedding_model(model_name="gemini-embedding-001"):
     # Uses ModelFactory for provider hints
     return HuggingFaceEmbeddings.from_model_name(model_name)
                   </pre>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Graph Store (Persistence)</h4>
-                  <div class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700">
-                    <span class="font-medium">Active:</span> Neo4j (Disabled via Config)
-                    <span class="ml-4 text-xs text-ragdoll-green">ragdoll.factory.get_graph_store()</span>
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
+                    Graph Store (Persistence)
+                  </h4>
+                  <div
+                    class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700"
+                  >
+                    <span class="font-medium">Active:</span> Neo4j (Disabled via
+                    Config)
+                    <span class="ml-4 text-xs text-ragdoll-green"
+                      >ragdoll.factory.get_graph_store()</span
+                    >
                   </div>
                 </section>
 
@@ -439,27 +596,45 @@ def get_embedding_model(model_name="gemini-embedding-001"):
                   x-transition.opacity
                   class="bg-gray-50 p-6 rounded-xl border border-gray-200"
                 >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">7. LLM Integration (`llm_integration.md`)</h3>
+                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                    7. LLM Integration (`llm_integration.md`)
+                  </h3>
                   <p class="text-sm text-gray-600 mb-4">
-                    The core component for response generation and agentic tool use.
+                    The core component for response generation and agentic tool
+                    use.
                   </p>
-                  <h4 class="font-medium text-gray-800 mb-2">Code Snippet: <code>get_llm_caller</code></h4>
-                  <pre class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap">
+                  <h4 class="font-medium text-gray-800 mb-2">
+                    Code Snippet: <code>get_llm_caller</code>
+                  </h4>
+                  <pre
+                    class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap"
+                  >
 # See llm_integration.md
 def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
     # Wraps the LLM for chat/streaming/context injection
     return LangChainLLM(model=model_name, temperature=0.1)
                   </pre>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">Enabled Agent Tools</h4>
+                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
+                    Enabled Agent Tools
+                  </h4>
                   <div class="space-y-1">
                     <div class="flex items-center text-sm text-gray-700">
-                      <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span> Suggested Queries
+                      <span
+                        class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"
+                      ></span>
+                      Suggested Queries
                     </div>
                     <div class="flex items-center text-sm text-gray-700">
-                      <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span> Google Search (Fallback)
+                      <span
+                        class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"
+                      ></span>
+                      Google Search (Fallback)
                     </div>
                     <div class="flex items-center text-sm text-gray-700">
-                      <span class="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"></span> Calculator (Available)
+                      <span
+                        class="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"
+                      ></span>
+                      Calculator (Available)
                     </div>
                   </div>
                 </section>
@@ -467,28 +642,45 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
             </div>
           </div>
 
-          <div x-data="{ showTrace: false }" class="w-1/3 flex flex-col space-y-6">
-            <div class="flex-grow bg-white p-6 rounded-2xl border border-gray-200 shadow-inner overflow-y-auto">
+          <div
+            x-data="{ showTrace: false }"
+            class="w-1/3 flex flex-col space-y-6"
+          >
+            <div
+              class="flex-grow bg-white p-6 rounded-2xl border border-gray-200 shadow-inner overflow-y-auto"
+            >
               <h2 class="text-2xl font-bold text-gray-800 mb-4">
                 <span class="text-ragdoll-green">RAG Engine</span> Interaction
               </h2>
-              <div class="bg-gray-50 p-4 rounded-xl shadow-sm mb-6 border-l-4 border-ragdoll-green/70">
+              <div
+                class="bg-gray-50 p-4 rounded-xl shadow-sm mb-6 border-l-4 border-ragdoll-green/70"
+              >
                 <p class="font-semibold text-gray-800 mb-1">System Message:</p>
                 <p class="text-gray-700 text-sm">
-                  Index built successfully! Ask questions about the ingested documents now. Caching and monitoring are active.
+                  Index built successfully! Ask questions about the ingested
+                  documents now. Caching and monitoring are active.
                 </p>
               </div>
               <div id="chat-thread" class="space-y-4 text-sm">
                 <div class="flex justify-end">
-                  <div class="bg-ragdoll-green text-white p-3 rounded-2xl rounded-br-none max-w-xs shadow-md">
-                    Summarize the key features of the RAGdoll ingestion pipeline.
+                  <div
+                    class="bg-ragdoll-green text-white p-3 rounded-2xl rounded-br-none max-w-xs shadow-md"
+                  >
+                    Summarize the key features of the RAGdoll ingestion
+                    pipeline.
                   </div>
                 </div>
                 <div class="flex justify-start">
-                  <div class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200">
-                    The RAGdoll ingestion pipeline is designed for modularity and high performance. Key features include
-                    <strong>Unified Data Loading</strong>, <strong>Automated Chunking Strategies</strong>, and concurrent indexing
-                    into both <strong>Vector Stores</strong> and <strong>Graph Stores</strong>.
+                  <div
+                    class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200"
+                  >
+                    The RAGdoll ingestion pipeline is designed for modularity
+                    and high performance. Key features include
+                    <strong>Unified Data Loading</strong>,
+                    <strong>Automated Chunking Strategies</strong>, and
+                    concurrent indexing into both
+                    <strong>Vector Stores</strong> and
+                    <strong>Graph Stores</strong>.
                   </div>
                 </div>
               </div>
@@ -505,7 +697,12 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
                     viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 9l-7 7-7-7"
+                    ></path>
                   </svg>
                   <svg
                     x-show="showTrace"
@@ -515,32 +712,64 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
                     viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 15l7-7 7 7"
+                    ></path>
                   </svg>
                   Show Retrieval Trace (Context Used)
                 </button>
-                <div x-show="showTrace" x-collapse class="mt-3 space-y-3 p-3 bg-ragdoll-light-green/30 rounded-2xl text-xs">
-                  <p class="font-medium text-gray-800">Source 1: Vector Chunks (Top 3)</p>
-                  <div class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600">
-                    "Vector Store: RAGdoll standardizes the interface for popular vector databases like ChromaDB and Pinecone,
-                    allowing seamless switching via the configuration manager..."
+                <div
+                  x-show="showTrace"
+                  x-collapse
+                  class="mt-3 space-y-3 p-3 bg-ragdoll-light-green/30 rounded-2xl text-xs"
+                >
+                  <p class="font-medium text-gray-800">
+                    Source 1: Vector Chunks (Top 3)
+                  </p>
+                  <div
+                    class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600"
+                  >
+                    "Vector Store: RAGdoll standardizes the interface for
+                    popular vector databases like ChromaDB and Pinecone,
+                    allowing seamless switching via the configuration
+                    manager..."
                   </div>
-                  <div class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600">
-                    "Graph Store: The entity extraction service uses Neo4j for relationship storage, which is useful for
-                    highly structured querying..."
+                  <div
+                    class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600"
+                  >
+                    "Graph Store: The entity extraction service uses Neo4j for
+                    relationship storage, which is useful for highly structured
+                    querying..."
                   </div>
-                  <p class="font-medium text-gray-800 pt-2">Source 2: Graph Facts (Triples)</p>
-                  <div class="bg-white p-2 rounded-xl border border-gray-300 font-mono text-gray-700">
+                  <p class="font-medium text-gray-800 pt-2">
+                    Source 2: Graph Facts (Triples)
+                  </p>
+                  <div
+                    class="bg-white p-2 rounded-xl border border-gray-300 font-mono text-gray-700"
+                  >
                     (RAGdoll) -[HAS_FEATURE]-> (Orchestration)<br />
                     (RAGdoll) -[USES_STORE]-> (ChromaDB)
                   </div>
                 </div>
               </div>
             </div>
-            <div class="flex justify-between items-center text-xs text-gray-500 px-1 pt-1 border-t border-gray-200">
+            <div
+              class="flex justify-between items-center text-xs text-gray-500 px-1 pt-1 border-t border-gray-200"
+            >
               <span class="font-medium">Metrics:</span>
-              <span>Query Time: <span class="text-ragdoll-green font-semibold">550ms</span></span>
-              <span>Cache Status: <span class="text-green-600 font-semibold">HIT</span></span>
+              <span
+                >Query Time:
+                <span class="text-ragdoll-green font-semibold"
+                  >550ms</span
+                ></span
+              >
+              <span
+                >Cache Status:
+                <span class="text-green-600 font-semibold">HIT</span></span
+              >
               <span>Source: Vector + Graph Retriever</span>
             </div>
             <div class="relative">
@@ -561,8 +790,19 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
                   type="submit"
                   class="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-ragdoll-green text-white rounded-lg shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
                 >
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                  <svg
+                    class="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M14 5l7 7m0 0l-7 7m7-7H3"
+                    ></path>
                   </svg>
                 </button>
               </form>
@@ -582,10 +822,15 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
         let stagedEntries = [];
 
         const sanitize = (value) =>
-          value.replace(/[\r\n]+/g, " ").trim().slice(0, 220);
+          value
+            .replace(/[\r\n]+/g, " ")
+            .trim()
+            .slice(0, 220);
 
         const stagedDisplayEntries = () =>
-          stagedEntries.map((entry) => `File: ${entry.original_name || entry.filename || ""}`);
+          stagedEntries.map(
+            (entry) => `File: ${entry.original_name || entry.filename || ""}`
+          );
 
         const buildEntries = () => {
           const entries = [...stagedDisplayEntries()];
@@ -623,7 +868,9 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
             return;
           }
           const stageLines = entries
-            .map((entry) => (entry ? `File: ${entry.original_name || entry.filename}` : ""))
+            .map((entry) =>
+              entry ? `File: ${entry.original_name || entry.filename}` : ""
+            )
             .filter(Boolean);
           if (stageLines.length) {
             manifest.value = stageLines.join("\n");
@@ -651,9 +898,13 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
               if (files.length && manifest) {
                 stagedEntries = files;
                 const lines = files
-                  .map((entry) => `File: ${entry.original_name || entry.filename}`)
+                  .map(
+                    (entry) => `File: ${entry.original_name || entry.filename}`
+                  )
                   .filter(Boolean);
-                manifest.value = lines.length ? lines.join("\n") : "No sources staged yet.";
+                manifest.value = lines.length
+                  ? lines.join("\n")
+                  : "No sources staged yet.";
                 manifestAuto = true;
               }
             }
@@ -676,7 +927,9 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
           ensureManifestShowsStage(stagedEntries);
           manifestAuto = true;
           const formData = new FormData();
-          Array.from(fileInput.files).forEach((file) => formData.append("files", file));
+          Array.from(fileInput.files).forEach((file) =>
+            formData.append("files", file)
+          );
 
           try {
             const response = await fetch("/stage", {
@@ -692,9 +945,13 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
               stagedEntries = staged;
               if (manifest) {
                 const lines = staged
-                  .map((entry) => `File: ${entry.original_name || entry.filename}`)
+                  .map(
+                    (entry) => `File: ${entry.original_name || entry.filename}`
+                  )
                   .filter(Boolean);
-                manifest.value = lines.length ? lines.join("\n") : "No sources staged yet.";
+                manifest.value = lines.length
+                  ? lines.join("\n")
+                  : "No sources staged yet.";
               }
               manifestAuto = true;
             }
@@ -752,8 +1009,12 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
       const loaderListEl = document.getElementById("loader-source-list");
-      const loaderPreviewTitle = document.getElementById("loader-preview-title");
-      const loaderPreviewContent = document.getElementById("loader-preview-content");
+      const loaderPreviewTitle = document.getElementById(
+        "loader-preview-title"
+      );
+      const loaderPreviewContent = document.getElementById(
+        "loader-preview-content"
+      );
       const loaderLogBox = document.getElementById("loader-log-box");
       let loaderItems = [];
       let loaderActiveIndex = -1;
@@ -773,7 +1034,8 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
           return;
         }
         loaderPreviewTitle.textContent = item.title;
-        loaderPreviewContent.textContent = item.content || item.preview || "No content available.";
+        loaderPreviewContent.textContent =
+          item.content || item.preview || "No content available.";
       };
 
       const renderLoaderList = () => {
@@ -792,21 +1054,31 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
               <button
                 type="button"
                 data-index="${idx}"
-                class="w-full text-left rounded-2xl border px-3 py-2 transition ${isActive ? 'border-ragdoll-green/70 bg-ragdoll-light-green/30' : 'border-gray-100 bg-gray-50 hover:border-gray-300'}"
+                class="w-full text-left rounded-2xl border px-3 py-2 transition ${
+                  isActive
+                    ? "border-ragdoll-green/70 bg-ragdoll-light-green/30"
+                    : "border-gray-100 bg-gray-50 hover:border-gray-300"
+                }"
               >
-                <p class="text-sm font-semibold text-gray-800 truncate">${escapeHtml(item.title)}</p>
-                <p class="text-[11px] text-gray-500">${escapeHtml(item.source)}</p>
+                <p class="text-sm font-semibold text-gray-800 truncate">${escapeHtml(
+                  item.title
+                )}</p>
+                <p class="text-[11px] text-gray-500">${escapeHtml(
+                  item.source
+                )}</p>
               </button>
             `;
           })
           .join("");
-        loaderListEl.querySelectorAll("button[data-index]").forEach((button) => {
-          button.addEventListener("click", () => {
-            loaderActiveIndex = Number(button.dataset.index);
-            renderLoaderList();
-            updateLoaderPreview(loaderActiveIndex);
+        loaderListEl
+          .querySelectorAll("button[data-index]")
+          .forEach((button) => {
+            button.addEventListener("click", () => {
+              loaderActiveIndex = Number(button.dataset.index);
+              renderLoaderList();
+              updateLoaderPreview(loaderActiveIndex);
+            });
           });
-        });
       };
 
       const setLoaderItems = (items) => {
@@ -821,7 +1093,8 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
           return;
         }
         if (!loaderLogs.length) {
-          loaderLogBox.innerHTML = '<p class="text-gray-400">No logs yet. Ingest to see loader/monitor output.</p>';
+          loaderLogBox.innerHTML =
+            '<p class="text-gray-400">No logs yet. Ingest to see loader/monitor output.</p>';
           return;
         }
         loaderLogBox.innerHTML = loaderLogs
@@ -844,3 +1117,4 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
     </script>
   </body>
 </html>
+
