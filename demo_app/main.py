@@ -307,24 +307,21 @@ async def load_docs(request: Request) -> HTMLResponse:
     """
     Loader-only endpoint: pulls staged/form sources and converts them to markdown (no chunking/embeddings).
     """
-    print("=== /load endpoint called ===")
+    #print("=== /load endpoint called ===")
     logger.info("=== /load endpoint called ===")
     
     form = await request.form()
-    print(f"Form data keys: {list(form.keys())}")
+    #print(f"Form data keys: {list(form.keys())}")
     logger.info(f"Form data keys: {list(form.keys())}")
 
-    file_inputs: List[UploadFile] = [
-        upload for upload in form.getlist("files") if isinstance(upload, UploadFile)
-    ]
+    # Files should already be staged via /stage endpoint
+    # Only get URLs and text input from the form
     urls = form.get("urls", "") or ""
     text_input = form.get("text_input", "") or ""
 
-    print(f"file_inputs count: {len(file_inputs)}")
     print(f"urls: '{urls}'")
     print(f"text_input: '{text_input[:100] if text_input else 'None'}'")
 
-    saved_paths = await _persist_uploads(file_inputs)
     url_list = [line.strip() for line in urls.splitlines() if line.strip()]
 
     manual_docs: List[Document] = []
@@ -336,11 +333,11 @@ async def load_docs(request: Request) -> HTMLResponse:
             )
         )
 
+    # Get files that were staged via /stage endpoint
     staged_paths = [str(path) for path in state.staged_file_paths()]
-    combined_sources = staged_paths + saved_paths + url_list
+    combined_sources = staged_paths + url_list
 
     print(f"staged_paths: {staged_paths}")
-    print(f"saved_paths: {saved_paths}")
     print(f"url_list: {url_list}")
     print(f"combined_sources: {combined_sources}")
     print(f"manual_docs count: {len(manual_docs)}")
@@ -373,7 +370,7 @@ async def load_docs(request: Request) -> HTMLResponse:
         logger.error(f"ValueError caught: {exc}")
         message = (
             f"{exc} "
-            f"(staged_files={len(staged_paths)}, uploads_in_form={len(saved_paths)}, "
+            f"(staged_files={len(staged_paths)}, "
             f"urls={len(url_list)}, text={'yes' if manual_docs else 'no'}, "
             f'sources={combined_sources[:3]}{"..." if len(combined_sources) > 3 else ""})'
         )
@@ -391,13 +388,6 @@ async def load_docs(request: Request) -> HTMLResponse:
         )
     finally:
         if success:
-            for path in saved_paths:
-                try:
-                    Path(path).unlink(missing_ok=True)
-                except (OSError, PermissionError) as e:
-                    print(f"Could not delete {path}: {e}")
-                    logger.warning(f"Could not delete {path}: {e}")
-            
             # Clear staged manifest and attempt to delete files
             try:
                 state.clear_staged_manifest(delete_files=True)
