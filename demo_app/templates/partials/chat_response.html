@@ -9,26 +9,45 @@
     <div class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200">
       <p class="text-sm font-semibold text-gray-800 mb-1">RAG Engine</p>
       <p class="text-sm break-words whitespace-pre-wrap">{{ answer }}</p>
+      <p class="text-[11px] text-gray-500 mt-2">
+        Sources: {{ (sources_used or []) | join(", ") or "none" }} ·
+        Response time: {{ response_time or 0 }}s · LLM: {{ "yes" if used_llm else "no" }}
+      </p>
     </div>
   </div>
-  {% if vector_docs or graph_docs %}
+  {% set vector_hits = vector_hits_raw or vector_docs %}
+  {% set graph_hits = graph_hits_raw or graph_docs %}
+  {% if vector_hits or graph_hits %}
   <div class="bg-white border border-gray-200 rounded-2xl p-3 text-xs text-gray-500 space-y-2">
-    {% if vector_docs %}
+    {% if vector_hits %}
     <div>
       <p class="font-semibold text-gray-700">Vector hits</p>
       <ul class="list-disc pl-4 space-y-1">
-        {% for doc in vector_docs %}
-        <li>{{ doc.content[:180] }}</li>
+        {% for doc in vector_hits %}
+        <li>
+          {{ (doc.content or "")[:220] }}
+          {% if doc.metadata %}
+          <span class="text-[10px] text-gray-400">(source: {{ doc.metadata.get("source") or "unknown" }})</span>
+          {% endif %}
+        </li>
         {% endfor %}
       </ul>
     </div>
     {% endif %}
-    {% if graph_docs %}
+    {% if graph_hits %}
     <div>
       <p class="font-semibold text-gray-700">Graph hits</p>
       <ul class="list-disc pl-4 space-y-1">
-        {% for doc in graph_docs %}
-        <li>{{ doc.content[:180] }}</li>
+        {% for doc in graph_hits %}
+        <li>
+          {{ (doc.content or "")[:220] }}
+          {% if doc.metadata %}
+          <span class="text-[10px] text-gray-400">
+            (type: {{ doc.metadata.get("node_type") or "node" }}, id: {{ doc.metadata.get("node_id") or "n/a" }}
+            {% if doc.metadata.get("connected_to") %} | neighbors: {{ doc.metadata.get("connected_to") | join(", ") }}{% endif %})
+          </span>
+          {% endif %}
+        </li>
         {% endfor %}
       </ul>
     </div>

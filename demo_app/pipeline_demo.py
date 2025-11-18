@@ -425,7 +425,8 @@ def answer_question(question: str) -> Dict:
     if not question:
         raise ValueError("Question cannot be empty.")
 
-    embedding = _resolve_embedding_model(app_config=get_app_config())
+    app_config = get_app_config()
+    embedding = _resolve_embedding_model(app_config=app_config)
     vector_store = state.load_vector_store(embedding)
     graph = state.load_graph()
 
@@ -442,22 +443,35 @@ def answer_question(question: str) -> Dict:
         )
         graph_docs = retriever.get_relevant_documents(question)
 
-    llm_caller = get_llm_caller()
+    llm_caller = get_llm_caller(app_config=app_config)
     answer_text: str
     used_llm = False
+    sources_used = []
+
+    import time
+
+    start = time.time()
+
+    if vector_docs:
+        sources_used.append("vector")
+    if graph_docs:
+        sources_used.append("graph")
 
     if llm_caller and (vector_docs or graph_docs):
-        context_lines = []
-        for doc in vector_docs:
-            context_lines.append(f"Vector doc: {doc.page_content[:200]}")
-        for doc in graph_docs:
-            context_lines.append(f"Graph node: {doc.page_content[:200]}")
-
+        vector_context = "\n".join(
+            f"Doc {idx+1} (source={d.metadata.get('source','unknown')}): {d.page_content[:400]}"
+            for idx, d in enumerate(vector_docs)
+        ) or "No vector hits."
+        graph_context = "\n".join(
+            f"Node {idx+1} (type={d.metadata.get('node_type','node')}): {d.page_content[:300]}"
+            for idx, d in enumerate(graph_docs)
+        ) or "No graph hits."
         prompt = (
-            "You are a helpful assistant answering questions about the ingested data.\n"
+            "You are a concise assistant that answers using the provided context.\n"
             f"Question: {question}\n"
-            f"Context:\n{chr(10).join(context_lines)}\n"
-            "Answer concisely using the context above."
+            f"Vector context:\n{vector_context}\n"
+            f"Graph context:\n{graph_context}\n"
+            "Answer using both vector and graph context when possible."
         )
         try:
             answer_text = call_llm_sync(llm_caller, prompt)
@@ -467,12 +481,29 @@ def answer_question(question: str) -> Dict:
     else:
         answer_text = _fallback_answer(question, vector_docs, graph_docs)
 
+    response_time = round(time.time() - start, 2)
+
+    def _to_payload(docs: Sequence[Document]) -> List[Dict]:
+        items: List[Dict] = []
+        for doc in docs:
+            items.append(
+                {
+                    "content": doc.page_content,
+                    "metadata": doc.metadata or {},
+                }
+            )
+        return items
+
     return {
         "question": question,
         "answer": answer_text,
         "vector_docs": summarize_documents(vector_docs, limit=3),
         "graph_docs": summarize_documents(graph_docs, limit=3),
         "used_llm": used_llm,
+        "response_time": response_time,
+        "sources_used": sources_used,
+        "vector_hits_raw": _to_payload(vector_docs),
+        "graph_hits_raw": _to_payload(graph_docs),
     }
 
 
