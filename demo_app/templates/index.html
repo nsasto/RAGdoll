@@ -89,7 +89,7 @@
           }, 3500);
         });
       "
-      class="max-w-7xl mx-auto h-full flex flex-col"
+      class="mx-auto h-full flex flex-col"
     >
       <div
         x-show="toast"
@@ -375,12 +375,17 @@
                     2. Loaders (Read only)
                   </h3>
                   <div class="text-xs text-gray-500 mb-4">
-                    File/url/text staging is frozen after ingestion; click
-                    entries to preview the generated markdown on the right.
+                    Multi-page documents (PDFs, etc.) are concatenated into a single entry showing all pages together. Click entries to preview the complete markdown on the right.
                   </div>
+                  
+                  <!-- Loader Stats Panel -->
+                  <div id="loader-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <!-- Stats populated via JavaScript -->
+                  </div>
+                  
                   <div class="grid gap-4 lg:grid-cols-[1fr,2fr]">
                     <div
-                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-3 overflow-y-auto"
+                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-3 overflow-y-auto"
                       id="loader-source-list"
                     >
                       <p class="text-xs text-gray-400">
@@ -389,9 +394,9 @@
                       </p>
                     </div>
                     <div
-                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] space-y-2"
+                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-2 overflow-hidden flex flex-col"
                     >
-                      <div class="flex items-center justify-between">
+                      <div class="flex items-center justify-between flex-shrink-0">
                         <h4 class="text-sm font-semibold text-gray-800">
                           Markdown Preview
                         </h4>
@@ -402,13 +407,13 @@
                       </div>
                       <div
                         id="loader-preview-title"
-                        class="text-sm text-gray-600 font-semibold"
+                        class="text-sm text-gray-600 font-semibold flex-shrink-0 truncate"
                       >
                         Select a source
                       </div>
                       <pre
                         id="loader-preview-content"
-                        class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto max-h-[260px]"
+                        class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto flex-1 min-h-0"
                       >
 No preview yet.</pre
                       >
@@ -1016,9 +1021,11 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
         "loader-preview-content"
       );
       const loaderLogBox = document.getElementById("loader-log-box");
+      const loaderStatsEl = document.getElementById("loader-stats");
       let loaderItems = [];
       let loaderActiveIndex = -1;
       let loaderLogs = [];
+      let loaderStats = {};
 
       const updateLoaderPreview = (index) => {
         if (!loaderPreviewTitle || !loaderPreviewContent) {
@@ -1102,18 +1109,53 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
           .join("");
       };
 
+      const renderLoaderStats = () => {
+        if (!loaderStatsEl || !Object.keys(loaderStats).length) {
+          if (loaderStatsEl) {
+            loaderStatsEl.innerHTML = '';
+          }
+          return;
+        }
+        
+        const statCards = [
+          { label: 'Documents', value: loaderStats.documents_loaded || 0, icon: '📄' },
+          { label: 'Characters', value: (loaderStats.total_characters || 0).toLocaleString(), icon: '🔤' },
+          { label: 'Load Time', value: `${loaderStats.load_duration_seconds || 0}s`, icon: '⏱️' },
+          { label: 'Speed', value: loaderStats.processing_speed_mbps ? `${loaderStats.processing_speed_mbps} MB/s` : 'N/A', icon: '⚡' },
+        ];
+        
+        loaderStatsEl.innerHTML = statCards.map(stat => `
+          <div class="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div class="text-2xl mb-1">${stat.icon}</div>
+            <div class="text-xs text-gray-500">${stat.label}</div>
+            <div class="text-lg font-semibold text-gray-800">${stat.value}</div>
+          </div>
+        `).join('');
+      };
+
       const setLoaderLogs = (logs) => {
         loaderLogs = logs || [];
         renderLoaderLogs();
       };
 
+      const setLoaderStats = (stats) => {
+        loaderStats = stats || {};
+        renderLoaderStats();
+      };
+
       window.addEventListener("ragdoll:loader-update", (event) => {
+        console.log('ragdoll:loader-update received:', event.detail);
+        console.log('Items count:', (event.detail.items || []).length);
+        console.log('Logs count:', (event.detail.logs || []).length);
+        console.log('Stats:', event.detail.stats);
         setLoaderItems(event.detail.items || []);
         setLoaderLogs(event.detail.logs || []);
+        setLoaderStats(event.detail.stats || {});
       });
 
       setLoaderItems([]);
       setLoaderLogs([]);
+      setLoaderStats({});
     </script>
   </body>
 </html>

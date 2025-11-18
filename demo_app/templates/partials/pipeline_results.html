@@ -106,13 +106,18 @@
     </div>
   </section>
 </div>
-<script>
-  window.dispatchEvent(
-    new CustomEvent("ragdoll:loader-update", {
-      detail: {
-        items: {{ loader_items | tojson }},
-        logs: {{ loader_logs | tojson }},
-      },
-    })
-  );
-</script>
+    <script>
+      // Dispatch loader update event after a small delay to ensure DOM is ready
+      setTimeout(() => {
+        console.log('Dispatching ragdoll:loader-update with items:', {{ loader_items | tojson }});
+        window.dispatchEvent(
+          new CustomEvent("ragdoll:loader-update", {
+            detail: {
+              items: {{ loader_items | tojson }},
+              logs: {{ loader_logs | tojson }},
+              stats: {{ stats | tojson }},
+            },
+          })
+        );
+      }, 100);
+    </script>

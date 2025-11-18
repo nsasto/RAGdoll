@@ -54,6 +54,40 @@ def _config_context(
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
+    # Clear staged files and uploads on app refresh
+    print("=== Index page loaded, clearing all staged files and uploads ===")
+    staged_entries = state.staged_file_entries()
+    print(f"Staged entries: {len(staged_entries)}")
+    
+    # Clear the manifest
+    try:
+        state.clear_staged_manifest(delete_files=False)
+        print("Cleared staged manifest")
+    except Exception as e:
+        print(f"Could not clear manifest: {e}")
+        logger.warning(f"Could not clear manifest: {e}")
+    
+    # Clear ALL files in uploads directory (not just staged ones)
+    upload_dir = state.upload_directory()
+    if upload_dir.exists():
+        deleted_count = 0
+        failed_count = 0
+        for file_path in upload_dir.iterdir():
+            if file_path.is_file():
+                try:
+                    file_path.unlink()
+                    deleted_count += 1
+                except (OSError, PermissionError) as e:
+                    print(f"Could not delete {file_path.name}: {e}")
+                    failed_count += 1
+        
+        if deleted_count > 0:
+            print(f"Deleted {deleted_count} file(s) from uploads directory")
+            logger.info(f"Deleted {deleted_count} file(s) from uploads directory")
+        if failed_count > 0:
+            print(f"Failed to delete {failed_count} file(s) (may be locked)")
+            logger.warning(f"Failed to delete {failed_count} file(s) (may be locked)")
+    
     return templates.TemplateResponse("index.html", _config_context(request))
 
 
@@ -108,6 +142,16 @@ async def ingest(request: Request) -> HTMLResponse:
 
     staged_paths = [str(path) for path in state.staged_file_paths()]
     combined_sources = staged_paths + saved_paths + url_list
+    
+    # Build filename mapping from staged manifest
+    source_filename_map = {}
+    staged_entries = state.staged_file_entries()
+    upload_dir = state.upload_directory()
+    for entry in staged_entries:
+        file_path = str((upload_dir / entry["filename"]).resolve())
+        original_name = entry.get("original_name", entry["filename"])
+        source_filename_map[file_path] = original_name
+    
     success = False
     try:
         payload = await run_ingestion_demo(
@@ -115,6 +159,7 @@ async def ingest(request: Request) -> HTMLResponse:
             extra_documents=manual_docs,
             augment=augment,  # User's choice: add to existing stores or reset them
             loader_only=False,  # Full pipeline: load, chunk, embed, store
+            source_filename_map=source_filename_map,
         )
         success = True
     except ValueError as exc:
@@ -135,9 +180,21 @@ async def ingest(request: Request) -> HTMLResponse:
             for path in saved_paths:
                 try:
                     Path(path).unlink(missing_ok=True)
-                except OSError:
-                    pass
-            state.clear_staged_manifest(delete_files=True)
+                except (OSError, PermissionError) as e:
+                    print(f"Could not delete {path}: {e}")
+                    logger.warning(f"Could not delete {path}: {e}")
+            
+            # Clear staged manifest and attempt to delete files
+            try:
+                state.clear_staged_manifest(delete_files=True)
+            except (OSError, PermissionError) as e:
+                print(f"Could not clear staged files (may still be locked): {e}")
+                logger.warning(f"Could not clear staged files: {e}")
+                # At least clear the manifest even if files are locked
+                try:
+                    state.clear_staged_manifest(delete_files=False)
+                except Exception as e2:
+                    logger.error(f"Could not even clear manifest: {e2}")
 
     context = {
         "request": request,
@@ -173,10 +230,10 @@ async def stage_files(files: List[UploadFile] = Form(default=[])) -> JSONRespons
     """
     Stage uploaded files without processing them yet.
     """
-    print("=== /stage endpoint called ===")
+    #print("=== /stage endpoint called ===")
     logger.info("=== /stage endpoint called ===")
     
-    print(f"Number of files received: {len(files)}")
+    ##print(f"Number of files received: {len(files)}")
     logger.info(f"Number of files received: {len(files)}")
     
     for upload in files:
@@ -184,21 +241,23 @@ async def stage_files(files: List[UploadFile] = Form(default=[])) -> JSONRespons
         logger.info(f"  - {upload.filename}")
     
     if not files:
-        print("No files provided, returning existing staged files")
-        logger.info("No files provided, returning existing staged files")
+        # This is called by JavaScript on page load to check for existing staged files
+        existing = state.staged_file_entries()
+        if existing:
+            print(f"Returning {len(existing)} existing staged file(s)")
+            logger.info(f"Returning {len(existing)} existing staged file(s)")
+        # No log needed when empty - this is normal on fresh page load
         return JSONResponse(
-            {"staged_files": state.staged_file_entries()}, status_code=200
+            {"staged_files": existing}, status_code=200
         )
     
-    # Always reset the staged manifest and uploaded temp files when new files arrive.
-    state.clear_staged_manifest(delete_files=True)
-    
+    # Add new files to the existing staged list (don't clear)
     saved_entries = await _stage_uploads(files)
-    print(f"Saved entries: {saved_entries}")
+    #print(f"Saved entries: {saved_entries}")
     logger.info(f"Saved entries: {saved_entries}")
     
     staged = state.add_staged_files(saved_entries)
-    print(f"All staged files after adding: {staged}")
+    #print(f"All staged files after adding: {staged}")
     logger.info(f"All staged files after adding: {staged}")
     
     return JSONResponse({"staged_files": staged})
@@ -286,6 +345,16 @@ async def load_docs(request: Request) -> HTMLResponse:
     print(f"combined_sources: {combined_sources}")
     print(f"manual_docs count: {len(manual_docs)}")
 
+    # Build filename mapping from staged manifest
+    source_filename_map = {}
+    staged_entries = state.staged_file_entries()
+    upload_dir = state.upload_directory()
+    for entry in staged_entries:
+        file_path = str((upload_dir / entry["filename"]).resolve())
+        original_name = entry.get("original_name", entry["filename"])
+        source_filename_map[file_path] = original_name
+    print(f"Filename mapping: {source_filename_map}")
+
     success = False
     try:
         print("Calling run_ingestion_demo with loader_only=True (no vector/graph operations)")
@@ -295,6 +364,7 @@ async def load_docs(request: Request) -> HTMLResponse:
             extra_documents=manual_docs,
             augment=False,  # Doesn't matter for loader_only, but semantically "fresh view"
             loader_only=True,  # Don't touch vector/graph stores, just load and show markdown
+            source_filename_map=source_filename_map,
         )
         print("run_ingestion_demo succeeded")
         logger.info("run_ingestion_demo succeeded")
@@ -324,9 +394,21 @@ async def load_docs(request: Request) -> HTMLResponse:
             for path in saved_paths:
                 try:
                     Path(path).unlink(missing_ok=True)
-                except OSError:
-                    pass
-            state.clear_staged_manifest(delete_files=True)
+                except (OSError, PermissionError) as e:
+                    print(f"Could not delete {path}: {e}")
+                    logger.warning(f"Could not delete {path}: {e}")
+            
+            # Clear staged manifest and attempt to delete files
+            try:
+                state.clear_staged_manifest(delete_files=True)
+            except (OSError, PermissionError) as e:
+                print(f"Could not clear staged files (may still be locked): {e}")
+                logger.warning(f"Could not clear staged files: {e}")
+                # At least clear the manifest even if files are locked
+                try:
+                    state.clear_staged_manifest(delete_files=False)
+                except Exception as e2:
+                    logger.error(f"Could not even clear manifest: {e2}")
 
     context = {
         "request": request,
