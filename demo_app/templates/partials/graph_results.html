@@ -1,0 +1,150 @@
+<div class="space-y-4">
+  <!-- Graph Store Summary -->
+  <div class="bg-white rounded-2xl border border-gray-200 p-4">
+    <h4 class="text-sm font-semibold text-gray-800 mb-2">Graph Extraction Complete</h4>
+    <div class="text-xs text-gray-600 space-y-1">
+      <p><span class="font-semibold">Entities extracted:</span> {{ stats.entities_extracted }}</p>
+      <p><span class="font-semibold">Relationships extracted:</span> {{ stats.relationships_extracted }}</p>
+      <p><span class="font-semibold">Extraction duration:</span> {{ stats.extraction_duration }}s</p>
+      <p><span class="font-semibold">Store type:</span> {{ stats.store_type }}</p>
+    </div>
+  </div>
+  
+  <!-- Entity List and Graph Visualization -->
+  <div class="grid gap-4 lg:grid-cols-2">
+    <!-- Entity List -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-4 max-h-[500px] overflow-y-auto">
+      <h4 class="text-sm font-semibold text-gray-800 mb-3">Extracted Entities</h4>
+      {% if nodes %}
+        <div class="space-y-2">
+          {% for node in nodes %}
+          <div class="border border-gray-100 rounded-xl p-3 bg-slate-50 hover:bg-slate-100 transition">
+            <p class="text-sm font-semibold text-gray-800">{{ node.name }}</p>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[10px] px-2 py-1 rounded-full bg-ragdoll-light-green text-ragdoll-green font-semibold">
+                {{ node.type }}
+              </span>
+              <span class="text-[10px] text-gray-500">ID: {{ node.id }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-xs text-gray-400">No entities extracted yet.</p>
+      {% endif %}
+    </div>
+    
+    <!-- Graph Visualization -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-4">
+      <h4 class="text-sm font-semibold text-gray-800 mb-3">Graph Visualization</h4>
+      <div id="graph-visualization" class="w-full h-[450px] border border-gray-200 rounded-xl bg-slate-50 flex items-center justify-center">
+        {% if nodes|length > 0 %}
+        <canvas id="graph-canvas" class="w-full h-full"></canvas>
+        {% else %}
+        <p class="text-xs text-gray-400">No graph data to visualize</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Relationships List -->
+  {% if edges %}
+  <div class="bg-white rounded-2xl border border-gray-200 p-4">
+    <h4 class="text-sm font-semibold text-gray-800 mb-3">Relationships (First 20)</h4>
+    <div class="grid md:grid-cols-2 gap-2">
+      {% for edge in edges[:20] %}
+      <div class="text-xs border border-gray-100 rounded-xl p-2 bg-slate-50">
+        <span class="font-semibold text-gray-700">{{ edge.source }}</span>
+        <span class="text-gray-400 mx-1">→</span>
+        <span class="text-ragdoll-green font-semibold">[{{ edge.type }}]</span>
+        <span class="text-gray-400 mx-1">→</span>
+        <span class="font-semibold text-gray-700">{{ edge.target }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  // Dispatch stats update event
+  const graphStats = {{ stats | tojson }};
+  const graphNodes = {{ nodes | tojson }};
+  const graphEdges = {{ edges | tojson }};
+  
+  window.dispatchEvent(
+    new CustomEvent("ragdoll:graph-update", {
+      detail: {
+        stats: graphStats,
+        nodes: graphNodes,
+        edges: graphEdges,
+      },
+    })
+  );
+  
+  // Simple graph visualization using Canvas
+  {% if nodes|length > 0 %}
+  (function() {
+    const canvas = document.getElementById('graph-canvas');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width - 2;
+    canvas.height = 450;
+    
+    const nodes = graphNodes;
+    const edges = graphEdges;
+    
+    // Position nodes in a circle
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 50;
+    
+    const nodePositions = {};
+    nodes.forEach((node, i) => {
+      const angle = (i / nodes.length) * 2 * Math.PI;
+      nodePositions[node.id] = {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+        label: node.name
+      };
+    });
+    
+    // Draw edges
+    ctx.strokeStyle = '#4c51bf';
+    ctx.lineWidth = 1;
+    edges.forEach(edge => {
+      const source = nodePositions[edge.source];
+      const target = nodePositions[edge.target];
+      if (source && target) {
+        ctx.beginPath();
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+      }
+    });
+    
+    // Draw nodes
+    nodes.forEach(node => {
+      const pos = nodePositions[node.id];
+      if (!pos) return;
+      
+      // Node circle
+      ctx.fillStyle = '#c7d2fe';
+      ctx.strokeStyle = '#4c51bf';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 20, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+      
+      // Node label
+      ctx.fillStyle = '#1f2937';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(pos.label.substring(0, 15), pos.x, pos.y + 35);
+    });
+  })();
+  {% endif %}
+</script>

@@ -1,0 +1,42 @@
+<div class="space-y-4">
+  <!-- Vector Store Summary -->
+  <div class="bg-white rounded-2xl border border-gray-200 p-4">
+    <h4 class="text-sm font-semibold text-gray-800 mb-2">Vector Store Population Complete</h4>
+    <div class="text-xs text-gray-600 space-y-1">
+      <p><span class="font-semibold">Documents embedded:</span> {{ stats.documents_embedded }}</p>
+      <p><span class="font-semibold">Chunks embedded:</span> {{ stats.chunks_embedded }}</p>
+      <p><span class="font-semibold">Vector dimension:</span> {{ stats.vector_dimension }}</p>
+      <p><span class="font-semibold">Embedding duration:</span> {{ stats.embedding_duration }}s</p>
+      <p><span class="font-semibold">Store type:</span> {{ stats.store_type }}</p>
+    </div>
+  </div>
+  
+  <!-- Sample Vectors Preview -->
+  {% if sample_vectors %}
+  <div class="bg-white rounded-2xl border border-gray-200 p-4">
+    <h4 class="text-sm font-semibold text-gray-800 mb-2">Sample Vectors (First 3)</h4>
+    <div class="space-y-3">
+      {% for sample in sample_vectors %}
+      <div class="border border-gray-100 rounded-xl p-3 bg-slate-50">
+        <p class="text-xs font-semibold text-gray-800 mb-1">{{ sample.content[:100] }}...</p>
+        <p class="text-[10px] text-gray-500">Source: {{ sample.source }}</p>
+        <p class="text-[10px] text-gray-400 mt-1">Vector preview: [{{ sample.vector_preview }}]</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  // Dispatch stats update event
+  const vectorStats = {{ stats | tojson }};
+  
+  window.dispatchEvent(
+    new CustomEvent("ragdoll:vector-update", {
+      detail: {
+        stats: vectorStats,
+      },
+    })
+  );
+</script>

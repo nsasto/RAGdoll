@@ -26,11 +26,21 @@ from .pipeline_demo import (
     summarize_graph_edges,
     summarize_graph_nodes,
 )
+# Add project root to Python path and load .env from root
+import sys
+from pathlib import Path
+import os
 
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
-
+k = os.getenv("OPENAI_API_KEY")
+if k:
+    print("Key len:", len(k), "prefix:", k[:12], "suffix:", k[-6:])
+else:
+    print("No OPEN_API_KEY found.")
 # Add logger configuration
 logger = logging.getLogger(__name__)
 
@@ -329,6 +339,188 @@ async def chunk_documents(
         )
 
 
+@app.post("/populate_vector", response_class=HTMLResponse)
+async def populate_vector(request: Request) -> HTMLResponse:
+    """
+    Populate the vector store with embeddings from loaded/chunked documents.
+    """
+    import time
+    from ragdoll.embeddings import get_embedding_model
+    from ragdoll.vector_stores import vector_store_from_config
+    from ragdoll.config.base_config import VectorStoreConfig
+    
+    try:
+        logger.info("=== /populate_vector endpoint called ===")
+        app_config = get_app_config()
+        
+        # Get loaded documents
+        saved = state.read_loaded_documents()
+        if not saved:
+            return templates.TemplateResponse(
+                "partials/error.html",
+                {"request": request, "message": "No documents loaded. Please load documents first."},
+                status_code=400,
+            )
+        
+        documents = [
+            Document(page_content=d.get("page_content", ""), metadata=d.get("metadata") or {})
+            for d in saved
+        ]
+        
+        # Chunk documents
+        from ragdoll.chunkers import get_text_splitter, split_documents
+        splitter = get_text_splitter(
+            splitter_type='recursive',
+            chunk_size=1000,
+            chunk_overlap=200,
+            app_config=app_config,
+        )
+        chunks = split_documents(documents, text_splitter=splitter)
+        
+        # Get embeddings and create vector store
+        start_time = time.time()
+        embedding_model = get_embedding_model()
+        vector_dimension = len(embedding_model.embed_query("test"))
+        
+        # Configure vector store
+        vector_config = VectorStoreConfig(
+            enabled=True,
+            store_type='faiss',
+            params={}
+        )
+        
+        vector_store = vector_store_from_config(vector_config, embedding=embedding_model)
+        vector_store.add_documents(chunks)
+        
+        # Save to state
+        state.save_vector_store(vector_store)
+        
+        duration = time.time() - start_time
+        
+        # Prepare stats
+        stats = {
+            "documents_embedded": len(documents),
+            "chunks_embedded": len(chunks),
+            "vector_dimension": vector_dimension,
+            "embedding_duration": round(duration, 2),
+            "store_type": "FAISS"
+        }
+        
+        # Sample vectors for preview
+        sample_vectors = []
+        for chunk in chunks[:3]:
+            vector = embedding_model.embed_query(chunk.page_content)
+            sample_vectors.append({
+                "content": chunk.page_content,
+                "source": chunk.metadata.get("source", "unknown"),
+                "vector_preview": ", ".join([f"{v:.3f}" for v in vector[:5]]) + "..."
+            })
+        
+        context = {
+            "request": request,
+            "stats": stats,
+            "sample_vectors": sample_vectors,
+        }
+        return templates.TemplateResponse("partials/vector_results.html", context)
+        
+    except Exception as exc:
+        logger.error(f"Vector population error: {exc}", exc_info=True)
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {"request": request, "message": f"Vector population failed: {exc}"},
+            status_code=500,
+        )
+
+
+@app.post("/populate_graph", response_class=HTMLResponse)
+async def populate_graph(request: Request) -> HTMLResponse:
+    """
+    Extract entities and relationships, then populate the graph store.
+    """
+    import time
+    from ragdoll.entity_extraction import EntityExtractionService
+    from ragdoll.llms import get_llm_caller
+    
+    try:
+        logger.info("=== /populate_graph endpoint called ===")
+        app_config = get_app_config()
+        
+        # Get loaded documents
+        saved = state.read_loaded_documents()
+        if not saved:
+            return templates.TemplateResponse(
+                "partials/error.html",
+                {"request": request, "message": "No documents loaded. Please load documents first."},
+                status_code=400,
+            )
+        
+        documents = [
+            Document(page_content=d.get("page_content", ""), metadata=d.get("metadata") or {})
+            for d in saved
+        ]
+        
+        # Get LLM caller for entity extraction
+        llm_caller = get_llm_caller(app_config=app_config)
+        
+        # Extract entities
+        start_time = time.time()
+        entity_service = EntityExtractionService(
+            llm_caller=llm_caller,
+            app_config=app_config,
+        )
+        
+        graph = await entity_service.extract_entities_from_documents(documents)
+        duration = time.time() - start_time
+        
+        # Save graph to state
+        state.save_graph(graph)
+        
+        # Prepare stats
+        stats = {
+            "entities_extracted": len(graph.nodes),
+            "relationships_extracted": len(graph.edges),
+            "extraction_duration": round(duration, 2),
+            "store_type": "JSON"
+        }
+        
+        # Serialize nodes and edges for template
+        nodes_json = [
+            {
+                "id": node.id,
+                "name": node.name,
+                "type": node.type,
+                "metadata": node.metadata or {}
+            }
+            for node in graph.nodes
+        ]
+        
+        edges_json = [
+            {
+                "id": edge.id,
+                "source": edge.source,
+                "target": edge.target,
+                "type": edge.type
+            }
+            for edge in graph.edges
+        ]
+        
+        context = {
+            "request": request,
+            "stats": stats,
+            "nodes": nodes_json,
+            "edges": edges_json,
+        }
+        return templates.TemplateResponse("partials/graph_results.html", context)
+        
+    except Exception as exc:
+        logger.error(f"Graph population error: {exc}", exc_info=True)
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {"request": request, "message": f"Graph population failed: {exc}"},
+            status_code=500,
+        )
+
+
 @app.post("/chat", response_class=HTMLResponse)
 async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
     try:
@@ -504,6 +696,7 @@ async def load_docs(request: Request) -> HTMLResponse:
 
         # Build loader items for UI and simple stats
         from .pipeline_demo import _build_loader_items
+
 
         stats = {
             "document_count": len(documents),

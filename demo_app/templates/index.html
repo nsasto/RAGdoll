@@ -1,81 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RAGdoll Orchestrator Demo (Fixed Sidebar)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script
-      defer
-      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
-    ></script>
-    <script
-      defer
-      src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"
-    ></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ["Inter", "sans-serif"],
-            },
-            colors: {
-              "ragdoll-green": "#10b981",
-              "ragdoll-light-green": "#d1fae5",
-            },
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAGdoll Orchestrator Demo (Fixed Sidebar)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "sans-serif"],
+          },
+          colors: {
+            "ragdoll-green": "#10b981",
+            "ragdoll-light-green": "#d1fae5",
           },
         },
-      };
-    </script>
-    <style>
-      body {
-        font-family: "Inter", sans-serif;
-        background-color: #f7f7f9;
+      },
+    };
+  </script>
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      background-color: #f7f7f9;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f7f7f9;
+    }
+
+    @keyframes pulse-green-shadow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.4);
       }
-      ::-webkit-scrollbar {
-        width: 8px;
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
       }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f7f7f9;
-      }
-      @keyframes pulse-green-shadow {
-        0%,
-        100% {
-          box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.4);
-        }
-        50% {
-          box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
-        }
-      }
-      .pulse-active {
-        animation: pulse-green-shadow 1.5s infinite;
-        position: relative;
-      }
-      [x-cloak] {
-        display: none !important;
-      }
-      .htmx-indicator {
-        opacity: 0;
-        transition: opacity 0.2s ease;
-      }
-      .htmx-request .htmx-indicator {
-        opacity: 1;
-      }
-    </style>
-  </head>
-  <body class="p-8 h-screen overflow-hidden">
-    <div
-      x-data="{
+    }
+
+    .pulse-active {
+      animation: pulse-green-shadow 1.5s infinite;
+      position: relative;
+    }
+
+    [x-cloak] {
+      display: none !important;
+    }
+
+    .htmx-indicator {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .htmx-request .htmx-indicator {
+      opacity: 1;
+    }
+  </style>
+</head>
+
+<body class="p-8 h-screen overflow-hidden">
+  <div x-data="{
         toast: null,
         toastTimeout: null,
-      }"
-      x-init="
+      }" x-init="
         window.addEventListener('ragdoll:toast', (event) => {
           toast = {
             message: event.detail.message,
@@ -88,40 +92,21 @@
             toast = null;
           }, 3500);
         });
-      "
-      class="mx-auto h-full flex flex-col"
-    >
-      <div
-        x-show="toast"
-        x-cloak
-        x-transition.opacity
-        class="pointer-events-none fixed right-6 top-6 z-40"
-      >
-        <div
-          x-text="toast?.message"
-          :class="{
+      " class="mx-auto h-full flex flex-col">
+    <div x-show="toast" x-cloak x-transition.opacity class="pointer-events-none fixed right-6 top-6 z-40">
+      <div x-text="toast?.message" :class="{
             'bg-ragdoll-green text-white border border-ragdoll-green/80': toast?.type === 'success',
             'bg-yellow-500 text-white border border-yellow-600': toast?.type === 'warning',
             'bg-red-500 text-white border border-red-600': toast?.type === 'error',
             'bg-gray-800 text-white border border-gray-700': toast?.type === 'info',
-          }"
-          class="rounded-2xl px-4 py-3 text-sm shadow-2xl whitespace-pre-line"
-        ></div>
-      </div>
+          }" class="rounded-2xl px-4 py-3 text-sm shadow-2xl whitespace-pre-line"></div>
+    </div>
 
-      <div
-        x-data="{ activeTab: 'config' }"
-        class="flex-grow flex relative bg-white rounded-2xl shadow-2xl overflow-hidden"
-      >
-        <div
-          class="absolute left-0 top-0 bottom-0 w-24 flex-shrink-0 bg-white py-6 z-10 border-r border-gray-100"
-        >
-          <div
-            class="absolute top-8 bottom-8 left-1/2 transform -translate-x-1/2 w-0.5 bg-gray-200"
-          ></div>
-          <nav
-            class="flex flex-col space-y-4 px-2"
-            x-data="{
+    <div x-data="{ activeTab: 'config' }"
+      class="flex-grow flex relative bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div class="absolute left-0 top-0 bottom-0 w-24 flex-shrink-0 bg-white py-6 z-10 border-r border-gray-100">
+        <div class="absolute top-8 bottom-8 left-1/2 transform -translate-x-1/2 w-0.5 bg-gray-200"></div>
+        <nav class="flex flex-col space-y-4 px-2" x-data="{
               buttonClasses(tab) {
                 return {
                   'bg-ragdoll-light-green text-ragdoll-green font-semibold pulse-active': activeTab === tab,
@@ -134,1139 +119,1015 @@
                 return {
                   'bg-ragdoll-green border-2 border-white ring-4 ring-ragdoll-light-green': activeTab === tab,
                   'bg-gray-400': activeTab !== tab,
-                  'absolute left-1/2 transform -translate-x-1/2 w-3 h-3 rounded-full z-20': true,
+                  'absolute left-1/2 transform -translate-x-1/2 w-3 h-3 rounded-full z-0': true,
                 };
               },
-            }"
-          >
-            <button
-              @click="activeTab = 'config'"
-              :class="buttonClasses('config')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('config')"></div>
-              ⚙️
-            </button>
-            <button
-              @click="activeTab = 'ingestion'"
-              :class="buttonClasses('ingestion')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('ingestion')"></div>
-              📥
-            </button>
-            <button
-              @click="activeTab = 'loaders'"
-              :class="buttonClasses('loaders')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('loaders')"></div>
-              🧾
-            </button>
-                        <button
-              @click="activeTab = 'chunking'"
-              :class="buttonClasses('chunking')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('chunking')"></div>
-              🔪
-            </button>
-            <button
-              @click="activeTab = 'pipeline'"
-              :class="buttonClasses('pipeline')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('pipeline')"></div>
-              ▶️
-            </button>
+            }">
+          <button @click="activeTab = 'config'" :class="buttonClasses('config')" class="text-xl">
+            <div :class="dotClasses('config')"></div>
+            <span class="relative z-10">⚙️</span>
+          </button>
+          <button @click="activeTab = 'ingestion'" :class="buttonClasses('ingestion')" class="text-xl">
+            <div :class="dotClasses('ingestion')"></div>
+            <span class="relative z-10">📥</span>
+          </button>
+          <button @click="activeTab = 'loaders'" :class="buttonClasses('loaders')" class="text-xl">
+            <div :class="dotClasses('loaders')"></div>
+            <span class="relative z-10">🧾</span>
+          </button>
+          <button @click="activeTab = 'chunking'" :class="buttonClasses('chunking')" class="text-xl">
+            <div :class="dotClasses('chunking')"></div>
+            <span class="relative z-10">🔪</span>
+          </button>
+          <button @click="activeTab = 'vector'" :class="buttonClasses('vector')" class="text-xl" title="Vector Store">
+            <div :class="dotClasses('vector')"></div>
+            <span class="relative z-10">🔢</span>
+          </button>
+          <button @click="activeTab = 'graph'" :class="buttonClasses('graph')" class="text-xl" title="Graph Store">
+            <div :class="dotClasses('graph')"></div>
+            <span class="relative z-10">🕸️</span>
+          </button>
+          <button @click="activeTab = 'pipeline'" :class="buttonClasses('pipeline')" class="text-xl">
+            <div :class="dotClasses('pipeline')"></div>
+            <span class="relative z-10">▶️</span>
+          </button>
+          <button @click="activeTab = 'llm'" :class="buttonClasses('llm')" class="text-xl">
+            <div :class="dotClasses('llm')"></div>
+            <span class="relative z-10">🧠</span>
+          </button>
+        </nav>
+      </div>
 
-            <button
-              @click="activeTab = 'stores'"
-              :class="buttonClasses('stores')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('stores')"></div>
-              💾
-            </button>
-            <button
-              @click="activeTab = 'llm'"
-              :class="buttonClasses('llm')"
-              class="text-xl"
-            >
-              <div :class="dotClasses('llm')"></div>
-              🧠
-            </button>
-          </nav>
-        </div>
-
-        <div class="ml-24 flex-grow flex gap-8 p-6">
-          <div class="w-2/3 flex overflow-hidden">
-            <div class="flex-grow min-h-0 overflow-y-auto">
-              <div class="mt-4 space-y-6">
-                <section
-                  x-show="activeTab === 'ingestion'"
-                  x-cloak
-                  x-transition.opacity
-                  class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm"
-                >
-                  <h2
-                    class="text-xl font-bold text-gray-800 flex items-center mb-4"
-                  >
-                    <svg
-                      class="w-6 h-6 mr-2 text-ragdoll-green"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      ></path>
-                    </svg>
-                    1. Document Ingestion (Auto Loader)
-                  </h2>
-                  <form
-                    hx-post="/load"
-                    hx-target="#pipeline-results"
-                    hx-swap="innerHTML"
-                    hx-indicator="#loader-indicator"
-                    hx-on:htmx:beforeRequest="activeTab = 'loaders'"
-                    enctype="multipart/form-data"
-                    hx-encoding="multipart/form-data"
-                    class="space-y-4"
-                  >
-                    <div>
-                      <label
-                        class="block text-sm font-semibold text-gray-700 mb-2"
-                        >Drag & Drop Files</label
-                      >
-                      <label
-                        for="file-upload"
-                        class="block border-2 border-dashed border-ragdoll-green/70 rounded-2xl bg-white p-6 text-center cursor-pointer hover:border-ragdoll-green focus-within:ring-2 focus-within:ring-ragdoll-green focus-within:border-ragdoll-green transition"
-                      >
-                        <div
-                          class="flex flex-col items-center justify-center space-y-1"
-                        >
-                          <span class="text-2xl">📂</span>
-                          <p class="text-sm text-gray-600">
-                            PDF, DOCX, MD (or paste URLs/text below)
-                          </p>
-                        </div>
-                        <input
-                          id="file-upload"
-                          type="file"
-                          name="files"
-                          multiple
-                          class="sr-only"
-                        />
-                      </label>
-                    </div>
-
-                    <div>
-                      <label
-                        class="font-semibold text-sm text-gray-700 block mb-1"
-                        >URLs (one per line)</label
-                      >
-                      <textarea
-                        name="urls"
-                        rows="3"
-                        class="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-700 focus:ring-ragdoll-green focus:border-ragdoll-green transition"
-                        placeholder="https://example.com/doc"
-                      ></textarea>
-                    </div>
-
-                    <div>
-                      <label
-                        class="font-semibold text-sm text-gray-700 block mb-1"
-                        >Text snippet</label
-                      >
-                      <textarea
-                        name="text_input"
-                        rows="4"
-                        class="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-700 focus:ring-ragdoll-green focus:border-ragdoll-green transition"
-                        placeholder="Paste any text you want to ingest"
-                      ></textarea>
-                    </div>
-
-                    <div
-                      class="flex flex-wrap items-center gap-4 text-sm text-gray-700"
-                    >
-                      <label class="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="mode"
-                          value="augment"
-                          checked
-                          class="form-radio h-4 w-4 text-ragdoll-green border-gray-300 focus:ring-ragdoll-green"
-                        />
-                        Augment existing store
-                      </label>
-                      <label class="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="mode"
-                          value="reset"
-                          class="form-radio h-4 w-4 text-ragdoll-green border-gray-300 focus:ring-ragdoll-green"
-                        />
-                        Start from scratch
-                      </label>
-                    </div>
-
-                    <div class="flex items-center gap-3">
-                      <button
-                        type="submit"
-                        class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
-                      >
-                        Load Documents
-                      </button>
-                      <span
-                        id="loader-indicator"
-                        class="htmx-indicator text-sm text-gray-500"
-                        >Processing…</span
-                      >
-                    </div>
-                    <p class="text-[11px] text-gray-500">
-                      Document loaders execute immediately, so the Loaders tab
-                      is read-only and shows the converted markdown.
-                    </p>
-                    <div class="space-y-1 mt-3">
-                      <div
-                        class="flex items-center justify-between text-xs text-gray-500"
-                      >
-                        <p class="font-semibold text-gray-600">
-                          Staged ingestion list (editable)
+      <div class="ml-24 flex-grow flex gap-8 p-6">
+        <div class="w-2/3 flex overflow-hidden">
+          <div class="flex-grow min-h-0 overflow-y-auto">
+            <div class="mt-4 space-y-6">
+              <section x-show="activeTab === 'ingestion'" x-cloak x-transition.opacity
+                class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center mb-4">
+                  <svg class="w-6 h-6 mr-2 text-ragdoll-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                  </svg>
+                  1. Document Ingestion (Auto Loader)
+                </h2>
+                <form hx-post="/load" hx-target="#pipeline-results" hx-swap="innerHTML" hx-indicator="#loader-indicator"
+                  hx-on:htmx:beforeRequest="activeTab = 'loaders'" enctype="multipart/form-data"
+                  hx-encoding="multipart/form-data" class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Drag & Drop Files</label>
+                    <label for="file-upload"
+                      class="block border-2 border-dashed border-ragdoll-green/70 rounded-2xl bg-white p-6 text-center cursor-pointer hover:border-ragdoll-green focus-within:ring-2 focus-within:ring-ragdoll-green focus-within:border-ragdoll-green transition">
+                      <div class="flex flex-col items-center justify-center space-y-1">
+                        <span class="text-2xl">📂</span>
+                        <p class="text-sm text-gray-600">
+                          PDF, DOCX, MD (or paste URLs/text below)
                         </p>
-                        <button
-                          type="button"
-                          id="manifest-sync"
-                          class="text-xs text-ragdoll-green underline underline-offset-2 hover:text-ragdoll-green/80"
-                        >
-                          Refresh list
-                        </button>
                       </div>
-                      <textarea
-                        id="ingest-manifest"
-                        class="w-full min-h-[120px] rounded-2xl border border-gray-200 bg-white p-3 text-xs font-mono text-gray-700 focus:border-ragdoll-green focus:ring-ragdoll-green"
-                      ></textarea>
-                      <p
-                        class="text-[10px] uppercase tracking-wide text-gray-400"
-                      >
-                        Files are saved to
-                        <code class="bg-slate-900 text-white px-1 rounded"
-                          >demo_state/uploads</code
-                        >
-                        when the pipeline is triggered. Edit names, URLs, or
-                        inline snippets here before document loading/markdown
-                        conversion.
-                      </p>
-                    </div>
-                  </form>
-                </section>
-
-                <section
-                  x-show="activeTab === 'loaders'"
-                  x-cloak
-                  x-transition.opacity
-                  class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm"
-                >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
-                    2. Loaders (Read only)
-                  </h3>
-                  <div class="text-xs text-gray-500 mb-4">
-                    Multi-page documents (PDFs, etc.) are concatenated into a single entry showing all pages together. Click entries to preview the complete markdown on the right.
-                  </div>
-                  
-                  <!-- Loader Stats Panel -->
-                  <div id="loader-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <!-- Stats populated via JavaScript -->
-                  </div>
-                  
-                  <div class="grid gap-4 lg:grid-cols-[1fr,2fr]">
-                    <div
-                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-3 overflow-y-auto"
-                      id="loader-source-list"
-                    >
-                      <p class="text-xs text-gray-400">
-                        No documents loaded yet. Run ingestion to populate
-                        sources.
-                      </p>
-                    </div>
-                    <div
-                      class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-2 overflow-hidden flex flex-col"
-                    >
-                      <div class="flex items-center justify-between flex-shrink-0">
-                        <h4 class="text-sm font-semibold text-gray-800">
-                          Markdown Preview
-                        </h4>
-                        <span
-                          class="text-[10px] uppercase tracking-wide text-gray-400"
-                          >rendered</span
-                        >
-                      </div>
-                      <div
-                        id="loader-preview-title"
-                        class="text-sm text-gray-600 font-semibold flex-shrink-0 truncate"
-                      >
-                        Select a source
-                      </div>
-                      <pre
-                        id="loader-preview-content"
-                        class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto flex-1 min-h-0"
-                      >
-No preview yet.</pre
-                      >
-                    </div>
-                  </div>
-                  <div
-                    class="bg-white rounded-2xl border border-gray-100 p-4 mt-4"
-                  >
-                    <h5 class="text-xs font-semibold text-gray-700 mb-2">
-                      Loader &amp; Parsing Logs
-                    </h5>
-                    <div
-                      id="loader-log-box"
-                      class="text-[11px] text-gray-600 bg-gray-50 rounded-2xl border border-gray-200 p-3 space-y-1 max-h-[200px] overflow-auto"
-                    >
-                      <p class="text-gray-400">
-                        No logs yet. Ingest to see loader/monitor output.
-                      </p>
-                    </div>
-                  </div>
-                </section>
-
-                <section
-                  x-show="activeTab === 'pipeline'"
-                  x-cloak
-                  x-transition.opacity
-                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
-                >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
-                    3. End-to-End Orchestration View
-                  </h3>
-                  <div class="text-sm text-gray-600 mb-4">
-                    This view visualizes the entire RAG pipeline from ingestion
-                    to response, showcasing RAGdoll's modular flow control.
-                  </div>
-                  <div
-                    class="p-4 bg-white rounded-2xl border border-gray-300 space-y-3 shadow-sm"
-                  >
-                    <p class="font-mono text-xs text-gray-700 mb-2">
-                      [RUNNING: ragdoll.run_pipeline(source_data)]
-                    </p>
-                    <div
-                      class="flex justify-between items-center text-xs font-medium text-gray-700"
-                    >
-                      <span>Loaders</span>
-                      <span>Chunking</span>
-                      <span>Embeddings</span>
-                      <span>Vector Store</span>
-                      <span>Graph Store</span>
-                    </div>
-                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        class="h-2 bg-green-500 rounded-full w-[80%] transition-all duration-1000"
-                      ></div>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">
-                      Status: Indexing 42/50 chunks…
-                    </p>
-                    <p class="text-xs text-gray-500">
-                      Total Ingestion Time: 12.4s (3s per 100 docs)
-                    </p>
+                      <input id="file-upload" type="file" name="files" multiple class="sr-only" />
+                    </label>
                   </div>
 
-                  <div id="pipeline-results" class="mt-6 space-y-6">
-                    <p class="text-sm text-gray-500">
-                      Run the ingestion pipeline above to populate documents,
-                      chunks, vectors, and graph insights here.
-                    </p>
+                  <div>
+                    <label class="font-semibold text-sm text-gray-700 block mb-1">URLs (one per line)</label>
+                    <textarea name="urls" rows="3"
+                      class="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-700 focus:ring-ragdoll-green focus:border-ragdoll-green transition"
+                      placeholder="https://example.com/doc"></textarea>
                   </div>
 
-                  <div class="mt-6">
-                    <h4 class="font-medium text-gray-800 mb-2">
-                      🕸️ Graph Visualizer
-                    </h4>
-                    <div
-                      class="h-64 w-full bg-white rounded-2xl border border-gray-300 flex items-center justify-center text-gray-500"
-                    >
-                      Interactive Visualization Area (Nodes, Edges,
-                      Relationships)
-                    </div>
+                  <div>
+                    <label class="font-semibold text-sm text-gray-700 block mb-1">Text snippet</label>
+                    <textarea name="text_input" rows="4"
+                      class="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-700 focus:ring-ragdoll-green focus:border-ragdoll-green transition"
+                      placeholder="Paste any text you want to ingest"></textarea>
                   </div>
-                </section>
 
-                <section
-                  x-show="activeTab === 'config'"
-                  x-cloak
-                  x-transition.opacity
-                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
-                >
-                  {% include "partials/config_panel.html" %}
-                </section>
-
-                <section
-                  x-show="activeTab === 'chunking'"
-                  x-cloak
-                  x-transition.opacity
-                  class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm"
-                >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
-                    3. Document Chunking
-                  </h3>
-                  <div class="text-xs text-gray-500 mb-4">
-                    Split loaded documents into chunks for embedding and retrieval. Documents must be loaded first.
+                  <div class="flex flex-wrap items-center gap-4 text-sm text-gray-700">
+                    <label class="flex items-center gap-2">
+                      <input type="radio" name="mode" value="augment" checked
+                        class="form-radio h-4 w-4 text-ragdoll-green border-gray-300 focus:ring-ragdoll-green" />
+                      Augment existing store
+                    </label>
+                    <label class="flex items-center gap-2">
+                      <input type="radio" name="mode" value="reset"
+                        class="form-radio h-4 w-4 text-ragdoll-green border-gray-300 focus:ring-ragdoll-green" />
+                      Start from scratch
+                    </label>
                   </div>
-                  
-                  <!-- Chunking Control Panel -->
-                  <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
-                    <h4 class="text-sm font-semibold text-gray-800 mb-3">Chunking Configuration</h4>
-                    <div class="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-1">Chunk Size</label>
-                        <input 
-                          type="number" 
-                          id="chunk-size" 
-                          name="chunk_size"
-                          value="1000" 
-                          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-1">Chunk Overlap</label>
-                        <input 
-                          type="number" 
-                          id="chunk-overlap" 
-                          name="chunk_overlap"
-                          value="200" 
-                          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      id="chunk-button"
-                      hx-post="/chunk"
-                      hx-target="#chunk-results"
-                      hx-swap="innerHTML"
-                      hx-indicator="#chunk-indicator"
-                      hx-include="[id='chunk-size'],[id='chunk-overlap']"
-                      class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
-                    >
-                      Chunk Documents
+
+                  <div class="flex items-center gap-3">
+                    <button type="submit"
+                      class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150">
+                      Load Documents
                     </button>
-                    <span
-                      id="chunk-indicator"
-                      class="htmx-indicator text-sm text-gray-500 block mt-2"
-                    >Processing…</span>
+                    <span id="loader-indicator" class="htmx-indicator text-sm text-gray-500">Processing…</span>
                   </div>
-                  
-                  <!-- Chunker Stats Panel -->
-                  <div id="chunker-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <!-- Stats populated via JavaScript -->
-                  </div>
-                  
-                  <!-- Chunk Results -->
-                  <div id="chunk-results" class="space-y-4">
-                    <div class="bg-white rounded-2xl border border-gray-200 p-4">
-                      <p class="text-sm text-gray-500">
-                        Click "Chunk Documents" to split your loaded documents into chunks for retrieval.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <!-- Chunker Configuration Display -->
-                  <div class="bg-white rounded-2xl border border-gray-200 p-4 mt-4">
-                    <h5 class="text-xs font-semibold text-gray-700 mb-2">
-                      Chunker Configuration
-                    </h5>
-                    <div
-                      id="chunker-config-box"
-                      class="text-[11px] text-gray-600 bg-gray-50 rounded-2xl border border-gray-200 p-3 space-y-1"
-                    >
-                      <p class="text-gray-400">
-                        Chunker configuration will appear here after chunking.
-                      </p>
-                    </div>
-                  </div>
-                </section>
-
-                <section
-                  x-show="activeTab === 'stores'"
-                  x-cloak
-                  x-transition.opacity
-                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
-                >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
-                    6. Data Stores (`vector_stores.md`, `graph_stores.md`)
-                  </h3>
-                  <p class="text-sm text-gray-600 mb-4">
-                    RAGdoll supports flexible persistence layers via a
-                    standardized factory pattern.
+                  <p class="text-[11px] text-gray-500">
+                    Document loaders execute immediately, so the Loaders tab
+                    is read-only and shows the converted markdown.
                   </p>
-                  <h4 class="font-medium text-gray-800 mb-2">Vector Store</h4>
-                  <div
-                    class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700"
-                  >
-                    <span class="font-medium">Active:</span> ChromaDB
-                    <span class="ml-4 text-xs text-ragdoll-green"
-                      >ragdoll.factory.get_vector_store()</span
-                    >
+                  <div class="space-y-1 mt-3">
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                      <p class="font-semibold text-gray-600">
+                        Staged ingestion list (editable)
+                      </p>
+                      <button type="button" id="manifest-sync"
+                        class="text-xs text-ragdoll-green underline underline-offset-2 hover:text-ragdoll-green/80">
+                        Refresh list
+                      </button>
+                    </div>
+                    <textarea id="ingest-manifest"
+                      class="w-full min-h-[120px] rounded-2xl border border-gray-200 bg-white p-3 text-xs font-mono text-gray-700 focus:border-ragdoll-green focus:ring-ragdoll-green"></textarea>
+                    <p class="text-[10px] uppercase tracking-wide text-gray-400">
+                      Files are saved to
+                      <code class="bg-slate-900 text-white px-1 rounded">demo_state/uploads</code>
+                      when the pipeline is triggered. Edit names, URLs, or
+                      inline snippets here before document loading/markdown
+                      conversion.
+                    </p>
                   </div>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
-                    Embeddings Code Snippet
-                  </h4>
-                  <pre
-                    class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap"
-                  >
-# See embeddings.md
-def get_embedding_model(model_name="gemini-embedding-001"):
-    # Uses ModelFactory for provider hints
-    return HuggingFaceEmbeddings.from_model_name(model_name)
-                  </pre>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
-                    Graph Store (Persistence)
-                  </h4>
-                  <div
-                    class="bg-white p-3 rounded-2xl border border-gray-300 text-sm text-gray-700"
-                  >
-                    <span class="font-medium">Active:</span> Neo4j (Disabled via
-                    Config)
-                    <span class="ml-4 text-xs text-ragdoll-green"
-                      >ragdoll.factory.get_graph_store()</span
-                    >
-                  </div>
-                </section>
+                </form>
+              </section>
 
-                <section
-                  x-show="activeTab === 'llm'"
-                  x-cloak
-                  x-transition.opacity
-                  class="bg-gray-50 p-6 rounded-xl border border-gray-200"
-                >
-                  <h3 class="text-lg font-semibold mb-3 text-gray-800">
-                    7. LLM Integration (`llm_integration.md`)
-                  </h3>
-                  <p class="text-sm text-gray-600 mb-4">
-                    The core component for response generation and agentic tool
-                    use.
+              <section x-show="activeTab === 'loaders'" x-cloak x-transition.opacity
+                class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+                <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                  2. Loaders (Read only)
+                </h3>
+                <div class="text-xs text-gray-500 mb-4">
+                  Multi-page documents (PDFs, etc.) are concatenated into a single entry showing all pages together.
+                  Click entries to preview the complete markdown on the right.
+                </div>
+
+                <!-- Loader Stats Panel -->
+                <div id="loader-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <!-- Stats populated via JavaScript -->
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-[1fr,2fr]">
+                  <div
+                    class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-3 overflow-y-auto"
+                    id="loader-source-list">
+                    <p class="text-xs text-gray-400">
+                      No documents loaded yet. Run ingestion to populate
+                      sources.
+                    </p>
+                  </div>
+                  <div
+                    class="bg-white rounded-2xl border border-gray-100 p-4 min-h-[280px] max-h-[400px] space-y-2 overflow-hidden flex flex-col">
+                    <div class="flex items-center justify-between flex-shrink-0">
+                      <h4 class="text-sm font-semibold text-gray-800">
+                        Markdown Preview
+                      </h4>
+                      <span class="text-[10px] uppercase tracking-wide text-gray-400">rendered</span>
+                    </div>
+                    <div id="loader-preview-title" class="text-sm text-gray-600 font-semibold flex-shrink-0 truncate">
+                      Select a source
+                    </div>
+                    <pre id="loader-preview-content"
+                      class="text-xs text-gray-700 bg-slate-900 text-white p-3 rounded-2xl overflow-auto flex-1 min-h-0">
+No preview yet.</pre>
+                  </div>
+                </div>
+                <div class="bg-white rounded-2xl border border-gray-100 p-4 mt-4">
+                  <h5 class="text-xs font-semibold text-gray-700 mb-2">
+                    Loader &amp; Parsing Logs
+                  </h5>
+                  <div id="loader-log-box"
+                    class="text-[11px] text-gray-600 bg-gray-50 rounded-2xl border border-gray-200 p-3 space-y-1 max-h-[200px] overflow-auto">
+                    <p class="text-gray-400">
+                      No logs yet. Ingest to see loader/monitor output.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section x-show="activeTab === 'pipeline'" x-cloak x-transition.opacity
+                class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                  3. End-to-End Orchestration View
+                </h3>
+                <div class="text-sm text-gray-600 mb-4">
+                  This view visualizes the entire RAG pipeline from ingestion
+                  to response, showcasing RAGdoll's modular flow control.
+                </div>
+                <div class="p-4 bg-white rounded-2xl border border-gray-300 space-y-3 shadow-sm">
+                  <p class="font-mono text-xs text-gray-700 mb-2">
+                    [RUNNING: ragdoll.run_pipeline(source_data)]
                   </p>
+                  <div class="flex justify-between items-center text-xs font-medium text-gray-700">
+                    <span>Loaders</span>
+                    <span>Chunking</span>
+                    <span>Embeddings</span>
+                    <span>Vector Store</span>
+                    <span>Graph Store</span>
+                  </div>
+                  <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-2 bg-green-500 rounded-full w-[80%] transition-all duration-1000"></div>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-2">
+                    Status: Indexing 42/50 chunks…
+                  </p>
+                  <p class="text-xs text-gray-500">
+                    Total Ingestion Time: 12.4s (3s per 100 docs)
+                  </p>
+                </div>
+
+                <div id="pipeline-results" class="mt-6 space-y-6">
+                  <p class="text-sm text-gray-500">
+                    Run the ingestion pipeline above to populate documents,
+                    chunks, vectors, and graph insights here.
+                  </p>
+                </div>
+
+                <div class="mt-6">
                   <h4 class="font-medium text-gray-800 mb-2">
-                    Code Snippet: <code>get_llm_caller</code>
+                    🕸️ Graph Visualizer
                   </h4>
-                  <pre
-                    class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap"
-                  >
+                  <div
+                    class="h-64 w-full bg-white rounded-2xl border border-gray-300 flex items-center justify-center text-gray-500">
+                    Interactive Visualization Area (Nodes, Edges,
+                    Relationships)
+                  </div>
+                </div>
+              </section>
+
+              <section x-show="activeTab === 'config'" x-cloak x-transition.opacity
+                class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                {% include "partials/config_panel.html" %}
+              </section>
+
+              <section x-show="activeTab === 'chunking'" x-cloak x-transition.opacity
+                class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+                <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                  3. Document Chunking
+                </h3>
+                <div class="text-xs text-gray-500 mb-4">
+                  Split loaded documents into chunks for embedding and retrieval. Documents must be loaded first.
+                </div>
+
+                <!-- Chunking Control Panel -->
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
+                  <h4 class="text-sm font-semibold text-gray-800 mb-3">Chunking Configuration</h4>
+                  <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label class="block text-xs font-semibold text-gray-700 mb-1">Chunk Size</label>
+                      <input type="number" id="chunk-size" name="chunk_size" value="1000"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-gray-700 mb-1">Chunk Overlap</label>
+                      <input type="number" id="chunk-overlap" name="chunk_overlap" value="200"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                  <button id="chunk-button" hx-post="/chunk" hx-target="#chunk-results" hx-swap="innerHTML"
+                    hx-indicator="#chunk-indicator" hx-include="[id='chunk-size'],[id='chunk-overlap']"
+                    class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150">
+                    Chunk Documents
+                  </button>
+                  <span id="chunk-indicator" class="htmx-indicator text-sm text-gray-500 block mt-2">Processing…</span>
+                </div>
+
+                <!-- Chunker Stats Panel -->
+                <div id="chunker-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <!-- Stats populated via JavaScript -->
+                </div>
+
+                <!-- Chunk Results -->
+                <div id="chunk-results" class="space-y-4">
+                  <div class="bg-white rounded-2xl border border-gray-200 p-4">
+                    <p class="text-sm text-gray-500">
+                      Click "Chunk Documents" to split your loaded documents into chunks for retrieval.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Chunker Configuration Display -->
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 mt-4">
+                  <h5 class="text-xs font-semibold text-gray-700 mb-2">
+                    Chunker Configuration
+                  </h5>
+                  <div id="chunker-config-box"
+                    class="text-[11px] text-gray-600 bg-gray-50 rounded-2xl border border-gray-200 p-3 space-y-1">
+                    <p class="text-gray-400">
+                      Chunker configuration will appear here after chunking.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Vector Store Section -->
+              <section x-show="activeTab === 'vector'" x-cloak x-transition.opacity
+                class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                  6. Vector Store (`vector_stores.md`)
+                </h3>
+                <div class="text-xs text-gray-500 mb-4">
+                  Embed loaded documents and store them in the vector database for similarity search.
+                </div>
+
+                <!-- Vector Store Settings Display -->
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
+                  <h4 class="text-sm font-semibold text-gray-800 mb-3">Vector Store Configuration</h4>
+                  <div id="vector-config-display" class="text-xs text-gray-600 space-y-2">
+                    <p class="text-gray-400">Configuration will load on startup...</p>
+                  </div>
+                </div>
+
+                <!-- Populate Vector DB Button -->
+                <button id="vector-populate-button" hx-post="/populate_vector" hx-target="#vector-results"
+                  hx-swap="innerHTML" hx-indicator="#vector-indicator"
+                  class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150 mb-4">
+                  Populate Vector Database
+                </button>
+                <span id="vector-indicator" class="htmx-indicator text-sm text-gray-500 block mb-4">Processing…</span>
+
+                <!-- Vector Stats Panel -->
+                <div id="vector-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <!-- Stats populated via JavaScript -->
+                </div>
+
+                <!-- Vector Results -->
+                <div id="vector-results" class="space-y-4">
+                  <div class="bg-white rounded-2xl border border-gray-200 p-4">
+                    <p class="text-sm text-gray-500">
+                      Click "Populate Vector Database" to embed and store loaded documents.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Graph Store Section -->
+              <section x-show="activeTab === 'graph'" x-cloak x-transition.opacity
+                class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                  7. Graph Store (`graph_stores.md`)
+                </h3>
+                <div class="text-xs text-gray-500 mb-4">
+                  Extract entities and relationships from loaded documents and store them in the graph database.
+                </div>
+
+                <!-- Graph Store Settings Display -->
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
+                  <h4 class="text-sm font-semibold text-gray-800 mb-3">Graph Store Configuration</h4>
+                  <div id="graph-config-display" class="text-xs text-gray-600 space-y-2">
+                    <p class="text-gray-400">Configuration will load on startup...</p>
+                  </div>
+                </div>
+
+                <!-- Populate Graph DB Button -->
+                <button id="graph-populate-button" hx-post="/populate_graph" hx-target="#graph-results"
+                  hx-swap="innerHTML" hx-indicator="#graph-indicator"
+                  class="w-full py-3 bg-ragdoll-green text-white font-semibold rounded-xl shadow-lg hover:bg-ragdoll-green/90 transition duration-150 mb-4">
+                  Extract Entities & Build Graph
+                </button>
+                <span id="graph-indicator" class="htmx-indicator text-sm text-gray-500 block mb-4">Processing…</span>
+
+                <!-- Graph Stats Panel -->
+                <div id="graph-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <!-- Stats populated via JavaScript -->
+                </div>
+
+                <!-- Graph Results -->
+                <div id="graph-results" class="space-y-4">
+                  <div class="bg-white rounded-2xl border border-gray-200 p-4">
+                    <p class="text-sm text-gray-500">
+                      Click "Extract Entities & Build Graph" to analyze documents and build the knowledge graph.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section x-show="activeTab === 'llm'" x-cloak x-transition.opacity
+                class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                  8. LLM Integration (`llm_integration.md`)
+                </h3>
+                <p class="text-sm text-gray-600 mb-4">
+                  The core component for response generation and agentic tool
+                  use.
+                </p>
+                <h4 class="font-medium text-gray-800 mb-2">
+                  Code Snippet: <code>get_llm_caller</code>
+                </h4>
+                <pre class="bg-gray-800 text-white p-4 rounded-2xl text-xs overflow-x-auto whitespace-pre-wrap">
 # See llm_integration.md
 def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
     # Wraps the LLM for chat/streaming/context injection
     return LangChainLLM(model=model_name, temperature=0.1)
                   </pre>
-                  <h4 class="font-medium text-gray-800 mb-2 mt-4">
-                    Enabled Agent Tools
-                  </h4>
-                  <div class="space-y-1">
-                    <div class="flex items-center text-sm text-gray-700">
-                      <span
-                        class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"
-                      ></span>
-                      Suggested Queries
-                    </div>
-                    <div class="flex items-center text-sm text-gray-700">
-                      <span
-                        class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"
-                      ></span>
-                      Google Search (Fallback)
-                    </div>
-                    <div class="flex items-center text-sm text-gray-700">
-                      <span
-                        class="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"
-                      ></span>
-                      Calculator (Available)
-                    </div>
+                <h4 class="font-medium text-gray-800 mb-2 mt-4">
+                  Enabled Agent Tools
+                </h4>
+                <div class="space-y-1">
+                  <div class="flex items-center text-sm text-gray-700">
+                    <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                    Suggested Queries
                   </div>
-                </section>
+                  <div class="flex items-center text-sm text-gray-700">
+                    <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                    Google Search (Fallback)
+                  </div>
+                  <div class="flex items-center text-sm text-gray-700">
+                    <span class="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+                    Calculator (Available)
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div x-data="{ showTrace: false }" class="w-1/3 flex flex-col space-y-6">
+          <div class="flex-grow bg-white p-6 rounded-2xl border border-gray-200 shadow-inner overflow-y-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+              <span class="text-ragdoll-green">RAG Engine</span> Interaction
+            </h2>
+            <div class="bg-gray-50 p-4 rounded-xl shadow-sm mb-6 border-l-4 border-ragdoll-green/70">
+              <p class="font-semibold text-gray-800 mb-1">System Message:</p>
+              <p class="text-gray-700 text-sm">
+                Index built successfully! Ask questions about the ingested
+                documents now. Caching and monitoring are active.
+              </p>
+            </div>
+            <div id="chat-thread" class="space-y-4 text-sm">
+              <div class="flex justify-end">
+                <div class="bg-ragdoll-green text-white p-3 rounded-2xl rounded-br-none max-w-xs shadow-md">
+                  Summarize the key features of the RAGdoll ingestion
+                  pipeline.
+                </div>
+              </div>
+              <div class="flex justify-start">
+                <div
+                  class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200">
+                  The RAGdoll ingestion pipeline is designed for modularity
+                  and high performance. Key features include
+                  <strong>Unified Data Loading</strong>,
+                  <strong>Automated Chunking Strategies</strong>, and
+                  concurrent indexing into both
+                  <strong>Vector Stores</strong> and
+                  <strong>Graph Stores</strong>.
+                </div>
+              </div>
+            </div>
+            <div class="mt-6 border-t border-gray-200 pt-4">
+              <button @click="showTrace = !showTrace"
+                class="flex items-center text-xs font-semibold text-ragdoll-green hover:text-ragdoll-green/80 transition">
+                <svg x-show="!showTrace" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+                <svg x-show="showTrace" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                </svg>
+                Show Retrieval Trace (Context Used)
+              </button>
+              <div x-show="showTrace" x-collapse
+                class="mt-3 space-y-3 p-3 bg-ragdoll-light-green/30 rounded-2xl text-xs">
+                <p class="font-medium text-gray-800">
+                  Source 1: Vector Chunks (Top 3)
+                </p>
+                <div class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600">
+                  "Vector Store: RAGdoll standardizes the interface for
+                  popular vector databases like ChromaDB and Pinecone,
+                  allowing seamless switching via the configuration
+                  manager..."
+                </div>
+                <div class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600">
+                  "Graph Store: The entity extraction service uses Neo4j for
+                  relationship storage, which is useful for highly structured
+                  querying..."
+                </div>
+                <p class="font-medium text-gray-800 pt-2">
+                  Source 2: Graph Facts (Triples)
+                </p>
+                <div class="bg-white p-2 rounded-xl border border-gray-300 font-mono text-gray-700">
+                  (RAGdoll) -[HAS_FEATURE]-> (Orchestration)<br />
+                  (RAGdoll) -[USES_STORE]-> (ChromaDB)
+                </div>
               </div>
             </div>
           </div>
-
-          <div
-            x-data="{ showTrace: false }"
-            class="w-1/3 flex flex-col space-y-6"
-          >
-            <div
-              class="flex-grow bg-white p-6 rounded-2xl border border-gray-200 shadow-inner overflow-y-auto"
-            >
-              <h2 class="text-2xl font-bold text-gray-800 mb-4">
-                <span class="text-ragdoll-green">RAG Engine</span> Interaction
-              </h2>
-              <div
-                class="bg-gray-50 p-4 rounded-xl shadow-sm mb-6 border-l-4 border-ragdoll-green/70"
-              >
-                <p class="font-semibold text-gray-800 mb-1">System Message:</p>
-                <p class="text-gray-700 text-sm">
-                  Index built successfully! Ask questions about the ingested
-                  documents now. Caching and monitoring are active.
-                </p>
-              </div>
-              <div id="chat-thread" class="space-y-4 text-sm">
-                <div class="flex justify-end">
-                  <div
-                    class="bg-ragdoll-green text-white p-3 rounded-2xl rounded-br-none max-w-xs shadow-md"
-                  >
-                    Summarize the key features of the RAGdoll ingestion
-                    pipeline.
-                  </div>
-                </div>
-                <div class="flex justify-start">
-                  <div
-                    class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200"
-                  >
-                    The RAGdoll ingestion pipeline is designed for modularity
-                    and high performance. Key features include
-                    <strong>Unified Data Loading</strong>,
-                    <strong>Automated Chunking Strategies</strong>, and
-                    concurrent indexing into both
-                    <strong>Vector Stores</strong> and
-                    <strong>Graph Stores</strong>.
-                  </div>
-                </div>
-              </div>
-              <div class="mt-6 border-t border-gray-200 pt-4">
-                <button
-                  @click="showTrace = !showTrace"
-                  class="flex items-center text-xs font-semibold text-ragdoll-green hover:text-ragdoll-green/80 transition"
-                >
-                  <svg
-                    x-show="!showTrace"
-                    class="w-4 h-4 mr-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                  <svg
-                    x-show="showTrace"
-                    class="w-4 h-4 mr-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 15l7-7 7 7"
-                    ></path>
-                  </svg>
-                  Show Retrieval Trace (Context Used)
-                </button>
-                <div
-                  x-show="showTrace"
-                  x-collapse
-                  class="mt-3 space-y-3 p-3 bg-ragdoll-light-green/30 rounded-2xl text-xs"
-                >
-                  <p class="font-medium text-gray-800">
-                    Source 1: Vector Chunks (Top 3)
-                  </p>
-                  <div
-                    class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600"
-                  >
-                    "Vector Store: RAGdoll standardizes the interface for
-                    popular vector databases like ChromaDB and Pinecone,
-                    allowing seamless switching via the configuration
-                    manager..."
-                  </div>
-                  <div
-                    class="bg-white p-2 rounded-xl border border-gray-300 italic text-gray-600"
-                  >
-                    "Graph Store: The entity extraction service uses Neo4j for
-                    relationship storage, which is useful for highly structured
-                    querying..."
-                  </div>
-                  <p class="font-medium text-gray-800 pt-2">
-                    Source 2: Graph Facts (Triples)
-                  </p>
-                  <div
-                    class="bg-white p-2 rounded-xl border border-gray-300 font-mono text-gray-700"
-                  >
-                    (RAGdoll) -[HAS_FEATURE]-> (Orchestration)<br />
-                    (RAGdoll) -[USES_STORE]-> (ChromaDB)
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              class="flex justify-between items-center text-xs text-gray-500 px-1 pt-1 border-t border-gray-200"
-            >
-              <span class="font-medium">Metrics:</span>
-              <span
-                >Query Time:
-                <span class="text-ragdoll-green font-semibold"
-                  >550ms</span
-                ></span
-              >
-              <span
-                >Cache Status:
-                <span class="text-green-600 font-semibold">HIT</span></span
-              >
-              <span>Source: Vector + Graph Retriever</span>
-            </div>
-            <div class="relative">
-              <form
-                hx-post="/chat"
-                hx-target="#chat-thread"
-                hx-swap="beforeend"
-                class="relative"
-              >
-                <input
-                  type="text"
-                  name="question"
-                  class="w-full py-4 pl-4 pr-16 border-2 border-gray-300 rounded-2xl focus:ring-ragdoll-green focus:border-ragdoll-green text-gray-800 placeholder-gray-500 transition"
-                  placeholder="Ask whatever you want about the ingested data..."
-                  required
-                />
-                <button
-                  type="submit"
-                  class="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-ragdoll-green text-white rounded-lg shadow-lg hover:bg-ragdoll-green/90 transition duration-150"
-                >
-                  <svg
-                    class="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M14 5l7 7m0 0l-7 7m7-7H3"
-                    ></path>
-                  </svg>
-                </button>
-              </form>
-            </div>
+          <div class="flex justify-between items-center text-xs text-gray-500 px-1 pt-1 border-t border-gray-200">
+            <span class="font-medium">Metrics:</span>
+            <span>Query Time:
+              <span class="text-ragdoll-green font-semibold">550ms</span></span>
+            <span>Cache Status:
+              <span class="text-green-600 font-semibold">HIT</span></span>
+            <span>Source: Vector + Graph Retriever</span>
+          </div>
+          <div class="relative">
+            <form hx-post="/chat" hx-target="#chat-thread" hx-swap="beforeend" class="relative">
+              <input type="text" name="question"
+                class="w-full py-4 pl-4 pr-16 border-2 border-gray-300 rounded-2xl focus:ring-ragdoll-green focus:border-ragdoll-green text-gray-800 placeholder-gray-500 transition"
+                placeholder="Ask whatever you want about the ingested data..." required />
+              <button type="submit"
+                class="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-ragdoll-green text-white rounded-lg shadow-lg hover:bg-ragdoll-green/90 transition duration-150">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3">
+                  </path>
+                </svg>
+              </button>
+            </form>
           </div>
         </div>
       </div>
     </div>
-    <script>
-      window.addEventListener("DOMContentLoaded", () => {
-        const fileInput = document.getElementById("file-upload");
-        const textInput = document.querySelector("textarea[name='text_input']");
-        const urlsInput = document.querySelector("textarea[name='urls']");
-        const manifest = document.getElementById("ingest-manifest");
-        const syncBtn = document.getElementById("manifest-sync");
-        let manifestAuto = true;
-        let stagedEntries = [];
+  </div>
+  <script>
+    window.addEventListener("DOMContentLoaded", () => {
+      const fileInput = document.getElementById("file-upload");
+      const textInput = document.querySelector("textarea[name='text_input']");
+      const urlsInput = document.querySelector("textarea[name='urls']");
+      const manifest = document.getElementById("ingest-manifest");
+      const syncBtn = document.getElementById("manifest-sync");
+      let manifestAuto = true;
+      let stagedEntries = [];
 
-        const sanitize = (value) =>
-          value
-            .replace(/[\r\n]+/g, " ")
-            .trim()
-            .slice(0, 220);
-
-        const stagedDisplayEntries = () =>
-          stagedEntries.map(
-            (entry) => `File: ${entry.original_name || entry.filename || ""}`
-          );
-
-        const buildEntries = () => {
-          const entries = [...stagedDisplayEntries()];
-
-          if (urlsInput) {
-            const urlLines = urlsInput.value
-              .split(/\r?\n/)
-              .map((line) => line.trim())
-              .filter(Boolean);
-            entries.push(...urlLines.map((line) => `URL: ${line}`));
-          }
-
-          if (textInput && textInput.value.trim()) {
-            entries.push(`Text: ${sanitize(textInput.value)}`);
-          }
-
-          return entries.length ? entries.join("\n") : "No sources staged yet.";
-        };
-
-        const refreshManifest = () => {
-          if (!manifest || !manifestAuto) {
-            return;
-          }
-          manifest.value = buildEntries();
-        };
-
-        const attachChange = (element) => {
-          element.addEventListener("input", () => {
-            refreshManifest();
-          });
-        };
-
-        const ensureManifestShowsStage = (entries) => {
-          if (!manifest) {
-            return;
-          }
-          const stageLines = entries
-            .map((entry) =>
-              entry ? `File: ${entry.original_name || entry.filename}` : ""
-            )
-            .filter(Boolean);
-          if (stageLines.length) {
-            manifest.value = stageLines.join("\n");
-            return;
-          }
-          manifest.value = buildEntries();
-        };
-
-        const updateStagedEntries = (entries, { force = false } = {}) => {
-          stagedEntries = entries || [];
-          if (manifest) {
-            manifest.value = buildEntries();
-          }
-          if (force) {
-            manifestAuto = true;
-          }
-        };
-
-        const loadExistingStaged = async () => {
-          try {
-            const response = await fetch("/stage", { method: "POST" });
-            if (response.ok) {
-              const data = await response.json();
-              const files = data.staged_files || [];
-              if (files.length && manifest) {
-                stagedEntries = files;
-                const lines = files
-                  .map(
-                    (entry) => `File: ${entry.original_name || entry.filename}`
-                  )
-                  .filter(Boolean);
-                manifest.value = lines.length
-                  ? lines.join("\n")
-                  : "No sources staged yet.";
-                manifestAuto = true;
-              }
-            }
-          } catch {
-            // ignore
-          }
-        };
-
-        const stageSelectedFiles = async () => {
-          if (!fileInput?.files?.length) {
-            return;
-          }
-          // Immediately reflect selection with local-only entries before server responds.
-          const immediateEntries = Array.from(fileInput.files).map((file) => ({
-            filename: file.name,
-            original_name: file.name,
-            local_only: true,
-          }));
-          stagedEntries = immediateEntries;
-          ensureManifestShowsStage(stagedEntries);
-          manifestAuto = true;
-          const formData = new FormData();
-          Array.from(fileInput.files).forEach((file) =>
-            formData.append("files", file)
-          );
-
-          try {
-            const response = await fetch("/stage", {
-              method: "POST",
-              body: formData,
-            });
-            if (!response.ok) {
-              throw new Error(`Stage failed: ${response.status}`);
-            }
-            const data = await response.json();
-            const staged = data.staged_files || [];
-            if (staged.length) {
-              stagedEntries = staged;
-              if (manifest) {
-                const lines = staged
-                  .map(
-                    (entry) => `File: ${entry.original_name || entry.filename}`
-                  )
-                  .filter(Boolean);
-                manifest.value = lines.length
-                  ? lines.join("\n")
-                  : "No sources staged yet.";
-              }
-              manifestAuto = true;
-            }
-            manifestAuto = true;
-            window.dispatchEvent(
-              new CustomEvent("ragdoll:toast", {
-                detail: { message: "Files staged successfully." },
-              })
-            );
-            loadExistingStaged();
-          } catch (error) {
-            console.error("Staging files failed", error);
-          } finally {
-            // Keep the file input value intact so the form submission still carries the files even if staging failed.
-          }
-        };
-
-        if (fileInput) {
-          fileInput.addEventListener("change", () => {
-            stageSelectedFiles();
-          });
-        }
-
-        if (textInput) {
-          attachChange(textInput);
-        }
-        if (urlsInput) {
-          attachChange(urlsInput);
-        }
-
-        if (manifest) {
-          manifest.addEventListener("input", () => {
-            manifestAuto = false;
-          });
-        }
-
-        if (syncBtn) {
-          syncBtn.addEventListener("click", () => {
-            manifestAuto = true;
-            refreshManifest();
-          });
-        }
-
-        loadExistingStaged();
-        refreshManifest();
-      });
-    </script>
-    <script>
-      const escapeHtml = (value = "") =>
+      const sanitize = (value) =>
         value
-          .toString()
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-      const loaderListEl = document.getElementById("loader-source-list");
-      const loaderPreviewTitle = document.getElementById(
-        "loader-preview-title"
-      );
-      const loaderPreviewContent = document.getElementById(
-        "loader-preview-content"
-      );
-      const loaderLogBox = document.getElementById("loader-log-box");
-      const loaderStatsEl = document.getElementById("loader-stats");
-      let loaderItems = [];
-      let loaderActiveIndex = -1;
-      let loaderLogs = [];
-      let loaderStats = {};
+          .replace(/[\r\n]+/g, " ")
+          .trim()
+          .slice(0, 220);
 
-      const updateLoaderPreview = (index) => {
-        if (!loaderPreviewTitle || !loaderPreviewContent) {
-          return;
+      const stagedDisplayEntries = () =>
+        stagedEntries.map(
+          (entry) => `File: ${entry.original_name || entry.filename || ""}`
+        );
+
+      const buildEntries = () => {
+        const entries = [...stagedDisplayEntries()];
+
+        if (urlsInput) {
+          const urlLines = urlsInput.value
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+          entries.push(...urlLines.map((line) => `URL: ${line}`));
         }
-        if (index == null || loaderItems.length === 0) {
-          loaderPreviewTitle.textContent = "Select a source";
-          loaderPreviewContent.textContent = "No preview yet.";
-          return;
+
+        if (textInput && textInput.value.trim()) {
+          entries.push(`Text: ${sanitize(textInput.value)}`);
         }
-        const item = loaderItems[index];
-        if (!item) {
-          return;
-        }
-        loaderPreviewTitle.textContent = item.title;
-        loaderPreviewContent.textContent =
-          item.content || item.preview || "No content available.";
+
+        return entries.length ? entries.join("\n") : "No sources staged yet.";
       };
 
-      const renderLoaderList = () => {
-        if (!loaderListEl) {
+      const refreshManifest = () => {
+        if (!manifest || !manifestAuto) {
           return;
         }
-        if (!loaderItems.length) {
-          loaderListEl.innerHTML =
-            '<p class="text-xs text-gray-400">No documents loaded yet. Run ingestion to populate sources.</p>';
+        manifest.value = buildEntries();
+      };
+
+      const attachChange = (element) => {
+        element.addEventListener("input", () => {
+          refreshManifest();
+        });
+      };
+
+      const ensureManifestShowsStage = (entries) => {
+        if (!manifest) {
           return;
         }
-        loaderListEl.innerHTML = loaderItems
-          .map((item, idx) => {
-            const isActive = idx === loaderActiveIndex;
-            return `
+        const stageLines = entries
+          .map((entry) =>
+            entry ? `File: ${entry.original_name || entry.filename}` : ""
+          )
+          .filter(Boolean);
+        if (stageLines.length) {
+          manifest.value = stageLines.join("\n");
+          return;
+        }
+        manifest.value = buildEntries();
+      };
+
+      const updateStagedEntries = (entries, { force = false } = {}) => {
+        stagedEntries = entries || [];
+        if (manifest) {
+          manifest.value = buildEntries();
+        }
+        if (force) {
+          manifestAuto = true;
+        }
+      };
+
+      const loadExistingStaged = async () => {
+        try {
+          const response = await fetch("/stage", { method: "POST" });
+          if (response.ok) {
+            const data = await response.json();
+            const files = data.staged_files || [];
+            if (files.length && manifest) {
+              stagedEntries = files;
+              const lines = files
+                .map(
+                  (entry) => `File: ${entry.original_name || entry.filename}`
+                )
+                .filter(Boolean);
+              manifest.value = lines.length
+                ? lines.join("\n")
+                : "No sources staged yet.";
+              manifestAuto = true;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      };
+
+      const stageSelectedFiles = async () => {
+        if (!fileInput?.files?.length) {
+          return;
+        }
+        // Immediately reflect selection with local-only entries before server responds.
+        const immediateEntries = Array.from(fileInput.files).map((file) => ({
+          filename: file.name,
+          original_name: file.name,
+          local_only: true,
+        }));
+        stagedEntries = immediateEntries;
+        ensureManifestShowsStage(stagedEntries);
+        manifestAuto = true;
+        const formData = new FormData();
+        Array.from(fileInput.files).forEach((file) =>
+          formData.append("files", file)
+        );
+
+        try {
+          const response = await fetch("/stage", {
+            method: "POST",
+            body: formData,
+          });
+          if (!response.ok) {
+            throw new Error(`Stage failed: ${response.status}`);
+          }
+          const data = await response.json();
+          const staged = data.staged_files || [];
+          if (staged.length) {
+            stagedEntries = staged;
+            if (manifest) {
+              const lines = staged
+                .map(
+                  (entry) => `File: ${entry.original_name || entry.filename}`
+                )
+                .filter(Boolean);
+              manifest.value = lines.length
+                ? lines.join("\n")
+                : "No sources staged yet.";
+            }
+            manifestAuto = true;
+          }
+          manifestAuto = true;
+          window.dispatchEvent(
+            new CustomEvent("ragdoll:toast", {
+              detail: { message: "Files staged successfully." },
+            })
+          );
+          loadExistingStaged();
+        } catch (error) {
+          console.error("Staging files failed", error);
+        } finally {
+          // Keep the file input value intact so the form submission still carries the files even if staging failed.
+        }
+      };
+
+      if (fileInput) {
+        fileInput.addEventListener("change", () => {
+          stageSelectedFiles();
+        });
+      }
+
+      if (textInput) {
+        attachChange(textInput);
+      }
+      if (urlsInput) {
+        attachChange(urlsInput);
+      }
+
+      if (manifest) {
+        manifest.addEventListener("input", () => {
+          manifestAuto = false;
+        });
+      }
+
+      if (syncBtn) {
+        syncBtn.addEventListener("click", () => {
+          manifestAuto = true;
+          refreshManifest();
+        });
+      }
+
+      loadExistingStaged();
+      refreshManifest();
+    });
+  </script>
+  <script>
+    const escapeHtml = (value = "") =>
+      value
+        .toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    const loaderListEl = document.getElementById("loader-source-list");
+    const loaderPreviewTitle = document.getElementById(
+      "loader-preview-title"
+    );
+    const loaderPreviewContent = document.getElementById(
+      "loader-preview-content"
+    );
+    const loaderLogBox = document.getElementById("loader-log-box");
+    const loaderStatsEl = document.getElementById("loader-stats");
+    let loaderItems = [];
+    let loaderActiveIndex = -1;
+    let loaderLogs = [];
+    let loaderStats = {};
+
+    const updateLoaderPreview = (index) => {
+      if (!loaderPreviewTitle || !loaderPreviewContent) {
+        return;
+      }
+      if (index == null || loaderItems.length === 0) {
+        loaderPreviewTitle.textContent = "Select a source";
+        loaderPreviewContent.textContent = "No preview yet.";
+        return;
+      }
+      const item = loaderItems[index];
+      if (!item) {
+        return;
+      }
+      loaderPreviewTitle.textContent = item.title;
+      loaderPreviewContent.textContent =
+        item.content || item.preview || "No content available.";
+    };
+
+    const renderLoaderList = () => {
+      if (!loaderListEl) {
+        return;
+      }
+      if (!loaderItems.length) {
+        loaderListEl.innerHTML =
+          '<p class="text-xs text-gray-400">No documents loaded yet. Run ingestion to populate sources.</p>';
+        return;
+      }
+      loaderListEl.innerHTML = loaderItems
+        .map((item, idx) => {
+          const isActive = idx === loaderActiveIndex;
+          return `
               <button
                 type="button"
                 data-index="${idx}"
-                class="w-full text-left rounded-2xl border px-3 py-2 transition ${
-                  isActive
-                    ? "border-ragdoll-green/70 bg-ragdoll-light-green/30"
-                    : "border-gray-100 bg-gray-50 hover:border-gray-300"
-                }"
+                class="w-full text-left rounded-2xl border px-3 py-2 transition ${isActive
+              ? "border-ragdoll-green/70 bg-ragdoll-light-green/30"
+              : "border-gray-100 bg-gray-50 hover:border-gray-300"
+            }"
               >
                 <p class="text-sm font-semibold text-gray-800 truncate">${escapeHtml(
-                  item.title
-                )}</p>
+              item.title
+            )}</p>
                 <p class="text-[11px] text-gray-500">${escapeHtml(
-                  item.source
-                )}</p>
+              item.source
+            )}</p>
               </button>
             `;
-          })
-          .join("");
-        loaderListEl
-          .querySelectorAll("button[data-index]")
-          .forEach((button) => {
-            button.addEventListener("click", () => {
-              loaderActiveIndex = Number(button.dataset.index);
-              renderLoaderList();
-              updateLoaderPreview(loaderActiveIndex);
-            });
+        })
+        .join("");
+      loaderListEl
+        .querySelectorAll("button[data-index]")
+        .forEach((button) => {
+          button.addEventListener("click", () => {
+            loaderActiveIndex = Number(button.dataset.index);
+            renderLoaderList();
+            updateLoaderPreview(loaderActiveIndex);
           });
-      };
+        });
+    };
 
-      const setLoaderItems = (items) => {
-        loaderItems = items || [];
-        loaderActiveIndex = loaderItems.length ? 0 : -1;
-        renderLoaderList();
-        updateLoaderPreview(loaderActiveIndex);
-      };
+    const setLoaderItems = (items) => {
+      loaderItems = items || [];
+      loaderActiveIndex = loaderItems.length ? 0 : -1;
+      renderLoaderList();
+      updateLoaderPreview(loaderActiveIndex);
+    };
 
-      const renderLoaderLogs = () => {
-        if (!loaderLogBox) {
-          return;
-        }
-        if (!loaderLogs.length) {
-          loaderLogBox.innerHTML =
-            '<p class="text-gray-400">No logs yet. Ingest to see loader/monitor output.</p>';
-          return;
-        }
-        loaderLogBox.innerHTML = loaderLogs
-          .map((line) => `<p class="leading-snug">${escapeHtml(line)}</p>`)
-          .join("");
-      };
+    const renderLoaderLogs = () => {
+      if (!loaderLogBox) {
+        return;
+      }
+      if (!loaderLogs.length) {
+        loaderLogBox.innerHTML =
+          '<p class="text-gray-400">No logs yet. Ingest to see loader/monitor output.</p>';
+        return;
+      }
+      loaderLogBox.innerHTML = loaderLogs
+        .map((line) => `<p class="leading-snug">${escapeHtml(line)}</p>`)
+        .join("");
+    };
 
-      const renderLoaderStats = () => {
-        if (!loaderStatsEl || !Object.keys(loaderStats).length) {
-          if (loaderStatsEl) {
-            loaderStatsEl.innerHTML = '';
-          }
-          return;
+    const renderLoaderStats = () => {
+      if (!loaderStatsEl || !Object.keys(loaderStats).length) {
+        if (loaderStatsEl) {
+          loaderStatsEl.innerHTML = '';
         }
-        
-        const statCards = [
-          { label: 'Documents', value: loaderStats.documents_loaded || 0, icon: '📄' },
-          { label: 'Characters', value: (loaderStats.total_characters || 0).toLocaleString(), icon: '🔤' },
-          { label: 'Load Time', value: `${loaderStats.load_duration_seconds || 0}s`, icon: '⏱️' },
-          { label: 'Speed', value: loaderStats.processing_speed_mbps ? `${loaderStats.processing_speed_mbps} MB/s` : 'N/A', icon: '⚡' },
-        ];
-        
-        loaderStatsEl.innerHTML = statCards.map(stat => `
+        return;
+      }
+
+      const statCards = [
+        { label: 'Documents', value: loaderStats.documents_loaded || 0, icon: '📄' },
+        { label: 'Characters', value: (loaderStats.total_characters || 0).toLocaleString(), icon: '🔤' },
+        { label: 'Load Time', value: `${loaderStats.load_duration_seconds || 0}s`, icon: '⏱️' },
+        { label: 'Speed', value: loaderStats.processing_speed_mbps ? `${loaderStats.processing_speed_mbps} MB/s` : 'N/A', icon: '⚡' },
+      ];
+
+      loaderStatsEl.innerHTML = statCards.map(stat => `
           <div class="bg-white rounded-xl border border-gray-200 p-3 text-center">
             <div class="text-2xl mb-1">${stat.icon}</div>
             <div class="text-xs text-gray-500">${stat.label}</div>
             <div class="text-lg font-semibold text-gray-800">${stat.value}</div>
           </div>
         `).join('');
-      };
+    };
 
-      const setLoaderLogs = (logs) => {
-        loaderLogs = logs || [];
-        renderLoaderLogs();
-      };
+    const setLoaderLogs = (logs) => {
+      loaderLogs = logs || [];
+      renderLoaderLogs();
+    };
 
-      const setLoaderStats = (stats) => {
-        loaderStats = stats || {};
-        renderLoaderStats();
-      };
+    const setLoaderStats = (stats) => {
+      loaderStats = stats || {};
+      renderLoaderStats();
+    };
 
-      window.addEventListener("ragdoll:loader-update", (event) => {
-        console.log('ragdoll:loader-update received:', event.detail);
-        console.log('Items count:', (event.detail.items || []).length);
-        console.log('Logs count:', (event.detail.logs || []).length);
-        console.log('Stats:', event.detail.stats);
-        setLoaderItems(event.detail.items || []);
-        setLoaderLogs(event.detail.logs || []);
-        setLoaderStats(event.detail.stats || {});
-      });
+    window.addEventListener("ragdoll:loader-update", (event) => {
+      console.log('ragdoll:loader-update received:', event.detail);
+      console.log('Items count:', (event.detail.items || []).length);
+      console.log('Logs count:', (event.detail.logs || []).length);
+      console.log('Stats:', event.detail.stats);
+      setLoaderItems(event.detail.items || []);
+      setLoaderLogs(event.detail.logs || []);
+      setLoaderStats(event.detail.stats || {});
+    });
 
-      setLoaderItems([]);
-      setLoaderLogs([]);
-      setLoaderStats({});
-    </script>
-    <script>
-      // Chunker stats and config handling
-      const chunkerStatsEl = document.getElementById("chunker-stats");
-      const chunkerConfigBox = document.getElementById("chunker-config-box");
-      let chunkerStats = {};
-      let chunkerConfig = [];
+    setLoaderItems([]);
+    setLoaderLogs([]);
+    setLoaderStats({});
+  </script>
+  <script>
+    // Chunker stats and config handling
+    const chunkerStatsEl = document.getElementById("chunker-stats");
+    const chunkerConfigBox = document.getElementById("chunker-config-box");
+    let chunkerStats = {};
+    let chunkerConfig = [];
 
-      const renderChunkerStats = () => {
-        if (!chunkerStatsEl || !Object.keys(chunkerStats).length) {
-          if (chunkerStatsEl) {
-            chunkerStatsEl.innerHTML = '';
-          }
-          return;
+    const renderChunkerStats = () => {
+      if (!chunkerStatsEl || !Object.keys(chunkerStats).length) {
+        if (chunkerStatsEl) {
+          chunkerStatsEl.innerHTML = '';
         }
-        
-        const statCards = [
-          { label: 'Total Chunks', value: chunkerStats.total_chunks || 0, icon: '🧩' },
-          { label: 'Avg Size', value: chunkerStats.avg_chunk_size || 0, icon: '📏' },
-          { label: 'Chunk Time', value: `${chunkerStats.chunk_duration || 0}s`, icon: '⏱️' },
-          { label: 'Chunks/Doc', value: chunkerStats.total_documents > 0 ? 
-            Math.round((chunkerStats.total_chunks / chunkerStats.total_documents) * 10) / 10 : 0, icon: '📊' },
-        ];
-        
-        chunkerStatsEl.innerHTML = statCards.map(stat => `
+        return;
+      }
+
+      const statCards = [
+        { label: 'Total Chunks', value: chunkerStats.total_chunks || 0, icon: '🧩' },
+        { label: 'Avg Size', value: chunkerStats.avg_chunk_size || 0, icon: '📏' },
+        { label: 'Chunk Time', value: `${chunkerStats.chunk_duration || 0}s`, icon: '⏱️' },
+        {
+          label: 'Chunks/Doc', value: chunkerStats.total_documents > 0 ?
+            Math.round((chunkerStats.total_chunks / chunkerStats.total_documents) * 10) / 10 : 0, icon: '📊'
+        },
+      ];
+
+      chunkerStatsEl.innerHTML = statCards.map(stat => `
           <div class="bg-white rounded-xl border border-gray-200 p-3 text-center">
             <div class="text-2xl mb-1">${stat.icon}</div>
             <div class="text-xs text-gray-500">${stat.label}</div>
             <div class="text-lg font-semibold text-gray-800">${stat.value}</div>
           </div>
         `).join('');
-      };
+    };
 
-      const renderChunkerConfig = () => {
-        if (!chunkerConfigBox || !chunkerConfig.length) {
-          if (chunkerConfigBox) {
-            chunkerConfigBox.innerHTML = '';
-          }
-          return;
+    const renderChunkerConfig = () => {
+      if (!chunkerConfigBox || !chunkerConfig.length) {
+        if (chunkerConfigBox) {
+          chunkerConfigBox.innerHTML = '';
         }
-        
-        chunkerConfigBox.innerHTML = chunkerConfig
-          .map((line) => `<p class="leading-snug">${escapeHtml(line)}</p>`)
-          .join("");
-      };
+        return;
+      }
 
-      const setChunkerStats = (stats) => {
-        chunkerStats = stats || {};
-        renderChunkerStats();
-      };
+      chunkerConfigBox.innerHTML = chunkerConfig
+        .map((line) => `<p class="leading-snug">${escapeHtml(line)}</p>`)
+        .join("");
+    };
 
-      const setChunkerConfig = (config) => {
-        chunkerConfig = config || [];
-        renderChunkerConfig();
-      };
+    const setChunkerStats = (stats) => {
+      chunkerStats = stats || {};
+      renderChunkerStats();
+    };
 
-      window.addEventListener("ragdoll:chunker-update", (event) => {
-        console.log('ragdoll:chunker-update received:', event.detail);
-        console.log('Stats:', event.detail.stats);
-        console.log('Config:', event.detail.config);
-        setChunkerStats(event.detail.stats || {});
-        setChunkerConfig(event.detail.config || []);
-      });
+    const setChunkerConfig = (config) => {
+      chunkerConfig = config || [];
+      renderChunkerConfig();
+    };
 
-      setChunkerStats({});
-      setChunkerConfig([]);
-    </script>
-  </body>
+    window.addEventListener("ragdoll:chunker-update", (event) => {
+      console.log('ragdoll:chunker-update received:', event.detail);
+      console.log('Stats:', event.detail.stats);
+      console.log('Config:', event.detail.config);
+      setChunkerStats(event.detail.stats || {});
+      setChunkerConfig(event.detail.config || []);
+    });
+
+    setChunkerStats({});
+    setChunkerConfig([]);
+  </script>
+  <script>
+    // Vector store stats handling
+    const vectorStatsEl = document.getElementById("vector-stats");
+    let vectorStats = {};
+
+    const renderVectorStats = () => {
+      if (!vectorStatsEl || !Object.keys(vectorStats).length) {
+        if (vectorStatsEl) {
+          vectorStatsEl.innerHTML = '';
+        }
+        return;
+      }
+
+      const statCards = [
+        { label: 'Docs Embedded', value: vectorStats.documents_embedded || 0, icon: '📄' },
+        { label: 'Chunks Embedded', value: vectorStats.chunks_embedded || 0, icon: '🧩' },
+        { label: 'Embed Time', value: `${vectorStats.embedding_duration || 0}s`, icon: '⏱️' },
+        { label: 'Dimension', value: vectorStats.vector_dimension || 0, icon: '📐' },
+      ];
+
+      vectorStatsEl.innerHTML = statCards.map(stat => `
+          <div class="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div class="text-2xl mb-1">${stat.icon}</div>
+            <div class="text-xs text-gray-500">${stat.label}</div>
+            <div class="text-lg font-semibold text-gray-800">${stat.value}</div>
+          </div>
+        `).join('');
+    };
+
+    const setVectorStats = (stats) => {
+      vectorStats = stats || {};
+      renderVectorStats();
+    };
+
+    window.addEventListener("ragdoll:vector-update", (event) => {
+      console.log('ragdoll:vector-update received:', event.detail);
+      setVectorStats(event.detail.stats || {});
+    });
+
+    setVectorStats({});
+  </script>
+  <script>
+    // Graph store stats handling
+    const graphStatsEl = document.getElementById("graph-stats");
+    let graphStats = {};
+
+    const renderGraphStats = () => {
+      if (!graphStatsEl || !Object.keys(graphStats).length) {
+        if (graphStatsEl) {
+          graphStatsEl.innerHTML = '';
+        }
+        return;
+      }
+
+      const statCards = [
+        { label: 'Entities', value: graphStats.entities_extracted || 0, icon: '🔵' },
+        { label: 'Relationships', value: graphStats.relationships_extracted || 0, icon: '🔗' },
+        { label: 'Extract Time', value: `${graphStats.extraction_duration || 0}s`, icon: '⏱️' },
+        { label: 'Store Type', value: graphStats.store_type || 'N/A', icon: '💾' },
+      ];
+
+      graphStatsEl.innerHTML = statCards.map(stat => `
+          <div class="bg-white rounded-xl border border-gray-200 p-3 text-center">
+            <div class="text-2xl mb-1">${stat.icon}</div>
+            <div class="text-xs text-gray-500">${stat.label}</div>
+            <div class="text-lg font-semibold text-gray-800">${stat.value}</div>
+          </div>
+        `).join('');
+    };
+
+    const setGraphStats = (stats) => {
+      graphStats = stats || {};
+      renderGraphStats();
+    };
+
+    window.addEventListener("ragdoll:graph-update", (event) => {
+      console.log('ragdoll:graph-update received:', event.detail);
+      setGraphStats(event.detail.stats || {});
+    });
+
+    setGraphStats({});
+  </script>
+</body>
+
 </html>
-
