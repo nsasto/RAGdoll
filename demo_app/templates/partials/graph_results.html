@@ -4,6 +4,7 @@
     <h4 class="text-sm font-semibold text-gray-800 mb-2">Graph Extraction Complete</h4>
     <div class="text-xs text-gray-600 space-y-1">
       <p><span class="font-semibold">Entities extracted:</span> {{ stats.entities_extracted }}</p>
+      <p><span class="font-semibold">Entities (unique):</span> {{ stats.entities_unique }}</p>
       <p><span class="font-semibold">Relationships extracted:</span> {{ stats.relationships_extracted }}</p>
       <p><span class="font-semibold">Extraction duration:</span> {{ stats.extraction_duration }}s</p>
       <p><span class="font-semibold">Store type:</span> {{ stats.store_type }}</p>
@@ -67,84 +68,27 @@
 </div>
 
 <script>
-  // Dispatch stats update event
-  const graphStats = {{ stats | tojson }};
-  const graphNodes = {{ nodes | tojson }};
-  const graphEdges = {{ edges | tojson }};
-  
-  window.dispatchEvent(
-    new CustomEvent("ragdoll:graph-update", {
-      detail: {
-        stats: graphStats,
-        nodes: graphNodes,
-        edges: graphEdges,
-      },
-    })
-  );
-  
-  // Simple graph visualization using Canvas
-  {% if nodes|length > 0 %}
-  (function() {
-    const canvas = document.getElementById('graph-canvas');
-    if (!canvas) return;
+  (() => {
+    // Dispatch stats update event
+    const graphStats = {{ stats | tojson }};
+    const graphNodes = {{ nodes | tojson }};
+    const graphEdges = {{ edges | tojson }};
     
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = rect.width - 2;
-    canvas.height = 450;
-    
-    const nodes = graphNodes;
-    const edges = graphEdges;
-    
-    // Position nodes in a circle
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const radius = Math.min(centerX, centerY) - 50;
-    
-    const nodePositions = {};
-    nodes.forEach((node, i) => {
-      const angle = (i / nodes.length) * 2 * Math.PI;
-      nodePositions[node.id] = {
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
-        label: node.name
-      };
-    });
-    
-    // Draw edges
-    ctx.strokeStyle = '#4c51bf';
-    ctx.lineWidth = 1;
-    edges.forEach(edge => {
-      const source = nodePositions[edge.source];
-      const target = nodePositions[edge.target];
-      if (source && target) {
-        ctx.beginPath();
-        ctx.moveTo(source.x, source.y);
-        ctx.lineTo(target.x, target.y);
-        ctx.stroke();
-      }
-    });
-    
-    // Draw nodes
-    nodes.forEach(node => {
-      const pos = nodePositions[node.id];
-      if (!pos) return;
-      
-      // Node circle
-      ctx.fillStyle = '#c7d2fe';
-      ctx.strokeStyle = '#4c51bf';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 20, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Node label
-      ctx.fillStyle = '#1f2937';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(pos.label.substring(0, 15), pos.x, pos.y + 35);
-    });
+    window.dispatchEvent(
+      new CustomEvent("ragdoll:graph-update", {
+        detail: {
+          stats: graphStats,
+          nodes: graphNodes,
+          edges: graphEdges,
+        },
+      })
+    );
+
+    // If the hosting page exposes a renderer, invoke it immediately
+    if (window.renderGraphVisualization) {
+      requestAnimationFrame(() =>
+        window.renderGraphVisualization(graphNodes, graphEdges)
+      );
+    }
   })();
-  {% endif %}
 </script>

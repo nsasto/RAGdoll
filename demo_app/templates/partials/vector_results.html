@@ -29,14 +29,12 @@
 </div>
 
 <script>
-  // Dispatch stats update event
-  const vectorStats = {{ stats | tojson }};
-  
-  window.dispatchEvent(
-    new CustomEvent("ragdoll:vector-update", {
-      detail: {
-        stats: vectorStats,
-      },
-    })
-  );
+  (() => {
+    const vectorStats = {{ stats | tojson }};
+    window.dispatchEvent(
+      new CustomEvent("ragdoll:vector-update", {
+        detail: { stats: vectorStats },
+      })
+    );
+  })();
 </script>

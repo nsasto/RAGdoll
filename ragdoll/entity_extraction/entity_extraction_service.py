@@ -129,13 +129,30 @@ class EntityExtractionService(BaseEntityExtractor):
     ) -> Graph:
         logger.info("Extracting entities from %s documents", len(documents))
         processed_docs = await self._maybe_chunk_documents(documents)
+        logger.info("After chunking, processing %s documents", len(processed_docs))
         nodes: List[GraphNode] = []
         edges: List[GraphEdge] = []
         llm_runner = self._resolve_llm_caller(llm_override)
 
-        for doc in processed_docs:
+        for idx, doc in enumerate(processed_docs, 1):
+            logger.info(
+                "EntityExtraction: processing doc %d/%d (chars=%d)",
+                idx,
+                len(processed_docs),
+                len(doc.page_content),
+            )
+            before_node_count = len(nodes)
+            before_edge_count = len(edges)
             nodes.extend(self._run_spacy(doc))
             edges.extend(await self._run_relationship_llm(doc, nodes, llm_runner))
+            logger.info(
+                "EntityExtraction: doc %d complete (+%d nodes, +%d edges, totals: nodes=%d, edges=%d)",
+                idx,
+                len(nodes) - before_node_count,
+                len(edges) - before_edge_count,
+                len(nodes),
+                len(edges),
+            )
 
         graph = Graph(nodes=nodes, edges=edges)
         await self._store_graph(graph)

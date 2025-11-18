@@ -173,7 +173,7 @@
                   1. Document Ingestion (Auto Loader)
                 </h2>
                 <form hx-post="/load" hx-target="#pipeline-results" hx-swap="innerHTML" hx-indicator="#loader-indicator"
-                  hx-on:htmx:beforeRequest="activeTab = 'loaders'" enctype="multipart/form-data"
+              hx-on:htmx:beforeRequest="activeTab = 'loaders'" hx-on:htmx:afterOnLoad="activeTab = 'loaders'" enctype="multipart/form-data"
                   hx-encoding="multipart/form-data" class="space-y-4">
                   <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Drag & Drop Files</label>
@@ -939,10 +939,11 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
       }
 
       const statCards = [
-        { label: 'Documents', value: loaderStats.documents_loaded || 0, icon: '📄' },
-        { label: 'Characters', value: (loaderStats.total_characters || 0).toLocaleString(), icon: '🔤' },
-        { label: 'Load Time', value: `${loaderStats.load_duration_seconds || 0}s`, icon: '⏱️' },
-        { label: 'Speed', value: loaderStats.processing_speed_mbps ? `${loaderStats.processing_speed_mbps} MB/s` : 'N/A', icon: '⚡' },
+        { label: 'Entities', value: graphStats.entities_extracted || 0, icon: '🔥' },
+        { label: 'Unique Entities', value: graphStats.entities_unique || graphStats.entities_extracted || 0, icon: '🧩' },
+        { label: 'Relationships', value: graphStats.relationships_extracted || 0, icon: '🧭' },
+        { label: 'Extract Time', value: `${graphStats.extraction_duration || 0}s`, icon: '⏱️' },
+        { label: 'Store Type', value: graphStats.store_type || 'N/A', icon: '💽' },
       ];
 
       loaderStatsEl.innerHTML = statCards.map(stat => `
@@ -993,14 +994,12 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
         return;
       }
 
-      const statCards = [
-        { label: 'Total Chunks', value: chunkerStats.total_chunks || 0, icon: '🧩' },
-        { label: 'Avg Size', value: chunkerStats.avg_chunk_size || 0, icon: '📏' },
-        { label: 'Chunk Time', value: `${chunkerStats.chunk_duration || 0}s`, icon: '⏱️' },
-        {
-          label: 'Chunks/Doc', value: chunkerStats.total_documents > 0 ?
-            Math.round((chunkerStats.total_chunks / chunkerStats.total_documents) * 10) / 10 : 0, icon: '📊'
-        },
+            const statCards = [
+        { label: ''Entities'', value: graphStats.entities_extracted || 0, icon: ''??'' },
+        { label: ''Unique Entities'', value: graphStats.entities_unique || graphStats.entities_extracted || 0, icon: ''??'' },
+        { label: ''Relationships'', value: graphStats.relationships_extracted || 0, icon: ''??'' },
+        { label: ''Extract Time'', value: `${graphStats.extraction_duration || 0}s`, icon: ''??'' },
+        { label: ''Store Type'', value: graphStats.store_type || ''N/A'', icon: ''??'' },
       ];
 
       chunkerStatsEl.innerHTML = statCards.map(stat => `
@@ -1059,11 +1058,12 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
         return;
       }
 
-      const statCards = [
-        { label: 'Docs Embedded', value: vectorStats.documents_embedded || 0, icon: '📄' },
-        { label: 'Chunks Embedded', value: vectorStats.chunks_embedded || 0, icon: '🧩' },
-        { label: 'Embed Time', value: `${vectorStats.embedding_duration || 0}s`, icon: '⏱️' },
-        { label: 'Dimension', value: vectorStats.vector_dimension || 0, icon: '📐' },
+            const statCards = [
+        { label: ''Entities'', value: graphStats.entities_extracted || 0, icon: ''??'' },
+        { label: ''Unique Entities'', value: graphStats.entities_unique || graphStats.entities_extracted || 0, icon: ''??'' },
+        { label: ''Relationships'', value: graphStats.relationships_extracted || 0, icon: ''??'' },
+        { label: ''Extract Time'', value: `${graphStats.extraction_duration || 0}s`, icon: ''??'' },
+        { label: ''Store Type'', value: graphStats.store_type || ''N/A'', icon: ''??'' },
       ];
 
       vectorStatsEl.innerHTML = statCards.map(stat => `
@@ -1101,10 +1101,11 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
       }
 
       const statCards = [
-        { label: 'Entities', value: graphStats.entities_extracted || 0, icon: '🔵' },
-        { label: 'Relationships', value: graphStats.relationships_extracted || 0, icon: '🔗' },
-        { label: 'Extract Time', value: `${graphStats.extraction_duration || 0}s`, icon: '⏱️' },
-        { label: 'Store Type', value: graphStats.store_type || 'N/A', icon: '💾' },
+        { label: 'Entities', value: graphStats.entities_extracted || 0, icon: 'E' },
+        { label: 'Unique Entities', value: graphStats.entities_unique || graphStats.entities_extracted || 0, icon: 'U' },
+        { label: 'Relationships', value: graphStats.relationships_extracted || 0, icon: 'R' },
+        { label: 'Extract Time', value: `${graphStats.extraction_duration || 0}s`, icon: 'T' },
+        { label: 'Store Type', value: graphStats.store_type || 'N/A', icon: 'S' },
       ];
 
       graphStatsEl.innerHTML = statCards.map(stat => `
@@ -1121,9 +1122,83 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
       renderGraphStats();
     };
 
+    const renderGraphVisualization = (nodes, edges) => {
+      const canvas = document.getElementById("graph-canvas");
+      const container = document.getElementById("graph-visualization");
+      if (!canvas || !container) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const rect = container.getBoundingClientRect();
+      canvas.width = Math.max(100, rect.width - 2);
+      canvas.height = 450;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!nodes || nodes.length === 0) {
+        return;
+      }
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = Math.min(centerX, centerY) - 50;
+      const nodePositions = {};
+      const namePositions = {};
+
+      nodes.forEach((node, i) => {
+        const angle = (i / nodes.length) * 2 * Math.PI;
+        nodePositions[node.id] = {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+          label: node.name || "",
+        };
+        const normName = (node.name || "").trim().toLowerCase();
+        if (normName && !namePositions[normName]) {
+          namePositions[normName] = nodePositions[node.id];
+        }
+      });
+
+      ctx.strokeStyle = "#4c51bf";
+      ctx.lineWidth = 1;
+      (edges || []).forEach((edge) => {
+        const source =
+          nodePositions[edge.source] ||
+          namePositions[(edge.source || "").toString().trim().toLowerCase()];
+        const target =
+          nodePositions[edge.target] ||
+          namePositions[(edge.target || "").toString().trim().toLowerCase()];
+        if (source && target) {
+          ctx.beginPath();
+          ctx.moveTo(source.x, source.y);
+          ctx.lineTo(target.x, target.y);
+          ctx.stroke();
+        }
+      });
+
+      nodes.forEach((node) => {
+        const pos = nodePositions[node.id];
+        if (!pos) return;
+        ctx.fillStyle = "#c7d2fe";
+        ctx.strokeStyle = "#4c51bf";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 20, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#1f2937";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(String(pos.label).substring(0, 15), pos.x, pos.y + 35);
+      });
+    };
+    window.renderGraphVisualization = renderGraphVisualization;
+
     window.addEventListener("ragdoll:graph-update", (event) => {
       console.log('ragdoll:graph-update received:', event.detail);
       setGraphStats(event.detail.stats || {});
+      requestAnimationFrame(() => renderGraphVisualization(event.detail.nodes || [], event.detail.edges || []));
     });
 
     setGraphStats({});
@@ -1131,3 +1206,4 @@ def get_llm_caller(model_name="gemini-2.5-flash-preview-09-2025"):
 </body>
 
 </html>
+

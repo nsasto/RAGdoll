@@ -459,6 +459,7 @@ async def populate_graph(request: Request) -> HTMLResponse:
             Document(page_content=d.get("page_content", ""), metadata=d.get("metadata") or {})
             for d in saved
         ]
+        logger.info("Graph populate: loaded %d documents from state", len(documents))
         
         # Get LLM caller for entity extraction
         llm_caller = get_llm_caller(app_config=app_config)
@@ -469,19 +470,30 @@ async def populate_graph(request: Request) -> HTMLResponse:
             llm_caller=llm_caller,
             app_config=app_config,
         )
-        
+        logger.info("Graph populate: starting extraction (chunk_documents=%s)", entity_service.chunk_documents)
+
         graph = await entity_service.extract(documents)
+        logger.info(
+            "Graph populate: extraction complete (nodes=%d, edges=%d)",
+            len(graph.nodes),
+            len(graph.edges),
+        )
         duration = time.time() - start_time
         
         # Save graph to state
         state.save_graph(graph)
+        logger.info("Graph populate: graph persisted to state in %.2fs", duration)
         
         # Prepare stats
+        unique_entity_names = {
+            (node.name or "").strip().lower() for node in graph.nodes if (node.name or "").strip()
+        }
         stats = {
             "entities_extracted": len(graph.nodes),
+            "entities_unique": len(unique_entity_names),
             "relationships_extracted": len(graph.edges),
             "extraction_duration": round(duration, 2),
-            "store_type": "JSON"
+            "store_type": "JSON",
         }
         
         # Serialize nodes and edges for template
