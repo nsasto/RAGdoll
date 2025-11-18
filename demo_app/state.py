@@ -16,6 +16,7 @@ GRAPH_PICKLE = STATE_DIR / "graph_output.gpickle"
 UPLOAD_DIR = STATE_DIR / "uploads"
 STAGED_MANIFEST = STATE_DIR / "staged_manifest.json"
 LOADED_DOCUMENTS = STATE_DIR / "loaded_documents.json"
+PIPELINE_PAYLOAD = STATE_DIR / "pipeline_payload.json"
 
 
 def ensure_state_dirs() -> None:
@@ -159,3 +160,28 @@ def read_loaded_documents() -> list[dict]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return []
+
+
+def pipeline_payload_path() -> Path:
+    ensure_state_dirs()
+    return PIPELINE_PAYLOAD
+
+
+def save_pipeline_payload(payload: dict) -> None:
+    """Persist the latest pipeline payload for testing/inspection."""
+    ensure_state_dirs()
+    try:
+        pipeline_payload_path().write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def load_pipeline_payload() -> dict:
+    """Load the last saved pipeline payload, if any."""
+    path = pipeline_payload_path()
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
