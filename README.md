@@ -15,6 +15,16 @@ RAGdoll 2 is an extensible framework for building Retrieval-Augmented Generation
 
 Note that RAGdoll 2 is a complete overhaul of the initial RAGdoll project and is not backwards compatible in any respect.
 
+## How RAGdoll compares to GraphRAG-style tools
+
+RAGdoll started as a learning project and has grown into a modular orchestrator. I've tried to focus the detail below on what is actually shipped in this repo (no performance claims or benchmarks are published yet) to help position RAGdoll in the broader landscape.
+
+- **Scope:** RAGdoll orchestrates loaders, chunkers, embeddings, vector stores, LLMs, and an optional graph layer. The GraphRAG family (GraphRAG, NanoGraphRAG, Fast GraphRAG) is primarily graph-forward; RAGdoll adds the rest of the RAG plumbing and a demo UI.
+- **Graph building:** Entities come from spaCy NER; relations come from prompt-based LLM extraction per chunk (configurable via YAML prompts/parsers). It stores a flat graph (JSON/NetworkX/Neo4j) and exposes a retriever—there is no community detection or hierarchical summarization step.
+- **Retrieval:** The default `query` path is vector-only. When you call `ingest_with_graph`, you can also obtain a graph retriever (simple in-memory or Neo4j) and combine it with vector search yourself for hybrid flows; no automatic community summaries are generated.
+- **Config and runtime:** Everything is wired through YAML and LangChain abstractions. Defaults point at OpenAI models, but you can swap in local embeddings/LLMs and different stores (Chroma/FAISS/Neo4j) without code changes. Caching and monitoring are built in but optional.
+- **Benchmarks:** Cost/speed/quality numbers depend entirely on the models and stores you pick; we have not published comparisons against GraphRAG variants, so avoid quoting figures until you run your own measurements.
+
 ## What's New
 
 ### Enhanced Features in RAGdoll 2.0
@@ -345,6 +355,20 @@ entity_extraction:
 ```
 
 See `docs/configuration.md` for the full field reference.
+
+## Comparison with GraphRAG-style projects
+
+This project began as a learning exercise; use the table below as a rough orientation (not marketing). Descriptions of other tools are based on their public docs - check their repos for specifics.
+
+| Aspect                     | GraphRAG (Microsoft)                                                 | NanoGraphRAG                                                      | Fast GraphRAG                                       | RAGdoll (this repo)                                                                     |
+| -------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Scope                      | Graph-first pipeline with multi-level community graphs and summaries | Lightweight, graph-centric variants; usually skip heavy hierarchy | Flat graph focus; optimized ingestion and traversal | Full RAG orchestrator (loaders + chunkers + embeddings + LLM + optional graph layer)    |
+| Entity/Relation extraction | LLM-heavy entity + relation extraction; extensive prompts            | Simplified or minimal LLM extraction                              | Hybrid/heuristic extraction; typically flat graph   | spaCy NER + prompt-based relationship extraction per chunk; YAML prompt/parser controls |
+| Graph structure            | Hierarchical communities + reports                                   | Typically flat or shallow                                         | Flat graph; no hierarchy                            | Flat graph only; persisted to JSON/NetworkX/Neo4j via `GraphPersistenceService`         |
+| Summaries                  | Precomputed community summaries                                      | Often none or single-level                                        | Often skipped; sometimes on-demand                  | None precomputed; summaries come from query-time LLM calls if you add them              |
+| Retrieval                  | Combines vector + hierarchical graph summaries                       | Lightweight graph or vector                                       | Flat graph traversal; vector when configured        | Vector-first; optional simple/Neo4j graph retriever from `ingest_with_graph`            |
+| Defaults                   | Cloud LLMs (GPT-4/O) with hierarchical post-processing               | Small/local-friendly LLMs                                         | Async/flat graph tuned for speed                    | LangChain defaults; OpenAI models by default but fully swappable to local/open-source   |
+| Benchmarks                 | Published externally                                                 | Vary by implementation                                            | Vary by implementation                              | None published here—measure with your models/stores                                     |
 
 ## Contributing
 
