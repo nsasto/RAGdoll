@@ -55,6 +55,32 @@ print(result["answer"])
 
 Need finer control over loaders or paths? Use `settings.get_app()` (or `bootstrap_app` with overrides) to obtain the shared `AppConfig`, tweak its `config`, and pass component overrides into `Ragdoll`.
 
+## Demo Application
+
+RAGdoll includes an interactive web-based demo application that showcases its capabilities. The demo provides a user-friendly interface to:
+
+- Configure RAGdoll settings using a YAML editor
+- Ingest documents from various sources (files, URLs, text)
+- Explore the ingestion pipeline and data transformations
+- Query the RAG system and view retrieval traces
+- Monitor performance metrics and caching
+
+### Running the Demo
+
+To run the demo application:
+
+```bash
+# Ensure dependencies are installed
+pip install -e .[all]
+
+# Start the demo server
+uvicorn demo_app.main:app --reload
+```
+
+Then open your browser to `http://localhost:8000` to access the demo interface.
+
+The demo uses FastAPI for the backend, HTMX and Alpine.js for dynamic interactions, and Tailwind CSS for styling, providing a modern, responsive experience.
+
 ### Graph Retrieval Pipeline
 
 When you enable `entity_extraction.graph_retriever.enabled` in your config, you can trigger the full ingestion pipeline (chunking, embeddings, entity extraction, graph persistence) and retrieve a knowledge-graph-aware retriever directly from the `Ragdoll` API:
