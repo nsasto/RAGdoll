@@ -797,15 +797,15 @@ No preview yet.</pre
                 </p>
               </div>
               <div id="chat-thread" class="space-y-4 text-sm">
-                <div class="flex justify-end">
+                <!-- <div class="flex justify-end">
                   <div
                     class="bg-ragdoll-green text-white p-3 rounded-2xl rounded-br-none max-w-xs shadow-md"
                   >
                     Summarize the key features of the RAGdoll ingestion
                     pipeline.
                   </div>
-                </div>
-                <div class="flex justify-start">
+                </div> -->
+                <!-- <div class="flex justify-start">
                   <div
                     class="bg-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-lg shadow-md border border-gray-200"
                   >
@@ -817,7 +817,7 @@ No preview yet.</pre
                     <strong>Vector Stores</strong> and
                     <strong>Graph Stores</strong>.
                   </div>
-                </div>
+                </div> -->
               </div>
               <div class="mt-6 border-t border-gray-200 pt-4">
                 <button
@@ -1303,7 +1303,6 @@ No preview yet.</pre
       setLoaderStats({});
     </script>
     <script>
-    <script>
       // Chunker config handling
       const chunkerConfigBox = document.getElementById("chunker-config-box");
       let chunkerConfig = [];
@@ -1311,7 +1310,8 @@ No preview yet.</pre
       const renderChunkerConfig = () => {
         if (!chunkerConfigBox || !chunkerConfig.length) {
           if (chunkerConfigBox) {
-            chunkerConfigBox.innerHTML = '<p class="text-gray-400">Chunker configuration will appear here after chunking.</p>';
+            chunkerConfigBox.innerHTML =
+              '<p class="text-gray-400">Chunker configuration will appear here after chunking.</p>';
           }
           return;
         }
@@ -1339,7 +1339,7 @@ No preview yet.</pre
       });
 
       setChunkerConfig([]);
-// Vector store stats handling
+      // Vector store stats handling
       const vectorStatsEl = document.getElementById("vector-stats");
       let vectorStats = {};
 
@@ -1443,7 +1443,8 @@ No preview yet.</pre
           },
           {
             label: "Store Type",
-            value: graphStats.store_type || graphStats.graph_store_type || "N/A",
+            value:
+              graphStats.store_type || graphStats.graph_store_type || "N/A",
             icon: "[S]",
           },
         ];
@@ -1479,7 +1480,9 @@ No preview yet.</pre
         const ctx = canvas.getContext("2d");
         const rect = container.getBoundingClientRect();
         canvas.width = Math.max(120, rect.width - 2);
-        canvas.height = container.classList.contains("h-72") ? container.clientHeight : 450;
+        canvas.height = container.classList.contains("h-72")
+          ? container.clientHeight
+          : 450;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -1576,6 +1579,29 @@ No preview yet.</pre
         }
       };
 
+      // If the pipeline tab is loaded without a fresh ingest, try to pull cached results
+      document.addEventListener("DOMContentLoaded", () => {
+        const pipelineSection = document.querySelector(
+          "[x-show=\"activeTab === 'ingestion'\"]"
+        );
+        const target = document.getElementById("pipeline-results");
+        if (!pipelineSection || !target || target.innerHTML.trim()) return;
+
+        fetch("/pipeline/cached", { method: "GET", cache: "no-cache" })
+          .then((resp) => {
+            if (resp.status === 204) return null;
+            if (resp.ok) return resp.text();
+            throw new Error("No cached pipeline");
+          })
+          .then((html) => {
+            if (!html || !target) return;
+            target.innerHTML = html;
+          })
+          .catch(() => {
+            /* silently ignore when no cache */
+          });
+      });
+
       window.addEventListener("ragdoll:loader-update", (event) => {
         const stats = event.detail?.stats || {};
         const docs = stats.document_count ?? stats.documents_embedded ?? 0;
@@ -1632,4 +1658,3 @@ No preview yet.</pre
     </script>
   </body>
 </html>
-

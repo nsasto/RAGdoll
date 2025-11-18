@@ -233,11 +233,11 @@
   // Dispatch loader update event after a small delay to ensure DOM is ready
   setTimeout(() => {
     const detail = {
-      items: {{ loader_items | tojson }},
-      logs: {{ loader_logs | tojson }},
-      stats: {{ stats | tojson }},
-      nodes: {{ graph_nodes | tojson }},
-      edges: {{ graph_edges | tojson }},
+      items: {{ loader_items | tojson | safe }},
+      logs: {{ loader_logs | tojson | safe }},
+      stats: {{ stats | tojson | safe }},
+      nodes: {{ graph_nodes | tojson | safe }},
+      edges: {{ graph_edges | tojson | safe }},
     };
     console.log('Dispatching pipeline events with detail:', detail);
     window.dispatchEvent(new CustomEvent("ragdoll:loader-update", { detail }));

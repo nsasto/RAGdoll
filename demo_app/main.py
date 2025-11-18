@@ -21,6 +21,7 @@ from .config_state import (
 from ragdoll.ingestion import DocumentLoaderService
 from .pipeline_demo import (
     answer_question,
+    render_cached_pipeline,
     run_ingestion_demo,
     summarize_documents,
     summarize_graph_edges,
@@ -337,6 +338,18 @@ async def chunk_documents(
             {"request": request, "message": f"Chunking failed: {exc}"},
             status_code=500,
         )
+
+
+@app.get("/pipeline/cached", response_class=HTMLResponse)
+async def cached_pipeline(request: Request) -> HTMLResponse:
+    """
+    Render the last saved pipeline payload (if present) without re-running ingestion.
+    """
+    context = render_cached_pipeline(request)
+    if context is None:
+        # Return 204 so the UI can silently ignore when no cache exists
+        return HTMLResponse(status_code=204)
+    return templates.TemplateResponse("partials/pipeline_results.html", context)
 
 
 @app.post("/populate_vector", response_class=HTMLResponse)

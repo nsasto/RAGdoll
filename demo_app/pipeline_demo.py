@@ -20,6 +20,7 @@ from ragdoll.vector_stores import vector_store_from_config
 
 from . import state
 from .config_state import get_app_config
+from . import state
 
 # Flag to switch to OpenAI embeddings instead of config-based resolution
 USE_OPENAI_EMBEDDINGS = False
@@ -493,7 +494,6 @@ def answer_question(question: str) -> Dict:
                 }
             )
         return items
-
     return {
         "question": question,
         "answer": answer_text,
@@ -504,6 +504,74 @@ def answer_question(question: str) -> Dict:
         "sources_used": sources_used,
         "vector_hits_raw": _to_payload(vector_docs),
         "graph_hits_raw": _to_payload(graph_docs),
+    }
+
+
+def render_cached_pipeline(request) -> Optional[Dict]:
+    """
+    Build the template context from the last saved pipeline payload, if present.
+    """
+    payload = state.load_pipeline_payload()
+    if not payload:
+        return None
+
+    def _to_docs(items: Sequence[Dict]) -> List[Dict]:
+        docs = []
+        for item in items:
+            content = item.get("page_content", "")
+            metadata = item.get("metadata") or {}
+            docs.append(
+                {
+                    "content": content[:200] + ("..." if len(content) > 200 else ""),
+                    "metadata": metadata,
+                }
+            )
+        return docs
+
+    graph_json = payload.get("graph") or {}
+    graph_nodes = graph_json.get("nodes") or []
+    graph_edges = graph_json.get("edges") or []
+
+    return {
+        "request": request,
+        "stats": payload.get("stats") or {},
+        "documents": _to_docs(payload.get("documents") or []),
+        "chunks": _to_docs(payload.get("chunks") or []),
+        "vector_hits": _to_docs(payload.get("vector_hits") or []),
+        "graph_nodes": graph_nodes,
+        "graph_edges": graph_edges,
+        "loader_items": payload.get("loader_items") or [],
+        "loader_logs": payload.get("loader_logs") or [],
+    }
+
+
+def _serialize_payload(
+    *,
+    documents: Sequence[Document],
+    chunks: Sequence[Document],
+    vector_hits: Sequence[Document],
+    graph: Graph,
+    stats: Dict[str, int],
+    loader_items: Sequence[Dict[str, str]],
+    loader_logs: Sequence[str],
+) -> Dict:
+    def _simple_docs(items: Sequence[Document]) -> List[Dict]:
+        return [
+            {
+                "page_content": doc.page_content,
+                "metadata": doc.metadata or {},
+            }
+            for doc in items
+        ]
+
+    return {
+        "documents": _simple_docs(documents),
+        "chunks": _simple_docs(chunks),
+        "vector_hits": _simple_docs(vector_hits),
+        "graph": graph.model_dump() if graph else {},
+        "stats": stats,
+        "loader_items": list(loader_items),
+        "loader_logs": list(loader_logs),
     }
 
 
