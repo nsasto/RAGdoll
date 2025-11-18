@@ -16,8 +16,10 @@ from ragdoll.entity_extraction.models import Graph, GraphEdge, GraphNode
 from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.llms import get_llm_caller
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
+from ragdoll.vector_stores import vector_store_from_config
 
 from . import state
+from .config_state import get_app_config
 
 # Flag to switch to OpenAI embeddings instead of config-based resolution
 USE_OPENAI_EMBEDDINGS = False
@@ -55,18 +57,42 @@ async def run_ingestion_demo(
         source_filename_map: Maps internal paths to original filenames for display
     """
     import time
-    
+    from langchain_community.vectorstores import FAISS
+
     logger.info(
         f"run_ingestion_demo called with sources={sources}, extra_docs count={len(extra_documents)}, "
         f"augment={augment}, loader_only={loader_only}"
     )
+
+    app_config = get_app_config()
 
     if not augment and not loader_only:
         logger.info("Resetting state directory (augment=False)")
         state.reset_state_dir()
         state.ensure_state_dirs()
 
-    loader = DocumentLoaderService()
+    loader = DocumentLoaderService(
+        app_config=app_config, use_cache=False, collect_metrics=False
+    )
+
+    def _to_document(entry: object) -> Document:
+        if isinstance(entry, Document):
+            doc = entry
+        elif isinstance(entry, dict):
+            doc = Document(
+                page_content=str(entry.get("page_content", "")),
+                metadata=entry.get("metadata", {}) or {},
+            )
+        else:
+            doc = Document(page_content=str(entry), metadata={})
+
+        if source_filename_map:
+            source = doc.metadata.get("source")
+            if source and source in source_filename_map:
+                doc.metadata.setdefault(
+                    "original_filename", source_filename_map[source]
+                )
+        return doc
     
     # Track loading stats
     load_start = time.time()
@@ -74,7 +100,7 @@ async def run_ingestion_demo(
     loaded_docs = loader.ingest_documents(sources)
     load_duration = time.time() - load_start
     
-    all_documents = list(loaded_docs) + list(extra_documents)
+    all_documents = [_to_document(doc) for doc in list(loaded_docs) + list(extra_documents)]
 
     if not all_documents:
         raise ValueError("No valid sources found")
@@ -157,17 +183,103 @@ async def run_ingestion_demo(
     if loader.collect_metrics:
         loader_logs.append("Monitoring enabled for ingestion stage")
 
+    if loader_only:
+        return StagePayload(
+            documents=all_documents,
+            chunks=[],
+            vector_hits=[],
+            graph=Graph(nodes=[], edges=[]),
+            stats=stats,
+            loader_items=_build_loader_items(all_documents),
+            loader_logs=loader_logs,
+        )
+
+    splitter = get_text_splitter(
+        config_manager=app_config.config, app_config=app_config
+    )
+    chunks = split_documents(
+        documents=all_documents,
+        splitter=splitter,
+        batch_size=10,
+    )
+    stats["chunk_count"] = len(chunks)
+    loader_logs.append(f"Chunks created: {stats['chunk_count']}")
+
+    embedding = _resolve_embedding_model(app_config=app_config)
+    vector_store = None
+    vector_hits: List[Document] = []
+    vector_docs = chunks or all_documents
+
+    if embedding:
+        if augment:
+            try:
+                vector_store = state.load_vector_store(embedding)
+            except Exception as exc:  # pragma: no cover - defensive log for demo
+                logger.warning("Unable to load existing vector store: %s", exc)
+                loader_logs.append(f"Could not load existing vector store: {exc}")
+
+        if vector_store is None:
+            try:
+                vector_store = vector_store_from_config(
+                    app_config.config.vector_store_config,
+                    embedding=embedding,
+                )
+            except Exception as exc:
+                logger.warning("Vector store from config failed, falling back to FAISS: %s", exc)
+                loader_logs.append("Using in-memory FAISS vector store (config not available).")
+                vector_store = FAISS.from_documents([], embedding)
+
+        try:
+            vector_store.add_documents(vector_docs)
+            stats["vector_count"] = len(vector_docs)
+            try:
+                state.save_vector_store(vector_store)
+            except Exception as exc:  # pragma: no cover - defensive log for demo
+                logger.warning("Could not persist vector store: %s", exc)
+                loader_logs.append(f"Vector store persistence failed: {exc}")
+
+            if vector_docs:
+                try:
+                    seed_query = vector_docs[0].page_content[:200] or "demo"
+                    vector_hits = vector_store.similarity_search(
+                        seed_query, k=min(3, len(vector_docs))
+                    )
+                except Exception as exc:  # pragma: no cover - defensive log for demo
+                    logger.warning("Vector similarity preview failed: %s", exc)
+                    loader_logs.append(f"Vector similarity preview failed: {exc}")
+        except Exception as exc:
+            logger.error("Vector indexing failed: %s", exc)
+            loader_logs.append(f"Vector indexing failed: {exc}")
+    else:
+        loader_logs.append("Embedding model unavailable; vector store step skipped.")
+
+    graph = Graph(nodes=[], edges=[])
+    try:
+        extractor = EntityExtractionService(app_config=app_config)
+        graph = await extractor.extract(vector_docs)
+        stats["graph_nodes"] = len(graph.nodes)
+        stats["graph_edges"] = len(graph.edges)
+        try:
+            state.save_graph(graph)
+        except Exception as exc:  # pragma: no cover - defensive log for demo
+            logger.warning("Could not persist graph: %s", exc)
+            loader_logs.append(f"Graph persistence failed: {exc}")
+    except ImportError as exc:
+        logger.warning("Graph extraction dependencies missing: %s", exc)
+        loader_logs.append(f"Graph extraction skipped (dependency missing): {exc}")
+    except Exception as exc:  # pragma: no cover - defensive log for demo
+        logger.warning("Graph extraction failed: %s", exc)
+        loader_logs.append(f"Graph extraction failed: {exc}")
+
     return StagePayload(
         documents=all_documents,
-        chunks=[],
-        vector_hits=[],
-        graph=Graph(nodes=[], edges=[]),
+        chunks=chunks,
+        vector_hits=vector_hits,
+        graph=graph,
         stats=stats,
         loader_items=_build_loader_items(all_documents),
         loader_logs=loader_logs,
     )
-
-    # ... rest of the full pipeline code ...
 
 
 def summarize_documents(docs: Sequence[Document], *, limit: int = 5) -> List[Dict]:
@@ -272,8 +384,10 @@ def summarize_graph_edges(edges: Sequence[GraphEdge], limit: int = 5) -> List[Di
     return preview
 
 
-def _resolve_embedding_model():
+def _resolve_embedding_model(app_config=None):
     import os
+
+    config_manager = getattr(app_config, "config", None)
 
     if USE_OPENAI_EMBEDDINGS:
         try:
@@ -287,7 +401,9 @@ def _resolve_embedding_model():
             )
 
     try:
-        model = get_embedding_model()
+        model = get_embedding_model(
+            config_manager=config_manager, app_config=app_config
+        )
     except Exception as exc:
         logger.warning(
             "Falling back to FakeEmbeddings because get_embedding_model failed: %s", exc
@@ -309,7 +425,7 @@ def answer_question(question: str) -> Dict:
     if not question:
         raise ValueError("Question cannot be empty.")
 
-    embedding = _resolve_embedding_model()
+    embedding = _resolve_embedding_model(app_config=get_app_config())
     vector_store = state.load_vector_store(embedding)
     graph = state.load_graph()
 

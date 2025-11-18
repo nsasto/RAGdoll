@@ -226,8 +226,8 @@ async def ingest(request: Request) -> HTMLResponse:
         "documents": summarize_documents(payload.documents),
         "chunks": summarize_documents(payload.chunks),
         "vector_hits": summarize_documents(payload.vector_hits),
-        "graph_nodes": summarize_graph_nodes(payload.graph.nodes),
-        "graph_edges": summarize_graph_edges(payload.graph.edges),
+        "graph_nodes": [node.model_dump() for node in payload.graph.nodes],
+        "graph_edges": [edge.model_dump() for edge in payload.graph.edges],
         "loader_items": payload.loader_items,
         "loader_logs": payload.loader_logs,
     }

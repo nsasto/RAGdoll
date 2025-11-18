@@ -105,19 +105,72 @@
       </div>
     </div>
   </section>
+
+  <section class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-semibold text-gray-800">Graph Preview</h3>
+      <span class="text-xs text-gray-400">{{ graph_nodes | length }} nodes × {{ graph_edges | length }} edges</span>
+    </div>
+    <div id="ingest-graph-visualization" class="w-full h-72 border border-gray-200 rounded-xl bg-slate-50 flex items-center justify-center">
+      {% if graph_nodes|length > 0 %}
+      <canvas id="ingest-graph-canvas" class="w-full h-full"></canvas>
+      {% else %}
+      <p class="text-xs text-gray-400">Graph has no data yet.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>Loaded: {{ stats.documents_loaded }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-sky-500"></span>
+        <span>Chunks: {{ stats.chunk_count }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+        <span>Vectors: {{ stats.vector_count }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+        <span>Graph: {{ stats.graph_nodes }} nodes / {{ stats.graph_edges }} edges</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+        <span>Load time: {{ stats.load_duration_seconds }}s</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-gray-200 p-4 space-y-2 shadow-sm">
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-gray-800">Monitoring / Logs</h3>
+      <span class="text-[11px] text-gray-400">Latest pipeline messages</span>
+    </div>
+    <ol class="list-decimal ml-4 space-y-1 text-xs text-gray-600">
+      {% for line in loader_logs %}
+      <li class="break-words">{{ line }}</li>
+      {% endfor %}
+    </ol>
+  </section>
 </div>
     <script>
       // Dispatch loader update event after a small delay to ensure DOM is ready
       setTimeout(() => {
-        console.log('Dispatching ragdoll:loader-update with items:', {{ loader_items | tojson }});
-        window.dispatchEvent(
-          new CustomEvent("ragdoll:loader-update", {
-            detail: {
-              items: {{ loader_items | tojson }},
-              logs: {{ loader_logs | tojson }},
-              stats: {{ stats | tojson }},
-            },
-          })
-        );
+        const detail = {
+          items: {{ loader_items | tojson }},
+          logs: {{ loader_logs | tojson }},
+          stats: {{ stats | tojson }},
+          nodes: {{ graph_nodes | tojson }},
+          edges: {{ graph_edges | tojson }},
+        };
+        console.log('Dispatching pipeline events with detail:', detail);
+        window.dispatchEvent(new CustomEvent("ragdoll:loader-update", { detail }));
+        window.dispatchEvent(new CustomEvent("ragdoll:chunker-update", { detail }));
+        window.dispatchEvent(new CustomEvent("ragdoll:vector-update", { detail }));
+        window.dispatchEvent(new CustomEvent("ragdoll:graph-update", { detail }));
       }, 100);
     </script>
