@@ -389,8 +389,9 @@ async def populate_vector(request: Request) -> HTMLResponse:
             params={}
         )
         
-        vector_store = vector_store_from_config(vector_config, embedding=embedding_model)
-        vector_store.add_documents(chunks)
+        vector_store = vector_store_from_config(
+            vector_config, embedding=embedding_model, documents=chunks
+        )
         
         # Save to state
         state.save_vector_store(vector_store)
@@ -469,7 +470,7 @@ async def populate_graph(request: Request) -> HTMLResponse:
             app_config=app_config,
         )
         
-        graph = await entity_service.extract_entities_from_documents(documents)
+        graph = await entity_service.extract(documents)
         duration = time.time() - start_time
         
         # Save graph to state

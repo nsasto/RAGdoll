@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from langchain_community.vectorstores import FAISS
+from ragdoll.vector_stores.base_vector_store import BaseVectorStore
 from ragdoll.entity_extraction.models import Graph
 
 STATE_DIR = Path("demo_state")
@@ -64,11 +65,14 @@ def load_vector_store(embedding) -> Optional[FAISS]:
     )
 
 
-def save_vector_store(store: FAISS) -> None:
-    """Persist the FAISS store to disk."""
+def save_vector_store(store: FAISS | BaseVectorStore) -> None:
+    """Persist the FAISS store (wrapped or raw) to disk."""
 
     ensure_state_dirs()
-    store.save_local(str(VECTOR_DIR))
+    underlying = store.store if isinstance(store, BaseVectorStore) else store
+    if not hasattr(underlying, "save_local"):
+        raise TypeError("Vector store does not support save_local persistence.")
+    underlying.save_local(str(VECTOR_DIR))
 
 
 def upload_directory() -> Path:
