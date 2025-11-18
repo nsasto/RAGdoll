@@ -16,6 +16,7 @@ from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.llms import get_llm_caller
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
 from ragdoll.pipeline import IngestionOptions, IngestionPipeline
+from ragdoll.retrievers import RagdollRetriever
 from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ class Ragdoll:
             else getattr(self.llm_caller, "llm", None)
         )
         self.graph_retriever: Optional[Any] = None
+        self.hybrid_retriever: Optional[RagdollRetriever] = None
         self.last_graph: Optional[Graph] = None
         self.graph_ingestion_stats: Optional[Dict[str, Any]] = None
         self.graph_store: Optional[Any] = None
@@ -94,12 +96,32 @@ class Ragdoll:
             self.vector_store.add_documents(documents)
         return documents
 
-    def query(self, question: str, *, k: int = 4) -> dict:
+    def query(self, question: str, *, k: int = 4, use_hybrid: bool = False) -> dict:
         """
         Retrieve context from the vector store, optionally call the configured LLM,
         and return both the answer (if available) and the supporting documents.
         """
-        hits = self.vector_store.similarity_search(question, k=k)
+        if use_hybrid and self.hybrid_retriever:
+            hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
+        else:
+            hits = self.vector_store.similarity_search(question, k=k)
+
+        answer = None
+        if self.llm_caller and hits:
+            prompt = self._build_prompt(question, hits)
+            answer = self._call_llm(prompt)
+
+        return {"answer": answer, "documents": hits}
+
+    def query_hybrid(self, question: str, *, k: int = 10) -> dict:
+        """
+        Retrieve context using the hybrid retriever (vector + graph) when available.
+        """
+        if not self.hybrid_retriever:
+            # Fallback to vector-only path if hybrid retriever is unavailable.
+            return self.query(question, k=k, use_hybrid=False)
+
+        hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
 
         answer = None
         if self.llm_caller and hits:
@@ -223,6 +245,7 @@ class Ragdoll:
 
         self.graph_ingestion_stats = stats
         self.graph_retriever = retriever
+        self.hybrid_retriever = self._build_hybrid_retriever()
         self.last_graph = graph
         self.graph_store = graph_store
 
@@ -258,4 +281,12 @@ class Ragdoll:
             )
 
         return asyncio.run(self.ingest_with_graph(sources, options=options))
+
+    def _build_hybrid_retriever(self) -> Optional[RagdollRetriever]:
+        if not self.vector_store:
+            return None
+        return RagdollRetriever(
+            vector_store=self.vector_store,
+            graph_retriever=self.graph_retriever,
+        )
 
