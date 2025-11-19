@@ -8,6 +8,7 @@ from typing import Iterable, Optional
 from langchain_community.vectorstores import FAISS
 from ragdoll.vector_stores.base_vector_store import BaseVectorStore
 from ragdoll.entity_extraction.models import Graph
+from ragdoll.ragdoll import Ragdoll
 
 STATE_DIR = Path("demo_state")
 VECTOR_DIR = STATE_DIR / "vector_store"
@@ -17,6 +18,34 @@ UPLOAD_DIR = STATE_DIR / "uploads"
 STAGED_MANIFEST = STATE_DIR / "staged_manifest.json"
 LOADED_DOCUMENTS = STATE_DIR / "loaded_documents.json"
 PIPELINE_PAYLOAD = STATE_DIR / "pipeline_payload.json"
+
+
+class AppState:
+    """Global state manager for the demo app."""
+
+    _instance = None
+
+    ragdoll: Ragdoll
+    vector_store: Optional[BaseVectorStore] = None
+    graph: Optional[Graph] = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(AppState, cls).__new__(cls)
+            cls._instance.ragdoll = None
+            cls._instance.vector_store = None
+            cls._instance.graph = None
+        return cls._instance
+
+    @classmethod
+    def get(cls) -> "AppState":
+        """Get the singleton instance of the app state."""
+        return cls()
+
+
+def get_app_state() -> AppState:
+    """Convenience function to get the app state."""
+    return AppState.get()
 
 
 def ensure_state_dirs() -> None:
@@ -171,7 +200,9 @@ def save_pipeline_payload(payload: dict) -> None:
     """Persist the latest pipeline payload for testing/inspection."""
     ensure_state_dirs()
     try:
-        pipeline_payload_path().write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        pipeline_payload_path().write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
     except Exception:
         pass
 

@@ -3,13 +3,17 @@ from __future__ import annotations
 import logging
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator, Sequence, Dict
 
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from langchain_core.documents import Document
 
+from ragdoll import Ragdoll
+from ragdoll.pipeline import IngestionOptions
+
+from .state import get_app_state
 from . import state
 from .config_state import (
     apply_config_yaml,
@@ -19,14 +23,7 @@ from .config_state import (
     get_app_config,
 )
 from ragdoll.ingestion import DocumentLoaderService
-from .pipeline_demo import (
-    answer_question,
-    render_cached_pipeline,
-    run_ingestion_demo,
-    summarize_documents,
-    summarize_graph_edges,
-    summarize_graph_nodes,
-)
+
 # Add project root to Python path and load .env from root
 import sys
 from pathlib import Path
@@ -49,11 +46,92 @@ app = FastAPI(title="RAGdoll Demo")
 templates = Jinja2Templates(directory="demo_app/templates")
 
 
+def summarize_documents(docs: Sequence[Document], *, limit: int = 5) -> List[Dict]:
+    summary = []
+    for doc in list(docs)[:limit]:
+        content = doc.page_content.strip().replace("\n", " ")
+        if len(content) > 200:
+            content = f"{content[:200]}..."
+        summary.append({"content": content, "metadata": doc.metadata or {}})
+    return summary
+
+
+def _build_loader_items(
+    docs: Sequence[Document], *, limit: int = 10
+) -> List[Dict[str, str]]:
+    """Group documents by source file and concatenate pages together."""
+    from collections import defaultdict
+
+    # Group documents by source
+    docs_by_source = defaultdict(list)
+    for doc in docs:
+        source = doc.metadata.get("source") or "unknown"
+        docs_by_source[source].append(doc)
+
+    items = []
+    for idx, (source, source_docs) in enumerate(docs_by_source.items()):
+        # Sort by page number if available
+        source_docs.sort(key=lambda d: d.metadata.get("page", 0))
+
+        # Concatenate all pages with separator
+        full_content = "\n\n--- Page Break ---\n\n".join(
+            doc.page_content or "" for doc in source_docs
+        )
+        preview = " ".join(full_content.strip().splitlines())[:320]
+
+        # Try to get original filename from metadata first
+        original_filename = None
+        if source_docs:
+            original_filename = source_docs[0].metadata.get("original_filename")
+
+        if original_filename:
+            title = original_filename
+        elif source != "unknown":
+            # Fall back to extracting from path
+            source_path = Path(source)
+            filename = source_path.name
+            # If filename is a GUID (32 hex chars before extension), we've lost the original name
+            base_name = filename.rsplit(".", 1)[0] if "." in filename else filename
+            if len(base_name) == 32 and all(
+                c in "0123456789abcdef" for c in base_name.lower()
+            ):
+                # GUID filename - show extension at least
+                title = f"Uploaded {filename.rsplit('.', 1)[1].upper() if '.' in filename else 'File'}"
+            else:
+                title = filename
+        else:
+            title = f"Document {idx+1}"
+
+        page_count = len(source_docs)
+        if page_count > 1:
+            title = f"{title} ({page_count} pages concatenated)"
+
+        items.append(
+            {
+                "id": f"doc-{idx}",
+                "title": title,
+                "source": source,
+                "preview": preview,
+                "content": full_content.strip(),
+            }
+        )
+
+        if len(items) >= limit:
+            break
+
+    return items
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the global AppConfig on application startup."""
+    """Initialize the global AppConfig and Ragdoll instance on application startup."""
     initialize_app_config()
     logger.info("Global AppConfig initialized")
+    app_state = get_app_state()
+    if not app_state.ragdoll:
+        logger.info("Initializing Ragdoll instance...")
+        app_state.ragdoll = Ragdoll(app_config=get_app_config())
+        logger.info("Ragdoll instance initialized and stored in AppState.")
 
 
 def _config_context(
@@ -83,7 +161,7 @@ async def index(request: Request) -> HTMLResponse:
     print("=== Index page loaded, clearing all staged files and uploads ===")
     staged_entries = state.staged_file_entries()
     print(f"Staged entries: {len(staged_entries)}")
-    
+
     # Clear the manifest
     try:
         state.clear_staged_manifest(delete_files=False)
@@ -91,7 +169,7 @@ async def index(request: Request) -> HTMLResponse:
     except Exception as e:
         print(f"Could not clear manifest: {e}")
         logger.warning(f"Could not clear manifest: {e}")
-    
+
     # Clear ALL files in uploads directory (not just staged ones)
     upload_dir = state.upload_directory()
     if upload_dir.exists():
@@ -105,14 +183,14 @@ async def index(request: Request) -> HTMLResponse:
                 except (OSError, PermissionError) as e:
                     print(f"Could not delete {file_path.name}: {e}")
                     failed_count += 1
-        
+
         if deleted_count > 0:
             print(f"Deleted {deleted_count} file(s) from uploads directory")
             logger.info(f"Deleted {deleted_count} file(s) from uploads directory")
         if failed_count > 0:
             print(f"Failed to delete {failed_count} file(s) (may be locked)")
             logger.warning(f"Failed to delete {failed_count} file(s) (may be locked)")
-    
+
     return templates.TemplateResponse("index.html", _config_context(request))
 
 
@@ -167,7 +245,7 @@ async def ingest(request: Request) -> HTMLResponse:
 
     staged_paths = [str(path) for path in state.staged_file_paths()]
     combined_sources = staged_paths + saved_paths + url_list
-    
+
     # Build filename mapping from staged manifest
     source_filename_map = {}
     staged_entries = state.staged_file_entries()
@@ -176,15 +254,18 @@ async def ingest(request: Request) -> HTMLResponse:
         file_path = str((upload_dir / entry["filename"]).resolve())
         original_name = entry.get("original_name", entry["filename"])
         source_filename_map[file_path] = original_name
-    
+
     success = False
     try:
-        payload = await run_ingestion_demo(
-            sources=combined_sources,
-            extra_documents=manual_docs,
-            augment=augment,  # User's choice: add to existing stores or reset them
-            loader_only=False,  # Full pipeline: load, chunk, embed, store
-            source_filename_map=source_filename_map,
+        app_state = get_app_state()
+        ragdoll = app_state.ragdoll
+        if not ragdoll:
+            raise ValueError("Ragdoll instance not initialized.")
+
+        # Use the shared Ragdoll instance for ingestion
+        payload = ragdoll.ingest_with_graph_sync(
+            sources=combined_sources + manual_docs,
+            options=IngestionOptions(augment=augment),
         )
         success = True
     except ValueError as exc:
@@ -208,7 +289,7 @@ async def ingest(request: Request) -> HTMLResponse:
                 except (OSError, PermissionError) as e:
                     print(f"Could not delete {path}: {e}")
                     logger.warning(f"Could not delete {path}: {e}")
-            
+
             # Clear staged manifest and attempt to delete files
             try:
                 state.clear_staged_manifest(delete_files=True)
@@ -221,43 +302,47 @@ async def ingest(request: Request) -> HTMLResponse:
                 except Exception as e2:
                     logger.error(f"Could not even clear manifest: {e2}")
 
+    graph = payload.get("graph")
     context = {
         "request": request,
-        "stats": payload.stats,
-        "documents": summarize_documents(payload.documents),
-        "chunks": summarize_documents(payload.chunks),
-        "vector_hits": summarize_documents(payload.vector_hits),
-        "graph_nodes": [node.model_dump() for node in payload.graph.nodes],
-        "graph_edges": [edge.model_dump() for edge in payload.graph.edges],
-        "loader_items": payload.loader_items,
-        "loader_logs": payload.loader_logs,
+        "stats": payload.get("stats"),
+        "documents": [],  # Not available in new payload
+        "chunks": [],  # Not available in new payload
+        "vector_hits": [],  # Not available in new payload
+        "graph_nodes": [node.model_dump() for node in graph.nodes] if graph else [],
+        "graph_edges": [edge.model_dump() for edge in graph.edges] if graph else [],
+        "loader_items": [],  # Not available in new payload
+        "loader_logs": [],  # Not available in new payload
     }
     return templates.TemplateResponse("partials/pipeline_results.html", context)
 
 
 @app.post("/chunk", response_class=HTMLResponse)
 async def chunk_documents(
-    request: Request,
-    chunk_size: int = Form(1000),
-    chunk_overlap: int = Form(200)
+    request: Request, chunk_size: int = Form(1000), chunk_overlap: int = Form(200)
 ) -> HTMLResponse:
     """
     Chunk the loaded documents using the specified parameters.
     """
     from ragdoll.chunkers import get_text_splitter, split_documents
     import time
-    
+
     try:
-        logger.info(f"=== /chunk endpoint called with chunk_size={chunk_size}, chunk_overlap={chunk_overlap} ===")
-        
+        logger.info(
+            f"=== /chunk endpoint called with chunk_size={chunk_size}, chunk_overlap={chunk_overlap} ==="
+        )
+
         app_config = get_app_config()
-        
+
         # Prefer persisted loaded documents saved by /load
         saved = state.read_loaded_documents()
         documents = []
         if saved:
             documents = [
-                Document(page_content=d.get("page_content", ""), metadata=d.get("metadata") or {})
+                Document(
+                    page_content=d.get("page_content", ""),
+                    metadata=d.get("metadata") or {},
+                )
                 for d in saved
             ]
         else:
@@ -266,43 +351,52 @@ async def chunk_documents(
             if not staged_paths:
                 return templates.TemplateResponse(
                     "partials/error.html",
-                    {"request": request, "message": "No documents loaded. Please load documents first using the Loaders tab."},
+                    {
+                        "request": request,
+                        "message": "No documents loaded. Please load documents first using the Loaders tab.",
+                    },
                     status_code=400,
                 )
-            loader = DocumentLoaderService(app_config=app_config, collect_metrics=False, use_cache=False)
+            loader = DocumentLoaderService(
+                app_config=app_config, collect_metrics=False, use_cache=False
+            )
             chunk_start_time = time.time()
             raw_docs = loader.ingest_documents(staged_paths)
             documents = [
-                doc if isinstance(doc, Document) else Document(
-                    page_content=doc.get("page_content", ""),
-                    metadata=doc.get("metadata") or {},
+                (
+                    doc
+                    if isinstance(doc, Document)
+                    else Document(
+                        page_content=doc.get("page_content", ""),
+                        metadata=doc.get("metadata") or {},
+                    )
                 )
                 for doc in raw_docs
             ]
-        
+
         # Get text splitter and chunk
         chunk_start_time = time.time()
         splitter = get_text_splitter(
-            splitter_type='recursive',
+            splitter_type="recursive",
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             app_config=app_config,
         )
         chunks = split_documents(documents, text_splitter=splitter)
         chunk_duration = time.time() - chunk_start_time
-        
+
         # Calculate stats
         total_chunks = len(chunks)
         total_chunk_chars = sum(len(chunk.page_content) for chunk in chunks)
         avg_chunk_size = total_chunk_chars / total_chunks if total_chunks > 0 else 0
-        
+
         stats = {
             "total_documents": len(documents),
             "total_chunks": total_chunks,
             "chunk_duration": round(chunk_duration, 2),
             "avg_chunk_size": round(avg_chunk_size, 0),
         }
-        
+
         config_info = [
             f"Chunker: RecursiveCharacterTextSplitter",
             f"Chunk size: {chunk_size} characters",
@@ -310,19 +404,20 @@ async def chunk_documents(
             f"Total documents processed: {len(documents)}",
             f"Total chunks created: {total_chunks}",
             f"Chunking duration: {chunk_duration:.2f}s",
-            f"Avg chunks per document: {total_chunks / len(documents):.1f}" if documents else "N/A",
+            (
+                f"Avg chunks per document: {total_chunks / len(documents):.1f}"
+                if documents
+                else "N/A"
+            ),
             f"Avg chunk size: {avg_chunk_size:.0f} characters",
         ]
-        
+
         # Serialize chunks to JSON-compatible format
         chunks_json = [
-            {
-                "page_content": chunk.page_content,
-                "metadata": chunk.metadata or {}
-            }
+            {"page_content": chunk.page_content, "metadata": chunk.metadata or {}}
             for chunk in chunks[:50]
         ]
-        
+
         context = {
             "request": request,
             "stats": stats,
@@ -330,7 +425,7 @@ async def chunk_documents(
             "config_info": config_info,
         }
         return templates.TemplateResponse("partials/chunk_results.html", context)
-        
+
     except Exception as exc:
         logger.error(f"Chunking error: {exc}", exc_info=True)
         return templates.TemplateResponse(
@@ -345,11 +440,9 @@ async def cached_pipeline(request: Request) -> HTMLResponse:
     """
     Render the last saved pipeline payload (if present) without re-running ingestion.
     """
-    context = render_cached_pipeline(request)
-    if context is None:
-        # Return 204 so the UI can silently ignore when no cache exists
-        return HTMLResponse(status_code=204)
-    return templates.TemplateResponse("partials/pipeline_results.html", context)
+    # This is now managed by the Ragdoll instance state, so we can't easily show old results.
+    # Returning 204 to prevent errors. A better implementation might cache results.
+    return HTMLResponse(status_code=204)
 
 
 @app.post("/populate_vector", response_class=HTMLResponse)
@@ -361,82 +454,87 @@ async def populate_vector(request: Request) -> HTMLResponse:
     from ragdoll.embeddings import get_embedding_model
     from ragdoll.vector_stores import vector_store_from_config
     from ragdoll.config.base_config import VectorStoreConfig
-    
+
     try:
         logger.info("=== /populate_vector endpoint called ===")
         app_config = get_app_config()
-        
+
         # Get loaded documents
         saved = state.read_loaded_documents()
         if not saved:
             return templates.TemplateResponse(
                 "partials/error.html",
-                {"request": request, "message": "No documents loaded. Please load documents first."},
+                {
+                    "request": request,
+                    "message": "No documents loaded. Please load documents first.",
+                },
                 status_code=400,
             )
-        
+
         documents = [
-            Document(page_content=d.get("page_content", ""), metadata=d.get("metadata") or {})
+            Document(
+                page_content=d.get("page_content", ""), metadata=d.get("metadata") or {}
+            )
             for d in saved
         ]
-        
+
         # Chunk documents
         from ragdoll.chunkers import get_text_splitter, split_documents
+
         splitter = get_text_splitter(
-            splitter_type='recursive',
+            splitter_type="recursive",
             chunk_size=1000,
             chunk_overlap=200,
             app_config=app_config,
         )
         chunks = split_documents(documents, text_splitter=splitter)
-        
+
         # Get embeddings and create vector store
         start_time = time.time()
         embedding_model = get_embedding_model()
         vector_dimension = len(embedding_model.embed_query("test"))
-        
+
         # Configure vector store
-        vector_config = VectorStoreConfig(
-            enabled=True,
-            store_type='faiss',
-            params={}
-        )
-        
+        vector_config = VectorStoreConfig(enabled=True, store_type="faiss", params={})
+
         vector_store = vector_store_from_config(
             vector_config, embedding=embedding_model, documents=chunks
         )
-        
+
         # Save to state
         state.save_vector_store(vector_store)
-        
+
         duration = time.time() - start_time
-        
+
         # Prepare stats
         stats = {
             "documents_embedded": len(documents),
             "chunks_embedded": len(chunks),
             "vector_dimension": vector_dimension,
             "embedding_duration": round(duration, 2),
-            "store_type": "FAISS"
+            "store_type": "FAISS",
         }
-        
+
         # Sample vectors for preview
         sample_vectors = []
         for chunk in chunks[:3]:
             vector = embedding_model.embed_query(chunk.page_content)
-            sample_vectors.append({
-                "content": chunk.page_content,
-                "source": chunk.metadata.get("source", "unknown"),
-                "vector_preview": ", ".join([f"{v:.3f}" for v in vector[:5]]) + "..."
-            })
-        
+            sample_vectors.append(
+                {
+                    "content": chunk.page_content,
+                    "source": chunk.metadata.get("source", "unknown"),
+                    "vector_preview": ", ".join([f"{v:.3f}" for v in vector[:5]])
+                    + "...",
+                }
+            )
+
         context = {
             "request": request,
             "stats": stats,
             "sample_vectors": sample_vectors,
         }
         return templates.TemplateResponse("partials/vector_results.html", context)
-        
+
     except Exception as exc:
         logger.error(f"Vector population error: {exc}", exc_info=True)
         return templates.TemplateResponse(
@@ -454,36 +552,44 @@ async def populate_graph(request: Request) -> HTMLResponse:
     import time
     from ragdoll.entity_extraction import EntityExtractionService
     from ragdoll.llms import get_llm_caller
-    
+
     try:
         logger.info("=== /populate_graph endpoint called ===")
         app_config = get_app_config()
-        
+
         # Get loaded documents
         saved = state.read_loaded_documents()
         if not saved:
             return templates.TemplateResponse(
                 "partials/error.html",
-                {"request": request, "message": "No documents loaded. Please load documents first."},
+                {
+                    "request": request,
+                    "message": "No documents loaded. Please load documents first.",
+                },
                 status_code=400,
             )
-        
+
         documents = [
-            Document(page_content=d.get("page_content", ""), metadata=d.get("metadata") or {})
+            Document(
+                page_content=d.get("page_content", ""), metadata=d.get("metadata") or {}
+            )
             for d in saved
         ]
         logger.info("Graph populate: loaded %d documents from state", len(documents))
-        
+
         # Get LLM caller for entity extraction
         llm_caller = get_llm_caller(app_config=app_config)
-        
+
         # Extract entities
         start_time = time.time()
         entity_service = EntityExtractionService(
             llm_caller=llm_caller,
             app_config=app_config,
         )
-        logger.info("Graph populate: starting extraction (chunk_documents=%s)", entity_service.chunk_documents)
+        logger.info(
+            "Graph populate: starting extraction (chunk_documents=%s)",
+            entity_service.chunk_documents,
+        )
 
         graph = await entity_service.extract(documents)
         logger.info(
@@ -492,14 +598,16 @@ async def populate_graph(request: Request) -> HTMLResponse:
             len(graph.edges),
         )
         duration = time.time() - start_time
-        
+
         # Save graph to state
         state.save_graph(graph)
         logger.info("Graph populate: graph persisted to state in %.2fs", duration)
-        
+
         # Prepare stats
         unique_entity_names = {
-            (node.name or "").strip().lower() for node in graph.nodes if (node.name or "").strip()
+            (node.name or "").strip().lower()
+            for node in graph.nodes
+            if (node.name or "").strip()
         }
         stats = {
             "entities_extracted": len(graph.nodes),
@@ -508,28 +616,28 @@ async def populate_graph(request: Request) -> HTMLResponse:
             "extraction_duration": round(duration, 2),
             "store_type": "JSON",
         }
-        
+
         # Serialize nodes and edges for template
         nodes_json = [
             {
                 "id": node.id,
                 "name": node.name,
                 "type": node.type,
-                "metadata": node.metadata or {}
+                "metadata": node.metadata or {},
             }
             for node in graph.nodes
         ]
-        
+
         edges_json = [
             {
                 "id": edge.id,
                 "source": edge.source,
                 "target": edge.target,
-                "type": edge.type
+                "type": edge.type,
             }
             for edge in graph.edges
         ]
-        
+
         context = {
             "request": request,
             "stats": stats,
@@ -537,7 +645,7 @@ async def populate_graph(request: Request) -> HTMLResponse:
             "edges": edges_json,
         }
         return templates.TemplateResponse("partials/graph_results.html", context)
-        
+
     except Exception as exc:
         logger.error(f"Graph population error: {exc}", exc_info=True)
         return templates.TemplateResponse(
@@ -550,7 +658,15 @@ async def populate_graph(request: Request) -> HTMLResponse:
 @app.post("/chat", response_class=HTMLResponse)
 async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
     try:
-        result = answer_question(question)
+        app_state = get_app_state()
+        ragdoll = app_state.ragdoll
+        if not ragdoll:
+            raise ValueError(
+                "Ragdoll instance not initialized. Please ingest data first."
+            )
+
+        result = ragdoll.query(question)
+
     except ValueError as exc:
         return templates.TemplateResponse(
             "partials/error.html",
@@ -567,16 +683,16 @@ async def stage_files(files: List[UploadFile] = Form(default=[])) -> JSONRespons
     """
     Stage uploaded files without processing them yet.
     """
-    #print("=== /stage endpoint called ===")
+    # print("=== /stage endpoint called ===")
     logger.info("=== /stage endpoint called ===")
-    
+
     ##print(f"Number of files received: {len(files)}")
     logger.info(f"Number of files received: {len(files)}")
-    
+
     for upload in files:
         print(f"  - {upload.filename}")
         logger.info(f"  - {upload.filename}")
-    
+
     if not files:
         # This is called by JavaScript on page load to check for existing staged files
         existing = state.staged_file_entries()
@@ -584,19 +700,17 @@ async def stage_files(files: List[UploadFile] = Form(default=[])) -> JSONRespons
             print(f"Returning {len(existing)} existing staged file(s)")
             logger.info(f"Returning {len(existing)} existing staged file(s)")
         # No log needed when empty - this is normal on fresh page load
-        return JSONResponse(
-            {"staged_files": existing}, status_code=200
-        )
-    
+        return JSONResponse({"staged_files": existing}, status_code=200)
+
     # Add new files to the existing staged list (don't clear)
     saved_entries = await _stage_uploads(files)
-    #print(f"Saved entries: {saved_entries}")
+    # print(f"Saved entries: {saved_entries}")
     logger.info(f"Saved entries: {saved_entries}")
-    
+
     staged = state.add_staged_files(saved_entries)
-    #print(f"All staged files after adding: {staged}")
+    # print(f"All staged files after adding: {staged}")
     logger.info(f"All staged files after adding: {staged}")
-    
+
     return JSONResponse({"staged_files": staged})
 
 
@@ -605,7 +719,7 @@ async def _stage_uploads(files: List[UploadFile]) -> List[dict]:
     saved_entries: List[dict] = []
     upload_dir = state.upload_directory()
     logger.info(f"Upload directory: {upload_dir}")
-    
+
     for upload in files:
         if not upload.filename:
             logger.warning(f"Skipping file with no filename")
@@ -644,11 +758,11 @@ async def load_docs(request: Request) -> HTMLResponse:
     """
     Loader-only endpoint: pulls staged/form sources and converts them to markdown (no chunking/embeddings).
     """
-    #print("=== /load endpoint called ===")
+    # print("=== /load endpoint called ===")
     logger.info("=== /load endpoint called ===")
-    
+
     form = await request.form()
-    #print(f"Form data keys: {list(form.keys())}")
+    # print(f"Form data keys: {list(form.keys())}")
     logger.info(f"Form data keys: {list(form.keys())}")
 
     # Files should already be staged via /stage endpoint
@@ -692,8 +806,11 @@ async def load_docs(request: Request) -> HTMLResponse:
     # Simplified loader-only flow using DocumentLoaderService directly
     try:
         app_config = get_app_config()
-        loader = DocumentLoaderService(app_config=app_config, use_cache=False, collect_metrics=False)
+        loader = DocumentLoaderService(
+            app_config=app_config, use_cache=False, collect_metrics=False
+        )
         raw_documents = loader.ingest_documents(combined_sources)
+
         # Normalize to langchain Document objects if needed
         def normalize_documents(raw_docs):
             docs = []
@@ -703,8 +820,8 @@ async def load_docs(request: Request) -> HTMLResponse:
                 elif isinstance(entry, dict):
                     docs.append(
                         Document(
-                            page_content=str(entry.get('page_content', '')),
-                            metadata=entry.get('metadata', {}) or {},
+                            page_content=str(entry.get("page_content", "")),
+                            metadata=entry.get("metadata", {}) or {},
                         )
                     )
                 else:
@@ -716,13 +833,15 @@ async def load_docs(request: Request) -> HTMLResponse:
         if not documents:
             return templates.TemplateResponse(
                 "partials/error.html",
-                {"request": request, "message": "No documents found. Please stage files or provide URLs/text."},
+                {
+                    "request": request,
+                    "message": "No documents found. Please stage files or provide URLs/text.",
+                },
                 status_code=400,
             )
 
         # Build loader items for UI and simple stats
         from .pipeline_demo import _build_loader_items
-
 
         stats = {
             "document_count": len(documents),
@@ -731,12 +850,16 @@ async def load_docs(request: Request) -> HTMLResponse:
             "total_characters": sum(len(d.page_content) for d in documents),
         }
 
-        loader_logs = [f"Documents loaded: {len(raw_documents)}", f"Total documents: {len(documents)}"]
+        loader_logs = [
+            f"Documents loaded: {len(raw_documents)}",
+            f"Total documents: {len(documents)}",
+        ]
 
         # Persist loaded documents for chunking endpoint
         try:
             simple_docs = [
-                {"page_content": d.page_content, "metadata": d.metadata or {}} for d in documents
+                {"page_content": d.page_content, "metadata": d.metadata or {}}
+                for d in documents
             ]
             state.save_loaded_documents(simple_docs)
         except Exception:

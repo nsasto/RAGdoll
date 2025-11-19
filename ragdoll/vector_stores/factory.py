@@ -62,7 +62,17 @@ def create_vector_store(
     store_cls = _resolve_store_class(store_type)
     kwargs = dict(store_kwargs)
     _maybe_attach_embedding(store_cls, kwargs, embedding)
-    store = store_cls(**kwargs)
+
+    # FAISS requires a special case for creating an empty index.
+    if store_type.lower() == "faiss" and not kwargs.get("index"):
+        if not embedding:
+            raise ValueError(
+                "FAISS requires an embedding model to create an empty index."
+            )
+        store = store_cls.from_texts(texts=[], embedding=embedding, **kwargs)
+    else:
+        store = store_cls(**kwargs)
+
     return BaseVectorStore(store)
 
 

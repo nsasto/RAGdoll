@@ -22,25 +22,41 @@ graph TD
         CFG --> CHUNK
         CHUNK --> EMB["Embedding Resolver<br/>(get_embedding_model)"]
         CFG --> EMB
-        EMB --> VSTORE["BaseVectorStore<br/>(Chroma/FAISS/etc.)"]
+        EMB --> VSTORE[("Vector Store<br/>Chroma/FAISS")]
         CHUNK --> ENT["EntityExtractionService<br/>(spaCy + LLM prompts)"]
         CFG --> ENT
         ENT --> GPERSIST["GraphPersistenceService<br/>(JSON/NetworkX/Neo4j)"]
-        GPERSIST --> GRAPHSTORE[("Graph Store Handle")]
-        GPERSIST --> GRETR["Graph Retriever<br/>(simple/Neo4j)"]
+        GPERSIST --> GRAPHSTORE[("Graph Store<br/>NetworkX/Neo4j")]
     end
 
     subgraph Query["Query & Reasoning"]
         USER["User Query"] --> RAG["Ragdoll Orchestrator"]
         CFG --> RAG
-        RAG --> VSTORE
-        RAG --> GRETR
-        VSTORE --> CONTEXT["Retrieved chunks"]
-        GRETR --> CONTEXT
-        RAG --> LLM["BaseLLMCaller / call_llm_sync"]
+
+        subgraph Retrievers
+            direction LR
+            VR["VectorRetriever"]
+            GR["GraphRetriever"]
+            HR["HybridRetriever"]
+        end
+
+        RAG -- "uses" --> VR
+        RAG -- "uses" --> GR
+        RAG -- "uses" --> HR
+
+        VR --> VSTORE
+        GR --> GRAPHSTORE
+        HR --> VR
+        HR --> GR
+
+        VR --> CONTEXT["Retrieved Chunks"]
+        GR --> CONTEXT
+        HR --> CONTEXT
+
+        CONTEXT --> LLM["BaseLLMCaller"]
+        RAG --> LLM
         CFG --> LLM
-        LLM --> ANSWER["Answer / structured output"]
-        CONTEXT --> ANSWER
+        LLM --> ANSWER["Answer / Structured Output"]
     end
 
     classDef service fill:#f9f,stroke:#333,stroke-width:1.5px;
@@ -48,7 +64,7 @@ graph TD
     classDef data fill:#fef3c7,stroke:#333,stroke-width:1.5px;
     classDef io fill:#fde68a,stroke:#333,stroke-width:1.5px;
 
-    class CFG,LOADER,CHUNK,ENT,GPERSIST,RAG,LLM service;
+    class CFG,LOADER,CHUNK,ENT,GPERSIST,RAG,LLM,VR,GR,HR service;
     class CACHE,METRICS,GRAPHSTORE,VSTORE storage;
     class DOCS,CONTEXT data;
     class SRC,USER,ANSWER io;

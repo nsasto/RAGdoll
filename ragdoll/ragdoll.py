@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
+from collections.abc import AsyncGenerator
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -212,6 +213,17 @@ class Ragdoll:
         cleaned = response.strip()
         return cleaned or None
 
+    async def _acall_llm(self, prompt: str) -> AsyncGenerator[str, None]:
+        if not self.llm_caller:
+            return
+
+        try:
+            async for token in self.llm_caller.astream(prompt):
+                yield token
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("LLM stream call failed: %s", exc)
+            return
+
     async def ingest_with_graph(
         self,
         sources: Sequence[Union[str, Document]],
@@ -355,3 +367,29 @@ class Ragdoll:
             graph_weight=hybrid_cfg.get("graph_weight", 0.4),
             deduplicate=hybrid_cfg.get("deduplicate", True),
         )
+
+    async def query_stream(
+        self, question: str, *, k: int = 4, retriever_mode: str = "hybrid"
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Retrieve context and stream the response from the LLM.
+        """
+        hits = []
+        if retriever_mode == "hybrid" and self.hybrid_retriever:
+            hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
+        elif retriever_mode == "graph" and self.graph_retriever:
+            hits = self.graph_retriever.get_relevant_documents(question, top_k=k)
+        elif self.vector_store:
+            vector_retriever = VectorRetriever(vector_store=self.vector_store, top_k=k)
+            hits = vector_retriever.get_relevant_documents(question)
+
+        # First, yield the retrieved documents
+        yield {
+            "type": "documents",
+            "data": [doc.dict() for doc in hits],
+        }
+
+        if self.llm_caller and hits:
+            prompt = self._build_prompt(question, hits)
+            async for token in self._acall_llm(prompt):
+                yield {"type": "token", "data": token}
