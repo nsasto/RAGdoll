@@ -164,24 +164,33 @@ entity_extraction:
     providers:
       openai: "relationship_extraction_openai"
       anthropic: "relationship_extraction_claude"
-  graph_retriever:
-    enabled: false
-    backend: "simple"
-    top_k: 5
-    include_edges: true
   llm_provider_hint:
 
-# Retriever configuration
+# Retriever configuration - Unified retrieval settings
 retriever:
-  hybrid:
-    mode: "hybrid"
-    top_k_vector: 5
-    top_k_graph: 5
-    graph_hops: 1
+  # Vector retrieval settings
+  vector:
+    enabled: true
+    top_k: 3
+    search_type: "similarity"  # Options: "similarity", "mmr", "similarity_score_threshold"
+    search_kwargs: {}
+  
+  # Graph retrieval settings
+  graph:
+    enabled: true
+    backend: "networkx"  # Options: "networkx", "neo4j", "simple"
+    top_k: 5
+    max_hops: 2
     include_edges: true
-    weight_vector: 1.0
-    weight_graph: 1.0
-    max_results: 10
+    traversal_strategy: "bfs"  # Options: "bfs" (breadth-first), "dfs" (depth-first)
+    min_score: 0.0
+  
+  # Hybrid combination settings
+  hybrid:
+    mode: "concat"  # Options: "concat", "rerank", "weighted", "expand"
+    vector_weight: 0.6
+    graph_weight: 0.4
+    deduplicate: true
 
 # References to prompt files (without .md extension)
 llm_prompts:

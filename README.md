@@ -91,34 +91,104 @@ Then open your browser to `http://localhost:8000` to access the demo interface.
 
 The demo uses FastAPI for the backend, HTMX and Alpine.js for dynamic interactions, and Tailwind CSS for styling, providing a modern, responsive experience.
 
-### Graph Retrieval Pipeline
+## Modular Retrieval Architecture
 
-When you enable `entity_extraction.graph_retriever.enabled` in your config, you can trigger the full ingestion pipeline (chunking, embeddings, entity extraction, graph persistence) and retrieve a knowledge-graph-aware retriever directly from the `Ragdoll` API:
+RAGdoll 2.1+ features a completely refactored retrieval system with clean separation between graph building and graph querying. The new architecture provides three composable retrievers:
+
+### VectorRetriever
+
+Semantic similarity search using vector embeddings:
+
+```python
+from ragdoll import VectorRetriever
+
+vector_retriever = VectorRetriever(
+    vector_store=vector_store,
+    top_k=5,
+    search_type="mmr"  # or "similarity", "similarity_score_threshold"
+)
+docs = vector_retriever.get_relevant_documents("query")
+```
+
+### GraphRetriever
+
+Multi-hop graph traversal with BFS/DFS strategies:
+
+```python
+from ragdoll import GraphRetriever
+
+graph_retriever = GraphRetriever(
+    graph_store=graph_store,
+    top_k=5,
+    max_hops=2,
+    traversal_strategy="bfs",  # or "dfs"
+    include_edges=True
+)
+docs = graph_retriever.get_relevant_documents("query")
+```
+
+### HybridRetriever
+
+Combines vector and graph retrieval with multiple strategies:
+
+```python
+from ragdoll import HybridRetriever
+
+hybrid_retriever = HybridRetriever(
+    vector_retriever=vector_retriever,
+    graph_retriever=graph_retriever,
+    mode="rerank",  # or "concat", "weighted", "expand"
+    vector_weight=0.6,
+    graph_weight=0.4
+)
+docs = hybrid_retriever.get_relevant_documents("query")
+```
+
+### Complete Example with Graph Pipeline
 
 ```python
 import asyncio
-from ragdoll.ragdoll import Ragdoll
-from ragdoll.pipeline import IngestionOptions
+from ragdoll import Ragdoll
 
 async def main():
     ragdoll = Ragdoll()
-    result = await ragdoll.ingest_with_graph(
-        ["path/to/docs/manual.pdf"],
-        options=IngestionOptions(parallel_extraction=False),
-    )
-    print(result["stats"])           # ingestion metrics
-    print(result["graph"])           # pydantic Graph object
-    retriever = result["graph_retriever"]
-    answers = retriever.invoke("How does the widget fail-safe work?")
-    retriever = result["graph_retriever"]
-    answers = retriever.invoke("How does the widget fail-safe work?")
-    graph_store = result["graph_store"]  # Neo4j/NetworkX/JSON handle if configured
+
+    # Ingest documents and build knowledge graph
+    result = await ragdoll.ingest_with_graph(["path/to/docs/manual.pdf"])
+
+    print(result["stats"])        # Ingestion metrics
+    print(result["graph"])        # Pydantic Graph object
+    print(result["graph_store"])  # NetworkX/Neo4j/JSON graph store
+
+    # Use the automatically configured hybrid retriever
+    answer = ragdoll.query_hybrid("How does the widget fail-safe work?")
+    print(answer["answer"])
+    print(f"Retrieved {len(answer['documents'])} documents")
 
 asyncio.run(main())
 ```
 
 The helper `ingest_with_graph_sync()` wraps `asyncio.run()` for scripts that are not already running an event loop.
-See `examples/graph_retriever_example.py` for a complete runnable script.
+
+**Configuration:** All retrieval settings are now consolidated under `retriever:` in your config:
+
+```yaml
+retriever:
+  vector:
+    enabled: true
+    top_k: 3
+    search_type: "similarity"
+  graph:
+    enabled: true
+    max_hops: 2
+    traversal_strategy: "bfs"
+  hybrid:
+    mode: "concat"
+    vector_weight: 0.6
+    graph_weight: 0.4
+```
+
+See [`docs/retrieval.md`](docs/retrieval.md) for comprehensive documentation and [`examples/retrieval_examples.py`](examples/retrieval_examples.py) for complete examples.
 
 ### How Vector and Graph Stores Work Together
 

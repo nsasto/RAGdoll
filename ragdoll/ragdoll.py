@@ -16,7 +16,7 @@ from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.llms import get_llm_caller
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
 from ragdoll.pipeline import IngestionOptions, IngestionPipeline
-from ragdoll.retrievers import RagdollRetriever
+from ragdoll.retrieval import VectorRetriever, GraphRetriever, HybridRetriever
 from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 
 logger = logging.getLogger(__name__)
@@ -80,8 +80,8 @@ class Ragdoll:
             if llm is not None and not isinstance(llm, BaseLLMCaller)
             else getattr(self.llm_caller, "llm", None)
         )
-        self.graph_retriever: Optional[Any] = None
-        self.hybrid_retriever: Optional[RagdollRetriever] = None
+        self.graph_retriever: Optional[GraphRetriever] = None
+        self.hybrid_retriever: Optional[HybridRetriever] = None
         self.last_graph: Optional[Graph] = None
         self.graph_ingestion_stats: Optional[Dict[str, Any]] = None
         self.graph_store: Optional[Any] = None
@@ -244,15 +244,17 @@ class Ragdoll:
         graph_store = pipeline.get_graph_store()
 
         self.graph_ingestion_stats = stats
-        self.graph_retriever = retriever
-        self.hybrid_retriever = self._build_hybrid_retriever()
         self.last_graph = graph
         self.graph_store = graph_store
+
+        # Build new-style retrievers
+        self.graph_retriever = self._build_graph_retriever(graph_store)
+        self.hybrid_retriever = self._build_retriever()
 
         return {
             "stats": stats,
             "graph": graph,
-            "graph_retriever": retriever,
+            "graph_retriever": self.graph_retriever,
             "graph_store": graph_store,
         }
 
@@ -282,28 +284,74 @@ class Ragdoll:
 
         return asyncio.run(self.ingest_with_graph(sources, options=options))
 
-    def _build_hybrid_retriever(self) -> Optional[RagdollRetriever]:
+    def _build_graph_retriever(
+        self, graph_store: Optional[Any]
+    ) -> Optional[GraphRetriever]:
+        """
+        Build a GraphRetriever from the graph store.
+
+        Args:
+            graph_store: Graph persistence service or graph structure
+
+        Returns:
+            Configured GraphRetriever or None if no graph store
+        """
+        if not graph_store:
+            return None
+
+        # Get graph retriever config
+        raw_config = getattr(self.config_manager, "_config", None)
+        graph_cfg = {}
+        if isinstance(raw_config, dict):
+            graph_cfg = raw_config.get("retriever", {}).get("graph", {})
+
+        # Only build if enabled
+        if not graph_cfg.get("enabled", True):
+            return None
+
+        return GraphRetriever(
+            graph_store=graph_store,
+            top_k=graph_cfg.get("top_k", 5),
+            max_hops=graph_cfg.get("max_hops", 2),
+            traversal_strategy=graph_cfg.get("traversal_strategy", "bfs"),
+            include_edges=graph_cfg.get("include_edges", True),
+            min_score=graph_cfg.get("min_score", 0.0),
+        )
+
+    def _build_retriever(self) -> Optional[HybridRetriever]:
+        """
+        Build a HybridRetriever combining vector and graph retrieval.
+
+        Returns:
+            Configured HybridRetriever or None if vector store unavailable
+        """
         if not self.vector_store:
             return None
 
-        hybrid_cfg: dict = {}
-        # Pull optional defaults from config if available
+        # Get retriever config
         raw_config = getattr(self.config_manager, "_config", None)
-        if isinstance(raw_config, dict):
-            hybrid_cfg = (
-                raw_config.get("retriever", {}).get("hybrid", {}) or {}
-            )
+        vector_cfg = {}
+        hybrid_cfg = {}
 
-        return RagdollRetriever(
+        if isinstance(raw_config, dict):
+            retriever_config = raw_config.get("retriever", {})
+            vector_cfg = retriever_config.get("vector", {})
+            hybrid_cfg = retriever_config.get("hybrid", {})
+
+        # Build vector retriever
+        vector_retriever = VectorRetriever(
             vector_store=self.vector_store,
-            graph_retriever=self.graph_retriever,
-            mode=hybrid_cfg.get("mode", "hybrid"),
-            top_k_vector=int(hybrid_cfg.get("top_k_vector", 5)),
-            top_k_graph=int(hybrid_cfg.get("top_k_graph", 5)),
-            graph_hops=int(hybrid_cfg.get("graph_hops", 1)),
-            include_edges=bool(hybrid_cfg.get("include_edges", True)),
-            weight_vector=float(hybrid_cfg.get("weight_vector", 1.0)),
-            weight_graph=float(hybrid_cfg.get("weight_graph", 1.0)),
-            max_results=int(hybrid_cfg.get("max_results", 10)),
+            top_k=vector_cfg.get("top_k", 3),
+            search_type=vector_cfg.get("search_type", "similarity"),
+            search_kwargs=vector_cfg.get("search_kwargs", {}),
         )
 
+        # Build hybrid retriever (graph retriever may be None)
+        return HybridRetriever(
+            vector_retriever=vector_retriever,
+            graph_retriever=self.graph_retriever,
+            mode=hybrid_cfg.get("mode", "concat"),
+            vector_weight=hybrid_cfg.get("vector_weight", 0.6),
+            graph_weight=hybrid_cfg.get("graph_weight", 0.4),
+            deduplicate=hybrid_cfg.get("deduplicate", True),
+        )

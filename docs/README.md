@@ -4,19 +4,20 @@ Welcome to the RAGdoll documentation set. This folder contains topic‑focused g
 
 ## Navigating the Docs
 
-| Topic | File | Highlights |
-| --- | --- | --- |
-| Architecture | `architecture.md` | High‑level ingestion → graph/vector → query flow diagram. |
-| Configuration | `configuration.md` | YAML layout, `ConfigManager`, environment overrides. |
-| Ingestion | `ingestion.md` | Loader service, pipeline stages, metrics. |
-| Chunking | `chunking.md` | `get_text_splitter`, `split_documents`, supported strategies. |
-| Embeddings | `embeddings.md` | Model factory (`get_embedding_model`) and provider hints. |
-| LLM Integration | `llm_integration.md` | `get_llm`, `get_llm_caller`, prompt templating. |
-| Entity Extraction & Graphs | `entity_extraction.md` | spaCy/LLM graph building flow, parsing, persistence, retrievers. |
-| Graph Stores | `graph_stores.md` | Graph persistence options and retriever helpers. |
-| Vector Stores | `vector_stores.md` | LangChain wrapper/factory usage. |
-| Tools | `tools.md` | Built-in LangChain tools (search, suggested queries, etc.). |
-| Metrics & Caching | `metrics.md`, `caching.md` | Runtime monitoring and remote-source cache behavior. |
+| Topic                      | File                       | Highlights                                                                         |
+| -------------------------- | -------------------------- | ---------------------------------------------------------------------------------- |
+| Architecture               | `architecture.md`          | High‑level ingestion → graph/vector → query flow diagram.                          |
+| Configuration              | `configuration.md`         | YAML layout, `ConfigManager`, environment overrides.                               |
+| Ingestion                  | `ingestion.md`             | Loader service, pipeline stages, metrics.                                          |
+| Chunking                   | `chunking.md`              | `get_text_splitter`, `split_documents`, supported strategies.                      |
+| Embeddings                 | `embeddings.md`            | Model factory (`get_embedding_model`) and provider hints.                          |
+| LLM Integration            | `llm_integration.md`       | `get_llm`, `get_llm_caller`, prompt templating.                                    |
+| **Retrieval**              | **`retrieval.md`**         | **Vector, graph, and hybrid retrieval architecture with LangChain compatibility.** |
+| Entity Extraction & Graphs | `entity_extraction.md`     | spaCy/LLM graph building flow, parsing, persistence.                               |
+| Graph Stores               | `graph_stores.md`          | Graph persistence backends (NetworkX, Neo4j).                                      |
+| Vector Stores              | `vector_stores.md`         | LangChain wrapper/factory usage.                                                   |
+| Tools                      | `tools.md`                 | Built-in LangChain tools (search, suggested queries, etc.).                        |
+| Metrics & Caching          | `metrics.md`, `caching.md` | Runtime monitoring and remote-source cache behavior.                               |
 
 ## How to Use This Folder
 

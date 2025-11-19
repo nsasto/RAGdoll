@@ -105,26 +105,40 @@ class ConfigManager:
         prompt_defaults.setdefault("default", "relationship_extraction")
         prompt_defaults.setdefault("providers", {})
 
-        retriever_defaults = entity_config.setdefault("graph_retriever", {})
-        retriever_defaults.setdefault("enabled", False)
-        retriever_defaults.setdefault("backend", "simple")
-        retriever_defaults.setdefault("top_k", 5)
-        retriever_defaults.setdefault("include_edges", True)
-
     def _ensure_retriever_defaults(self) -> None:
         """
-        Ensure defaults exist for the hybrid retriever block.
+        Ensure defaults exist for the unified retriever configuration.
+
+        This creates a comprehensive retriever configuration with:
+        - Vector retrieval settings
+        - Graph retrieval settings
+        - Hybrid combination strategy
         """
         retriever_config = self._config.setdefault("retriever", {})
+
+        # Vector retrieval defaults
+        vector_config = retriever_config.setdefault("vector", {})
+        vector_config.setdefault("enabled", True)
+        vector_config.setdefault("top_k", 3)
+        vector_config.setdefault("search_type", "similarity")
+        vector_config.setdefault("search_kwargs", {})
+
+        # Graph retrieval defaults
+        graph_config = retriever_config.setdefault("graph", {})
+        graph_config.setdefault("enabled", True)
+        graph_config.setdefault("backend", "networkx")
+        graph_config.setdefault("top_k", 5)
+        graph_config.setdefault("max_hops", 2)
+        graph_config.setdefault("include_edges", True)
+        graph_config.setdefault("traversal_strategy", "bfs")
+        graph_config.setdefault("min_score", 0.0)
+
+        # Hybrid combination defaults
         hybrid_config = retriever_config.setdefault("hybrid", {})
-        hybrid_config.setdefault("mode", "hybrid")
-        hybrid_config.setdefault("top_k_vector", 5)
-        hybrid_config.setdefault("top_k_graph", 5)
-        hybrid_config.setdefault("graph_hops", 1)
-        hybrid_config.setdefault("include_edges", True)
-        hybrid_config.setdefault("weight_vector", 1.0)
-        hybrid_config.setdefault("weight_graph", 1.0)
-        hybrid_config.setdefault("max_results", 10)
+        hybrid_config.setdefault("mode", "concat")
+        hybrid_config.setdefault("vector_weight", 0.6)
+        hybrid_config.setdefault("graph_weight", 0.4)
+        hybrid_config.setdefault("deduplicate", True)
 
     def _normalize_vector_store_config(self) -> None:
         """
