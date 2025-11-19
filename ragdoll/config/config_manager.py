@@ -43,6 +43,7 @@ class ConfigManager:
         self._log_loaded_config()
         self._initialize_prompts()
         self._ensure_entity_extraction_defaults()
+        self._ensure_retriever_defaults()
         self._normalize_vector_store_config()
 
     def _log_loaded_config(self) -> None:
@@ -109,6 +110,21 @@ class ConfigManager:
         retriever_defaults.setdefault("backend", "simple")
         retriever_defaults.setdefault("top_k", 5)
         retriever_defaults.setdefault("include_edges", True)
+
+    def _ensure_retriever_defaults(self) -> None:
+        """
+        Ensure defaults exist for the hybrid retriever block.
+        """
+        retriever_config = self._config.setdefault("retriever", {})
+        hybrid_config = retriever_config.setdefault("hybrid", {})
+        hybrid_config.setdefault("mode", "hybrid")
+        hybrid_config.setdefault("top_k_vector", 5)
+        hybrid_config.setdefault("top_k_graph", 5)
+        hybrid_config.setdefault("graph_hops", 1)
+        hybrid_config.setdefault("include_edges", True)
+        hybrid_config.setdefault("weight_vector", 1.0)
+        hybrid_config.setdefault("weight_graph", 1.0)
+        hybrid_config.setdefault("max_results", 10)
 
     def _normalize_vector_store_config(self) -> None:
         """

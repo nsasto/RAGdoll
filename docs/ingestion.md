@@ -110,6 +110,21 @@ See `examples/ingestion.ipynb` for a full notebook and `examples/graph_retriever
 
 ---
 
+## Hybrid retrieval (vector + graph)
+
+If you ingest with graph extraction enabled, the `Ragdoll` entry point now exposes a lightweight hybrid retriever that merges vector hits with graph nodes:
+
+```python
+result = ragdoll.query_hybrid("Who works at Contoso?")
+# or: result = ragdoll.query("Who works at Contoso?", use_hybrid=True)
+for doc in result["documents"]:
+    print(doc.metadata.get("source_kind"), doc.page_content)
+```
+
+Defaults stay fast (small `top_k`, shallow hop expansion, no LLM in the retriever). Tuning knobs live on `RagdollRetriever`: `top_k_vector`, `top_k_graph`, `graph_hops`, and weightings for vector vs. graph scores.
+
+---
+
 ## Extending Ingestion
 
 - **Custom Loaders**: Implement new document loaders by subclassing the loader interface and registering them via `custom_loaders` or configuration.

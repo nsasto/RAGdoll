@@ -171,6 +171,18 @@ entity_extraction:
     include_edges: true
   llm_provider_hint:
 
+# Retriever configuration
+retriever:
+  hybrid:
+    mode: "hybrid"
+    top_k_vector: 5
+    top_k_graph: 5
+    graph_hops: 1
+    include_edges: true
+    weight_vector: 1.0
+    weight_graph: 1.0
+    max_results: 10
+
 # References to prompt files (without .md extension)
 llm_prompts:
   entity_extraction: entity_extraction

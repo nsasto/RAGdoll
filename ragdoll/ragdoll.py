@@ -285,8 +285,25 @@ class Ragdoll:
     def _build_hybrid_retriever(self) -> Optional[RagdollRetriever]:
         if not self.vector_store:
             return None
+
+        hybrid_cfg: dict = {}
+        # Pull optional defaults from config if available
+        raw_config = getattr(self.config_manager, "_config", None)
+        if isinstance(raw_config, dict):
+            hybrid_cfg = (
+                raw_config.get("retriever", {}).get("hybrid", {}) or {}
+            )
+
         return RagdollRetriever(
             vector_store=self.vector_store,
             graph_retriever=self.graph_retriever,
+            mode=hybrid_cfg.get("mode", "hybrid"),
+            top_k_vector=int(hybrid_cfg.get("top_k_vector", 5)),
+            top_k_graph=int(hybrid_cfg.get("top_k_graph", 5)),
+            graph_hops=int(hybrid_cfg.get("graph_hops", 1)),
+            include_edges=bool(hybrid_cfg.get("include_edges", True)),
+            weight_vector=float(hybrid_cfg.get("weight_vector", 1.0)),
+            weight_graph=float(hybrid_cfg.get("weight_graph", 1.0)),
+            max_results=int(hybrid_cfg.get("max_results", 10)),
         )
 
