@@ -15,14 +15,29 @@ class TestGraphRetriever:
     @pytest.fixture
     def mock_graph_store(self):
         """Create a mock graph store with NetworkX-like interface."""
-        store = Mock()
+        store = MagicMock()
 
-        # Mock nodes
-        store.nodes = {
+        # Mock nodes data
+        nodes_data = {
             "node1": {"name": "Alice", "type": "Person"},
             "node2": {"name": "Acme Corp", "type": "Organization"},
             "node3": {"name": "Product X", "type": "Product"},
         }
+
+        # NetworkX-style interface
+        store.nodes = nodes_data
+        store.__contains__ = lambda key: key in nodes_data
+
+        # Mock nodes(data=True) for NetworkX-style iteration
+        def nodes_with_data(data=False):
+            if data:
+                return [(k, v) for k, v in nodes_data.items()]
+            return list(nodes_data.keys())
+
+        store.nodes = Mock()
+        store.nodes.__getitem__ = lambda key: nodes_data[key]
+        store.nodes.__contains__ = lambda key: key in nodes_data
+        store.nodes.side_effect = lambda data=False: nodes_with_data(data)
 
         # Mock neighbors method
         def neighbors(node_id):
@@ -44,6 +59,24 @@ class TestGraphRetriever:
 
         store.get_edge_data = get_edge_data
         store.number_of_edges = Mock(return_value=2)
+
+        # Mock GraphRetriever helper methods
+        store.get_all_nodes = Mock(return_value=nodes_data)
+
+        def get_node(node_id):
+            return nodes_data.get(node_id)
+
+        store.get_node = get_node
+
+        def get_neighbors(node_id):
+            neighbor_ids = neighbors(node_id)
+            result = []
+            for neighbor_id in neighbor_ids:
+                edge_data = get_edge_data(node_id, neighbor_id)
+                result.append((neighbor_id, edge_data))
+            return result
+
+        store.get_neighbors = get_neighbors
 
         return store
 
