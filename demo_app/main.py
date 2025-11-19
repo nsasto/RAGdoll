@@ -841,8 +841,6 @@ async def load_docs(request: Request) -> HTMLResponse:
             )
 
         # Build loader items for UI and simple stats
-        from .pipeline_demo import _build_loader_items
-
         stats = {
             "document_count": len(documents),
             "documents_loaded": len(raw_documents),

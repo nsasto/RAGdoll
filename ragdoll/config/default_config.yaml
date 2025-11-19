@@ -63,7 +63,7 @@ entity_extraction:
   chunk_overlap: 50
   splitter_type: "markdown"
   coreference_resolution_method: "rule_based"  # Options: "rule_based", "llm", "none"
-  entity_extraction_methods: ["llm"] # Options: ["ner", "llm"]
+  entity_extraction_methods: ["ner"] # Options: ["ner", "llm"]
   relationship_extraction_method: "llm"
   entity_types:
     - "PERSON"

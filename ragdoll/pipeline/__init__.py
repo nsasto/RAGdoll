@@ -168,15 +168,19 @@ class IngestionPipeline:
                 deep=True
             )
             graph_overrides = self.options.graph_store_options or {}
+            extra_kwargs = {}
             for key, value in graph_overrides.items():
                 if hasattr(graph_config, key):
                     setattr(graph_config, key, value)
                 else:
+                    # Collect extra config items to pass as kwargs
                     graph_config.extra_config[key] = value
+                    extra_kwargs[key] = value
 
             self.graph_store = graph_store or get_graph_store(
                 graph_config=graph_config,
                 app_config=self.app_config,
+                **extra_kwargs,
             )
         else:
             self.graph_store = None
@@ -241,7 +245,9 @@ class IngestionPipeline:
             if hasattr(obj, "page_content"):
                 # Support simple objects that expose the same attributes
                 metadata = getattr(obj, "metadata", {}) or {}
-                return Document(page_content=getattr(obj, "page_content"), metadata=metadata)
+                return Document(
+                    page_content=getattr(obj, "page_content"), metadata=metadata
+                )
             raise TypeError(
                 f"Unsupported document payload type: {type(obj)!r}. "
                 "Expected langchain Document, dict, or object with 'page_content'."
