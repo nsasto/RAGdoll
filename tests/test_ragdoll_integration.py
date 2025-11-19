@@ -117,8 +117,13 @@ def test_ragdoll_ingest_with_graph_sync(monkeypatch, base_documents):
 
     result = ragdoll.ingest_with_graph_sync(["file.pdf"])
     assert result["stats"]["documents_processed"] == 1
-    assert result["graph_retriever"] == "retriever"
+    # graph_retriever is now wrapped in GraphRetriever class
+    from ragdoll.retrieval import GraphRetriever
+
+    assert isinstance(result["graph_retriever"], GraphRetriever)
+    assert result["graph_retriever"].graph_store == "graph-store"
     assert result["graph_store"] == "graph-store"
-    assert ragdoll.graph_retriever == "retriever"
+    assert isinstance(ragdoll.graph_retriever, GraphRetriever)
+    assert ragdoll.graph_retriever.graph_store == "graph-store"
     assert ragdoll.last_graph == "graph-object"
     assert ragdoll.graph_store == "graph-store"

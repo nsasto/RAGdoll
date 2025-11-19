@@ -108,8 +108,13 @@ async def test_ragdoll_ingest_with_graph_exposes_retriever(monkeypatch):
 
     result = await ragdoll.ingest_with_graph(["foo.txt"])
 
-    assert result["graph_retriever"] == "retriever-obj"
+    # graph_retriever is now wrapped in GraphRetriever class
+    from ragdoll.retrieval import GraphRetriever
+
+    assert isinstance(result["graph_retriever"], GraphRetriever)
+    assert result["graph_retriever"].graph_store == "store-obj"
     assert result["graph_store"] == "store-obj"
-    assert ragdoll.graph_retriever == "retriever-obj"
+    assert isinstance(ragdoll.graph_retriever, GraphRetriever)
+    assert ragdoll.graph_retriever.graph_store == "store-obj"
     assert ragdoll.last_graph == "graph-object"
     assert ragdoll.graph_store == "store-obj"
