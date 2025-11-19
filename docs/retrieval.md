@@ -470,12 +470,14 @@ stats = hybrid_retriever.get_stats()
 
 ## Migration Guide
 
-### From RagdollRetriever
+### Upgrading to the New Retrieval Module
 
-**Old Code**:
+The old `ragdoll.retrievers.RagdollRetriever` has been replaced by the modular retrieval system in `ragdoll.retrieval`.
+
+**Old Code (Deprecated)**:
 
 ```python
-from ragdoll.retrievers import RagdollRetriever
+from ragdoll.retrievers import RagdollRetriever  # No longer available
 
 retriever = RagdollRetriever(
     vector_store=vs,
@@ -489,14 +491,14 @@ retriever = RagdollRetriever(
 **New Code**:
 
 ```python
-from ragdoll.retrieval import VectorRetriever, HybridRetriever
+from ragdoll.retrieval import HybridRetriever
 
-vector_retriever = VectorRetriever(vector_store=vs, top_k=5)
-# graph_retriever built automatically by Ragdoll
 hybrid_retriever = HybridRetriever(
-    vector_retriever=vector_retriever,
-    graph_retriever=graph_retriever,
-    mode="concat"
+    vector_store=vs,
+    graph_store=gs,
+    vector_top_k=5,
+    graph_top_k=5,
+    mode="concat"  # or "rerank", "weighted", "expand"
 )
 ```
 

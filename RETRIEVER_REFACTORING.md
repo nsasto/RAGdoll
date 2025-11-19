@@ -150,20 +150,30 @@ Since RAGdoll is in alpha:
 
 ## Migration Path
 
+### Status: COMPLETED ✅
+
+The retriever refactoring is complete. The old `ragdoll.retrievers` module has been removed.
+
 ### For Users
 
-**Old Code**:
+**Old Code (Removed)**:
 
 ```python
-from ragdoll.retrievers import RagdollRetriever
+from ragdoll.retrievers import RagdollRetriever  # No longer available
 retriever = RagdollRetriever(...)
 ```
 
 **New Code**:
 
 ```python
-from ragdoll import HybridRetriever
-retriever = ragdoll.hybrid_retriever  # Auto-configured
+from ragdoll.retrieval import VectorRetriever, GraphRetriever, HybridRetriever
+
+# Use individual retrievers
+vector_ret = VectorRetriever(vector_store=vs, top_k=5)
+graph_ret = GraphRetriever(graph_store=gs, top_k=5)
+
+# Or combine with hybrid retriever
+hybrid_ret = HybridRetriever(vector_store=vs, graph_store=gs)
 ```
 
 ### For Configuration
