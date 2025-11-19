@@ -85,3 +85,5 @@ scripts/
 
 graph_output.json
 knowledge_graph.png
+
+*.ps1

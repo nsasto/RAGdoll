@@ -61,7 +61,6 @@ def create_vector_store(
     """Instantiate and wrap a LangChain VectorStore by type name or path."""
     store_cls = _resolve_store_class(store_type)
     kwargs = dict(store_kwargs)
-    _maybe_attach_embedding(store_cls, kwargs, embedding)
 
     # FAISS requires a special case for creating an empty index.
     if store_type.lower() == "faiss" and not kwargs.get("index"):
@@ -69,8 +68,28 @@ def create_vector_store(
             raise ValueError(
                 "FAISS requires an embedding model to create an empty index."
             )
-        store = store_cls.from_texts(texts=[], embedding=embedding, **kwargs)
+        try:
+            import faiss
+            from langchain_community.docstore.in_memory import InMemoryDocstore
+
+            dummy_vector = embedding.embed_query("dummy")
+            dimension = len(dummy_vector)
+            index = faiss.IndexFlatL2(dimension)
+            docstore = InMemoryDocstore()
+            index_to_docstore_id = {}
+            store = store_cls(
+                embedding_function=embedding,
+                index=index,
+                docstore=docstore,
+                index_to_docstore_id=index_to_docstore_id,
+                **kwargs,
+            )
+        except ImportError as e:
+            raise ImportError(
+                "Could not import faiss, please install it with `pip install faiss-cpu` or `pip install faiss-gpu`"
+            ) from e
     else:
+        _maybe_attach_embedding(store_cls, kwargs, embedding)
         store = store_cls(**kwargs)
 
     return BaseVectorStore(store)

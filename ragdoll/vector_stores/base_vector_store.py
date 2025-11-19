@@ -41,6 +41,32 @@ class BaseVectorStore:
         """Return the top-k similar documents from the wrapped store."""
         return self._store.similarity_search(query, k=k)
 
+    async def asimilarity_search(self, query: str, k: int = 4) -> List[Document]:
+        """Async version of similarity_search."""
+        return await self._store.asimilarity_search(query, k=k)
+
+    def max_marginal_relevance_search(
+        self, query: str, k: int = 4, fetch_k: int = 20, **kwargs: Any
+    ) -> List[Document]:
+        """Return documents using maximal marginal relevance search."""
+        return self._store.max_marginal_relevance_search(
+            query, k=k, fetch_k=fetch_k, **kwargs
+        )
+
+    async def amax_marginal_relevance_search(
+        self, query: str, k: int = 4, fetch_k: int = 20, **kwargs: Any
+    ) -> List[Document]:
+        """Async version of max_marginal_relevance_search."""
+        return await self._store.amax_marginal_relevance_search(
+            query, k=k, fetch_k=fetch_k, **kwargs
+        )
+
+    def similarity_search_with_relevance_scores(
+        self, query: str, k: int = 4, **kwargs: Any
+    ) -> List[tuple[Document, float]]:
+        """Return documents with relevance scores."""
+        return self._store.similarity_search_with_relevance_scores(query, k=k, **kwargs)
+
     def delete(self, ids: Sequence[str]) -> Any:
         """Delete documents if the wrapped store supports deletion."""
         if not hasattr(self._store, "delete"):
@@ -58,7 +84,9 @@ class BaseVectorStore:
         **kwargs: Any,
     ) -> "BaseVectorStore":
         """Build a wrapped store pre-populated with the provided documents."""
-        store = store_cls.from_documents(documents=documents, embedding=embedding, **kwargs)
+        store = store_cls.from_documents(
+            documents=documents, embedding=embedding, **kwargs
+        )
         return cls(store)
 
     def _detect_batch_limit(self) -> int | None:
