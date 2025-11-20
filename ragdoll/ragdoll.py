@@ -329,7 +329,7 @@ class Ragdoll:
             include_edges=graph_cfg.get("include_edges", True),
             min_score=graph_cfg.get("min_score", 0.0),
             vector_store=self.vector_store,
-            embedding_model=self.embedding,
+            embedding_model=self.embedding_model,
             prebuild_index=graph_cfg.get("prebuild_index", False),
             hybrid_alpha=graph_cfg.get("hybrid_alpha", 1.0),
             enable_fallback=graph_cfg.get("enable_fallback", True),

@@ -419,6 +419,7 @@ class EntityExtractionService(BaseEntityExtractor):
         node = GraphNode(
             id=f"llm-{uuid.uuid4().hex}",
             type="ENTITY",
+            name=name,
             label=name,  # Store entity text as label
             properties=properties,
         )

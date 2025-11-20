@@ -367,11 +367,11 @@ def split_documents(
             result = split_markdown_documents(documents, text_splitter, **kwargs)
         else:
             result = text_splitter.split_documents(documents)
-            # Add versioned chunk IDs for non-markdown splitters
+            # Add versioned chunk IDs for non-markdown splitters (only for Document objects)
             import hashlib
 
             for doc in result:
-                if "chunk_id" not in doc.metadata:
+                if isinstance(doc, Document) and "chunk_id" not in doc.metadata:
                     source = doc.metadata.get("source", "unknown")
                     source_hash = hashlib.md5(str(source).encode("utf-8")).hexdigest()[
                         :8

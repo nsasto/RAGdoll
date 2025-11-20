@@ -24,6 +24,8 @@ class GraphNode(BaseModel):
     type: str
     name: str
     metadata: Dict = Field(default_factory=dict)
+    label: Optional[str] = None  # Optional display label for the node
+    properties: Optional[Dict] = None  # Additional properties including vector references
 
 class GraphEdge(BaseModel):
     """Represents an edge/relationship in the knowledge graph."""
