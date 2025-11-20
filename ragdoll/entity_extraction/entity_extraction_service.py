@@ -383,6 +383,8 @@ class EntityExtractionService(BaseEntityExtractor):
             node_name = node.label or node.name
             if node_name == name:
                 if mention_payload:
+                    # Store mentions in both metadata (for backward compatibility) and properties
+                    node.metadata.setdefault("mentions", []).append(mention_payload)
                     if node.properties:
                         node.properties.setdefault("mentions", []).append(
                             mention_payload
@@ -413,13 +415,17 @@ class EntityExtractionService(BaseEntityExtractor):
             if "embedding_timestamp" in metadata:
                 properties["timestamp"] = metadata["embedding_timestamp"]
 
+        # Build metadata dict with mentions for backward compatibility
+        node_metadata = {}
         if mention_payload:
             properties["mentions"] = [mention_payload]
+            node_metadata["mentions"] = [mention_payload]
 
         node = GraphNode(
             id=f"llm-{uuid.uuid4().hex}",
             type="ENTITY",
             name=name,
+            metadata=node_metadata,
             label=name,  # Store entity text as label
             properties=properties,
         )

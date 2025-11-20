@@ -370,14 +370,13 @@ def split_documents(
             # Add versioned chunk IDs for non-markdown splitters (only for Document objects)
             import hashlib
 
-            for doc in result:
+            for idx, doc in enumerate(result):
                 if isinstance(doc, Document) and "chunk_id" not in doc.metadata:
                     source = doc.metadata.get("source", "unknown")
                     source_hash = hashlib.md5(str(source).encode("utf-8")).hexdigest()[
                         :8
                     ]
-                    chunk_index = doc.metadata.get("chunk", 0)
-                    doc.metadata["chunk_id"] = f"{source_hash}_{chunk_index}_v1"
+                    doc.metadata["chunk_id"] = f"{source_hash}_{idx}_v1"
 
         logger.debug(f"Split {len(documents)} documents into {len(result)} chunks")
         return result
