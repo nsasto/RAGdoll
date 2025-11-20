@@ -296,6 +296,7 @@ class EntityExtractionService(BaseEntityExtractor):
             node = GraphNode(
                 id=f"spacy-{uuid.uuid4().hex}",
                 type=ent.label_,
+                name=ent.text,  # Required field for backward compatibility
                 label=ent.text,  # Store entity text as label
                 properties=properties,
             )
