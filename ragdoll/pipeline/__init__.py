@@ -214,9 +214,51 @@ class IngestionPipeline:
         chunks = self._chunk_documents(documents)
         self.stats["chunks_created"] = len(chunks)
 
+        # Always create vector embeddings if entity extraction is enabled
+        # This ensures graph nodes can reference embeddings
         if self.vector_store and chunks:
-            self.vector_store.add_documents(chunks)
+            vector_ids = self.vector_store.add_documents(chunks)
             self.stats["vector_entries_added"] = len(chunks)
+
+            # Store vector IDs and timestamp back into chunk metadata
+            from datetime import datetime, timezone
+
+            embedding_timestamp = datetime.now(timezone.utc).isoformat()
+
+            if vector_ids and len(vector_ids) == len(chunks):
+                for chunk, vector_id in zip(chunks, vector_ids):
+                    chunk.metadata["vector_id"] = vector_id
+                    chunk.metadata["embedding_timestamp"] = embedding_timestamp
+        elif self.entity_extractor and chunks and not self.options.skip_vector_store:
+            # Entity extraction requires embeddings - create vector store if missing
+            logger.warning(
+                "Entity extraction enabled but no vector store provided. "
+                "Vector embeddings are required for graph nodes. Creating vector store."
+            )
+            if self.embedding_model is None:
+                raise ValueError(
+                    "Embedding model is required for entity extraction (to link graph nodes to embeddings)."
+                )
+
+            vector_config = self.config_manager.vector_store_config.model_copy(
+                deep=True
+            )
+            self.vector_store = vector_store_from_config(
+                vector_config,
+                embedding=self.embedding_model,
+            )
+
+            vector_ids = self.vector_store.add_documents(chunks)
+            self.stats["vector_entries_added"] = len(chunks)
+
+            from datetime import datetime, timezone
+
+            embedding_timestamp = datetime.now(timezone.utc).isoformat()
+
+            if vector_ids and len(vector_ids) == len(chunks):
+                for chunk, vector_id in zip(chunks, vector_ids):
+                    chunk.metadata["vector_id"] = vector_id
+                    chunk.metadata["embedding_timestamp"] = embedding_timestamp
 
         if self.entity_extractor and chunks:
             await self._extract_entities(chunks)

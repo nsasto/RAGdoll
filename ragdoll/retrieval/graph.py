@@ -1,13 +1,17 @@
 """
 Graph Retriever
 
-Graph traversal-based retrieval with multi-hop reasoning.
+Graph traversal-based retrieval with multi-hop reasoning using embedding-based similarity.
 """
 
 from typing import List, Optional, Dict, Any, Set, Tuple
 from collections import deque
+import logging
+import numpy as np
 from langchain_core.documents import Document
 from ragdoll.retrieval.base import BaseRetriever
+
+logger = logging.getLogger(__name__)
 
 
 class GraphRetriever(BaseRetriever):
@@ -15,7 +19,8 @@ class GraphRetriever(BaseRetriever):
     Graph-based retriever with traversal strategies.
 
     Performs multi-hop graph traversal to find contextually relevant
-    entities and relationships. Supports BFS and DFS traversal strategies.
+    entities and relationships. Supports BFS and DFS traversal strategies
+    with embedding-based seed node selection.
 
     Args:
         graph_store: Graph persistence service instance
@@ -24,6 +29,12 @@ class GraphRetriever(BaseRetriever):
         traversal_strategy: "bfs" (breadth-first) or "dfs" (depth-first)
         include_edges: Whether to include relationship information
         min_score: Minimum relevance score for seed nodes (0-1)
+        vector_store: Optional vector store for embedding retrieval
+        embedding_model: Optional embedding model for query encoding
+        prebuild_index: Whether to build FAISS index during initialization
+        hybrid_alpha: Weight for embedding similarity (1.0 = embedding only)
+        enable_fallback: If True, fall back to fuzzy matching when embeddings unavailable
+        log_fallback_warnings: If True, log warnings when fallback mechanisms are used
     """
 
     def __init__(
@@ -34,6 +45,12 @@ class GraphRetriever(BaseRetriever):
         traversal_strategy: str = "bfs",
         include_edges: bool = True,
         min_score: float = 0.0,
+        vector_store=None,
+        embedding_model=None,
+        prebuild_index: bool = False,
+        hybrid_alpha: float = 1.0,
+        enable_fallback: bool = True,
+        log_fallback_warnings: bool = True,
     ):
         self.graph_store = graph_store
         self.top_k = top_k
@@ -41,9 +58,29 @@ class GraphRetriever(BaseRetriever):
         self.traversal_strategy = traversal_strategy.lower()
         self.include_edges = include_edges
         self.min_score = min_score
+        self.vector_store = vector_store
+        self.embedding_model = embedding_model
+        self.prebuild_index = prebuild_index
+        self.hybrid_alpha = hybrid_alpha
+        self.enable_fallback = enable_fallback
+        self.log_fallback_warnings = log_fallback_warnings
+
+        # Lazy-loaded components for embedding-based search
+        self._embedding_index = None
+        self._node_id_to_index = None
+        self._index_to_node_id = None
+        self._embedding_dimension = None
+        self._orphaned_nodes_count = 0
 
         if self.traversal_strategy not in ["bfs", "dfs"]:
             raise ValueError(f"Unknown traversal strategy: {traversal_strategy}")
+
+        # Precompute embeddings index if requested
+        if self.prebuild_index and self.vector_store and self.embedding_model:
+            try:
+                self._build_embedding_index()
+            except Exception as e:
+                logger.warning(f"Failed to prebuild embedding index: {e}")
 
     def get_relevant_documents(self, query: str, **kwargs) -> List[Document]:
         """
@@ -102,9 +139,10 @@ class GraphRetriever(BaseRetriever):
 
     def _find_seed_nodes(self, query: str, top_k: int) -> List[Tuple[str, float]]:
         """
-        Find initial seed nodes matching the query.
+        Find initial seed nodes matching the query using embedding similarity.
 
-        Uses keyword matching and scoring against node names/metadata.
+        Falls back to fuzzy string matching if embeddings are unavailable
+        and enable_fallback is True.
 
         Args:
             query: Query string
@@ -113,6 +151,120 @@ class GraphRetriever(BaseRetriever):
         Returns:
             List of (node_id, score) tuples
         """
+        # Check if embedding-based search is possible
+        if not self.vector_store or not self.embedding_model:
+            if not self.enable_fallback:
+                raise ValueError(
+                    "GraphRetriever requires vector_store and embedding_model for embedding-based search. "
+                    "Set enable_fallback=True to use fuzzy matching fallback, or provide vector_store and embedding_model."
+                )
+            if self.log_fallback_warnings:
+                logger.warning(
+                    "vector_store or embedding_model not available. Falling back to fuzzy matching for seed node selection."
+                )
+            return self._find_seeds_by_fuzzy_match(query, top_k)
+
+        # Try embedding-based search
+        try:
+            return self._find_seeds_by_embedding(query, top_k)
+        except Exception as e:
+            if not self.enable_fallback:
+                logger.error(f"Embedding-based seed search failed: {e}")
+                raise ValueError(
+                    f"Embedding-based search failed: {e}. Set enable_fallback=True to use fuzzy matching fallback."
+                ) from e
+
+            if self.log_fallback_warnings:
+                logger.warning(
+                    f"Embedding-based seed search failed: {e}. Falling back to fuzzy matching."
+                )
+            return self._find_seeds_by_fuzzy_match(query, top_k)
+
+    def _find_seeds_by_embedding(
+        self, query: str, top_k: int
+    ) -> List[Tuple[str, float]]:
+        """
+        Find seed nodes using embedding similarity search.
+
+        Args:
+            query: Query string
+            top_k: Number of seeds to return
+
+        Returns:
+            List of (node_id, score) tuples sorted by similarity
+        """
+        # Ensure embedding index is built
+        if self._embedding_index is None:
+            self._build_embedding_index()
+
+        if self._embedding_index is None or len(self._node_id_to_index) == 0:
+            logger.warning(
+                "No embeddings available for nodes, falling back to fuzzy matching"
+            )
+            return self._find_seeds_by_fuzzy_match(query, top_k)
+
+        # Compute query embedding
+        query_embedding = self.embedding_model.embed_query(query)
+        query_vector = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
+
+        # Validate dimensions
+        if query_vector.shape[1] != self._embedding_dimension:
+            logger.error(
+                f"Query embedding dimension mismatch: expected {self._embedding_dimension}, got {query_vector.shape[1]}"
+            )
+            return self._find_seeds_by_fuzzy_match(query, top_k)
+
+        # Search FAISS index
+        try:
+            import faiss
+
+            distances, indices = self._embedding_index.search(
+                query_vector, min(top_k, len(self._index_to_node_id))
+            )
+
+            # Convert FAISS results to (node_id, score) tuples
+            # FAISS returns L2 distances, convert to similarity scores
+            seed_nodes = []
+            for dist, idx in zip(distances[0], indices[0]):
+                if idx < 0 or idx >= len(self._index_to_node_id):
+                    continue
+
+                node_id = self._index_to_node_id[idx]
+                # Convert L2 distance to similarity score (higher is better)
+                # Use exponential decay: score = exp(-distance)
+                similarity_score = np.exp(-dist)
+
+                if similarity_score >= self.min_score:
+                    seed_nodes.append((node_id, float(similarity_score)))
+
+            logger.debug(f"Found {len(seed_nodes)} seed nodes via embedding similarity")
+            return seed_nodes
+
+        except Exception as e:
+            logger.error(f"FAISS search failed: {e}")
+            return self._find_seeds_by_fuzzy_match(query, top_k)
+
+    def _find_seeds_by_fuzzy_match(
+        self, query: str, top_k: int
+    ) -> List[Tuple[str, float]]:
+        """
+        Find seed nodes using fuzzy string matching and term overlap.
+
+        Args:
+            query: Query string
+            top_k: Number of seeds to return
+
+        Returns:
+            List of (node_id, score) tuples sorted by relevance
+        """
+        try:
+            from rapidfuzz import fuzz
+
+            use_rapidfuzz = True
+        except ImportError:
+            logger.warning("rapidfuzz not available, using basic string matching")
+            use_rapidfuzz = False
+
         query_lower = query.lower()
         query_terms = set(query_lower.split())
 
@@ -120,15 +272,184 @@ class GraphRetriever(BaseRetriever):
         nodes = self._get_all_nodes()
 
         scored_nodes = []
+        orphaned_count = 0
+
         for node_id, node_data in nodes.items():
-            score = self._score_node(node_data, query_terms, query_lower)
+            # Track nodes without vector_id
+            if "vector_id" not in node_data and "properties" not in node_data:
+                orphaned_count += 1
+            elif (
+                "properties" in node_data and "vector_id" not in node_data["properties"]
+            ):
+                orphaned_count += 1
+
+            # Compute fuzzy match score
+            if use_rapidfuzz:
+                score = self._score_node_fuzzy(node_data, query_lower, query_terms)
+            else:
+                score = self._score_node(node_data, query_terms, query_lower)
 
             if score >= self.min_score:
                 scored_nodes.append((node_id, score))
 
+        self._orphaned_nodes_count = orphaned_count
+        if orphaned_count > 0:
+            logger.debug(f"Found {orphaned_count} nodes without vector_id references")
+
         # Sort by score and take top_k
         scored_nodes.sort(key=lambda x: x[1], reverse=True)
         return scored_nodes[:top_k]
+
+    def _score_node_fuzzy(
+        self, node_data: Dict[str, Any], query_lower: str, query_terms: Set[str]
+    ) -> float:
+        """
+        Score node using rapidfuzz fuzzy string matching.
+
+        Args:
+            node_data: Node attributes/metadata
+            query_lower: Lowercased query string
+            query_terms: Set of query terms
+
+        Returns:
+            Relevance score (0-100)
+        """
+        from rapidfuzz import fuzz
+
+        score = 0.0
+
+        # Check node name/label with fuzzy matching
+        name = node_data.get("name", "") or node_data.get("properties", {}).get(
+            "name", ""
+        )
+        if name:
+            # Partial ratio handles substring matches well
+            fuzzy_score = fuzz.partial_ratio(query_lower, name.lower())
+            score += fuzzy_score * 0.03  # Scale to 0-3 range
+
+        # Check node type
+        node_type = node_data.get("type", "").lower()
+        if node_type:
+            type_score = fuzz.partial_ratio(query_lower, node_type)
+            score += type_score * 0.01  # Scale to 0-1 range
+
+        # Check properties
+        properties = node_data.get("properties", {})
+        for key, value in properties.items():
+            if key in [
+                "name",
+                "vector_id",
+                "chunk_id",
+                "embedding_timestamp",
+                "embedding_source",
+            ]:
+                continue
+            if isinstance(value, str) and value:
+                prop_score = fuzz.partial_ratio(query_lower, value.lower())
+                score += prop_score * 0.005  # Scale to 0-0.5 range
+
+        # Normalize to 0-1 range (max possible score ~ 4.5, normalize to 1)
+        return min(score / 4.5, 1.0)
+
+    def _build_embedding_index(self):
+        """
+        Build FAISS index from node embeddings in vector store.
+
+        This queries the vector store for embeddings using vector_id references
+        stored in node properties.
+        """
+        if not self.vector_store:
+            logger.warning("No vector store available for building embedding index")
+            return
+
+        try:
+            from ragdoll.vector_stores.adapter import VectorStoreAdapter
+            import faiss
+        except ImportError as e:
+            logger.error(f"Required dependency missing for embedding index: {e}")
+            return
+
+        # Get all nodes and extract vector_ids
+        nodes = self._get_all_nodes()
+        node_embeddings = {}
+
+        adapter = VectorStoreAdapter(self.vector_store)
+
+        # Collect vector_ids from node properties
+        vector_ids = []
+        node_ids = []
+
+        for node_id, node_data in nodes.items():
+            vector_id = None
+
+            # Try to get vector_id from properties
+            if "properties" in node_data:
+                vector_id = node_data["properties"].get("vector_id")
+            elif "vector_id" in node_data:
+                vector_id = node_data["vector_id"]
+
+            if vector_id:
+                vector_ids.append(vector_id)
+                node_ids.append(node_id)
+
+        if not vector_ids:
+            self._orphaned_nodes_count = len(nodes)
+            if self.log_fallback_warnings:
+                logger.warning(
+                    f"No nodes with vector_id references found. All {self._orphaned_nodes_count} nodes are orphaned. "
+                    "Graph retrieval will fall back to fuzzy matching."
+                )
+            return
+
+        # Fetch embeddings from vector store
+        logger.debug(f"Fetching embeddings for {len(vector_ids)} nodes")
+        embeddings_dict = adapter.get_embeddings_by_ids(vector_ids)
+
+        if not embeddings_dict:
+            logger.warning("Failed to retrieve any embeddings from vector store")
+            return
+
+        # Build index mapping and embedding matrix
+        embeddings_list = []
+        self._node_id_to_index = {}
+        self._index_to_node_id = {}
+        orphaned_count = 0
+
+        for idx, (node_id, vector_id) in enumerate(zip(node_ids, vector_ids)):
+            if vector_id in embeddings_dict:
+                embedding = embeddings_dict[vector_id]
+                embeddings_list.append(embedding)
+                self._node_id_to_index[node_id] = idx
+                self._index_to_node_id[idx] = node_id
+            else:
+                orphaned_count += 1
+
+        # Track orphaned nodes (nodes with vector_id but no embedding retrieved)
+        self._orphaned_nodes_count = orphaned_count + (len(nodes) - len(node_ids))
+
+        if self._orphaned_nodes_count > 0 and self.log_fallback_warnings:
+            logger.debug(
+                f"{self._orphaned_nodes_count} nodes lack embeddings (orphaned). "
+                "These nodes can still be reached via graph traversal."
+            )
+
+        if not embeddings_list:
+            if self.log_fallback_warnings:
+                logger.warning("No valid embeddings retrieved from vector store")
+            return
+
+        # Create FAISS index
+        embeddings_matrix = np.array(embeddings_list, dtype=np.float32)
+        self._embedding_dimension = embeddings_matrix.shape[1]
+
+        # Use L2 index for similarity search
+        self._embedding_index = faiss.IndexFlatL2(self._embedding_dimension)
+        self._embedding_index.add(embeddings_matrix)
+
+        logger.info(
+            f"Built FAISS index with {len(embeddings_list)} node embeddings "
+            f"(dimension={self._embedding_dimension})"
+        )
 
     def _score_node(
         self, node_data: Dict[str, Any], query_terms: Set[str], query_lower: str
@@ -433,6 +754,9 @@ class GraphRetriever(BaseRetriever):
             "max_hops": self.max_hops,
             "traversal_strategy": self.traversal_strategy,
             "include_edges": self.include_edges,
+            "embedding_search_enabled": self.vector_store is not None
+            and self.embedding_model is not None,
+            "orphaned_nodes": self._orphaned_nodes_count,
         }
 
         # Try to get node/edge counts
@@ -442,6 +766,11 @@ class GraphRetriever(BaseRetriever):
 
             if hasattr(self.graph_store, "number_of_edges"):
                 stats["edge_count"] = self.graph_store.number_of_edges()
+
+            # Add embedding index stats
+            if self._embedding_index is not None:
+                stats["indexed_nodes"] = len(self._node_id_to_index)
+                stats["embedding_dimension"] = self._embedding_dimension
         except:
             pass
 

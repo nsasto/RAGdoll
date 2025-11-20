@@ -8,7 +8,9 @@ class BaseConfig(BaseModel):
 
     model_config = ConfigDict(extra="allow", protected_namespaces=())
 
-    enabled: bool = Field(default=True, description="Whether this component is enabled.")
+    enabled: bool = Field(
+        default=True, description="Whether this component is enabled."
+    )
 
 
 class LoaderConfig(BaseConfig):
@@ -198,7 +200,9 @@ class GraphDatabaseConfig(BaseModel):
     )
 
     # Neo4j specific settings
-    uri: str = Field(default="bolt://localhost:7687", description="Neo4j connection URI")
+    uri: str = Field(
+        default="bolt://localhost:7687", description="Neo4j connection URI"
+    )
     user: str = Field(default="neo4j", description="Neo4j username.")
     password: str = Field(default="password", description="Neo4j password.")
 
@@ -289,4 +293,12 @@ class EntityExtractionConfig(BaseModel):
     llm_provider_hint: Optional[str] = Field(
         default=None,
         description="Optional override for the active LLM provider (e.g., 'openai').",
+    )
+    compute_embeddings_if_missing: bool = Field(
+        default=True,
+        description="Whether to compute embeddings for entity nodes when vector store is not available.",
+    )
+    embedding_strategy: str = Field(
+        default="context",
+        description="Strategy for computing embeddings: 'context' (chunk text), 'entity' (entity text only), 'entity_context' (concatenated).",
     )

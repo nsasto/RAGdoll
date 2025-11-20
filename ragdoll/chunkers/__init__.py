@@ -226,9 +226,15 @@ def split_markdown_documents(
     Returns:
         List of split documents with metadata
     """
+    import hashlib
+
     result = []
     for doc in documents:
         splits = markdown_splitter.split_text(doc.page_content)
+
+        # Generate stable source hash for chunk IDs
+        source = doc.metadata.get("source", "unknown")
+        source_hash = hashlib.md5(str(source).encode("utf-8")).hexdigest()[:8]
 
         for i, chunk in enumerate(splits):
             metadata = dict(doc.metadata or {})
@@ -237,6 +243,8 @@ def split_markdown_documents(
                 page_text = chunk.page_content
                 metadata.update(chunk.metadata or {})
             metadata["chunk"] = i
+            # Add versioned chunk ID for stable references to vector store
+            metadata["chunk_id"] = f"{source_hash}_{i}_v1"
             result.append(Document(page_content=str(page_text), metadata=metadata))
 
     return result
@@ -359,6 +367,17 @@ def split_documents(
             result = split_markdown_documents(documents, text_splitter, **kwargs)
         else:
             result = text_splitter.split_documents(documents)
+            # Add versioned chunk IDs for non-markdown splitters
+            import hashlib
+
+            for doc in result:
+                if "chunk_id" not in doc.metadata:
+                    source = doc.metadata.get("source", "unknown")
+                    source_hash = hashlib.md5(str(source).encode("utf-8")).hexdigest()[
+                        :8
+                    ]
+                    chunk_index = doc.metadata.get("chunk", 0)
+                    doc.metadata["chunk_id"] = f"{source_hash}_{chunk_index}_v1"
 
         logger.debug(f"Split {len(documents)} documents into {len(result)} chunks")
         return result

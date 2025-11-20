@@ -67,17 +67,18 @@ class EntityExtractionService(BaseEntityExtractor):
         self.prompt_templates = merged_config.get("prompts", {}) or {}
         self.chunk_documents = chunk_documents
         self.text_splitter = text_splitter
-        llm_instance = llm or get_llm(config_manager=config_manager, app_config=self.app_config)
+        llm_instance = llm or get_llm(
+            config_manager=config_manager, app_config=self.app_config
+        )
         if llm_caller is not None:
             self.llm_caller = llm_caller
         elif llm_instance is not None:
             self.llm_caller = LangChainLLMCaller(llm_instance)
         else:
             self.llm_caller = None
-        self._active_llm_provider = (
-            merged_config.get("llm_provider_hint")
-            or self._infer_llm_provider(llm_instance)
-        )
+        self._active_llm_provider = merged_config.get(
+            "llm_provider_hint"
+        ) or self._infer_llm_provider(llm_instance)
         if self._active_llm_provider:
             self._active_llm_provider = self._active_llm_provider.lower()
         elif getattr(self.llm_caller, "provider", None):
@@ -87,7 +88,8 @@ class EntityExtractionService(BaseEntityExtractor):
         graph_retriever_config = merged_config.get("graph_retriever", {}) or {}
         self.graph_persistence = GraphPersistenceService(
             output_format=graph_db_config.get(
-                "output_format", merged_config.get("output_format", "custom_graph_object")
+                "output_format",
+                merged_config.get("output_format", "custom_graph_object"),
             ),
             output_path=graph_db_config.get("output_file"),
             neo4j_config={
@@ -174,7 +176,9 @@ class EntityExtractionService(BaseEntityExtractor):
             return spacy.load(model_name)
 
     def _build_relationship_parser(self) -> RelationshipOutputParser:
-        parsing_config: Dict[str, Any] = self.config.get("relationship_parsing", {}) or {}
+        parsing_config: Dict[str, Any] = (
+            self.config.get("relationship_parsing", {}) or {}
+        )
         parser_class_path = parsing_config.get("parser_class")
         parser_kwargs = parsing_config.get("parser_kwargs", {}) or {}
         schema_path = parsing_config.get("schema")
@@ -270,11 +274,30 @@ class EntityExtractionService(BaseEntityExtractor):
         doc = self.nlp(document.page_content)
         nodes: List[GraphNode] = []
         for ent in doc.ents:
+            # Build properties dict with entity text, context, and vector references
+            properties = {
+                "name": ent.text,
+                "text": ent.text,
+                "context": document.page_content,
+                "embedding_source": "chunk",
+            }
+
+            # Copy all document metadata into properties
+            properties.update(document.metadata or {})
+
+            # Extract vector references if available
+            if "chunk_id" in document.metadata:
+                properties["chunk_id"] = document.metadata["chunk_id"]
+            if "vector_id" in document.metadata:
+                properties["vector_id"] = document.metadata["vector_id"]
+            if "embedding_timestamp" in document.metadata:
+                properties["timestamp"] = document.metadata["embedding_timestamp"]
+
             node = GraphNode(
                 id=f"spacy-{uuid.uuid4().hex}",
                 type=ent.label_,
-                name=ent.text,
-                metadata=document.metadata or {},
+                label=ent.text,  # Store entity text as label
+                properties=properties,
             )
             nodes.append(node)
         return nodes
@@ -298,9 +321,7 @@ class EntityExtractionService(BaseEntityExtractor):
         if template:
             context = self._build_prompt_context(document)
             return template.format_map(_SafeFormatDict(context))
-        return (
-            f"Extract relationships from the following text:\n\n{document.page_content}\n"
-        )
+        return f"Extract relationships from the following text:\n\n{document.page_content}\n"
 
     def _build_prompt_context(self, document: Document) -> Dict[str, str]:
         metadata = document.metadata or {}
@@ -329,19 +350,23 @@ class EntityExtractionService(BaseEntityExtractor):
         if not relationship_list.relationships:
             return []
 
+        # Enrich metadata with document context
+        enriched_metadata = dict(document.metadata or {})
+        enriched_metadata["context"] = document.page_content
+
         edges: List[GraphEdge] = []
         for rel in relationship_list.relationships:
-            source_id = self._ensure_node(nodes, rel.subject, document.metadata)
-            target_id = self._ensure_node(nodes, rel.object, document.metadata)
+            source_id = self._ensure_node(nodes, rel.subject, enriched_metadata)
+            target_id = self._ensure_node(nodes, rel.object, enriched_metadata)
             edges.append(
                 GraphEdge(
                     source=source_id,
                     target=target_id,
                     type=rel.relationship,
                     metadata=document.metadata or {},
-                    source_document_id=document.metadata.get("id")
-                    if document.metadata
-                    else None,
+                    source_document_id=(
+                        document.metadata.get("id") if document.metadata else None
+                    ),
                 )
             )
         return edges
@@ -354,18 +379,48 @@ class EntityExtractionService(BaseEntityExtractor):
     ) -> str:
         mention_payload = self._build_mention_payload(metadata)
         for node in nodes:
-            if node.name == name:
+            # Match on label (preferred) or name for backwards compatibility
+            node_name = node.label or node.name
+            if node_name == name:
                 if mention_payload:
-                    node.metadata.setdefault("mentions", []).append(mention_payload)
+                    if node.properties:
+                        node.properties.setdefault("mentions", []).append(
+                            mention_payload
+                        )
+                    else:
+                        node.properties = {"mentions": [mention_payload]}
                 return node.id
-        node_metadata: Dict[str, Any] = {}
+
+        # Build properties dict with entity text, context, and vector references
+        properties: Dict[str, Any] = {
+            "name": name,
+            "text": name,
+            "embedding_source": "chunk",
+        }
+
+        # Copy all document metadata into properties
+        if metadata:
+            properties.update(metadata)
+
+            # Add context from page_content if available (not in metadata typically)
+            # Note: context will be added by caller via document.page_content reference
+
+            # Extract vector references if available
+            if "chunk_id" in metadata:
+                properties["chunk_id"] = metadata["chunk_id"]
+            if "vector_id" in metadata:
+                properties["vector_id"] = metadata["vector_id"]
+            if "embedding_timestamp" in metadata:
+                properties["timestamp"] = metadata["embedding_timestamp"]
+
         if mention_payload:
-            node_metadata["mentions"] = [mention_payload]
+            properties["mentions"] = [mention_payload]
+
         node = GraphNode(
             id=f"llm-{uuid.uuid4().hex}",
             type="ENTITY",
-            name=name,
-            metadata=node_metadata,
+            label=name,  # Store entity text as label
+            properties=properties,
         )
         nodes.append(node)
         return node.id

@@ -184,6 +184,10 @@ retriever:
     include_edges: true
     traversal_strategy: "bfs"  # Options: "bfs" (breadth-first), "dfs" (depth-first)
     min_score: 0.0
+    prebuild_index: false  # Whether to build FAISS index during ingestion (vs lazy on first query)
+    hybrid_alpha: 1.0  # Weight for embedding similarity vs BM25 lexical matching (1.0 = embedding only)
+    enable_fallback: true  # If true, fall back to fuzzy matching when embedding search fails
+    log_fallback_warnings: true  # If true, log warnings when fallback mechanisms are used
   
   # Hybrid combination settings
   hybrid:
