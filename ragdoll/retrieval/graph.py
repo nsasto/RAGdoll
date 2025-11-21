@@ -24,13 +24,13 @@ class GraphRetriever(BaseRetriever):
 
     Args:
         graph_store: Graph persistence service instance
+        vector_store: Optional vector store for embedding retrieval
+        embedding_model: Optional embedding model for query encoding
         top_k: Maximum number of seed nodes to start from
         max_hops: Maximum traversal depth from seed nodes
         traversal_strategy: "bfs" (breadth-first) or "dfs" (depth-first)
         include_edges: Whether to include relationship information
         min_score: Minimum relevance score for seed nodes (0-1)
-        vector_store: Optional vector store for embedding retrieval
-        embedding_model: Optional embedding model for query encoding
         prebuild_index: Whether to build FAISS index during initialization
         hybrid_alpha: Weight for embedding similarity (1.0 = embedding only)
         enable_fallback: If True, fall back to fuzzy matching when embeddings unavailable
@@ -40,13 +40,13 @@ class GraphRetriever(BaseRetriever):
     def __init__(
         self,
         graph_store,
+        vector_store=None,
+        embedding_model=None,
         top_k: int = 5,
         max_hops: int = 2,
         traversal_strategy: str = "bfs",
         include_edges: bool = True,
         min_score: float = 0.0,
-        vector_store=None,
-        embedding_model=None,
         prebuild_index: bool = False,
         hybrid_alpha: float = 1.0,
         enable_fallback: bool = True,

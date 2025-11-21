@@ -516,3 +516,84 @@ class GraphStoreWrapper:
         except Exception as e:
             logger.error(f"Error loading from NetworkX: {e}")
             return None
+
+    def nodes(self, data=False):
+        """
+        Delegate to underlying NetworkX graph's nodes() method.
+
+        Args:
+            data: If True, return node attributes as well
+
+        Returns:
+            NodeView or NodeDataView from NetworkX
+        """
+        if self.store_type == "networkx" and hasattr(self.store, "nodes"):
+            return self.store.nodes(data=data)
+        else:
+            raise NotImplementedError(f"nodes() not available for {self.store_type}")
+
+    def neighbors(self, node_id):
+        """
+        Delegate to underlying NetworkX graph's neighbors() method.
+
+        Args:
+            node_id: The node ID to get neighbors for
+
+        Returns:
+            Iterator of neighbor nodes
+        """
+        if self.store_type == "networkx" and hasattr(self.store, "neighbors"):
+            return self.store.neighbors(node_id)
+        else:
+            raise NotImplementedError(
+                f"neighbors() not available for {self.store_type}"
+            )
+
+    def get_edge_data(self, source, target):
+        """
+        Delegate to underlying NetworkX graph's get_edge_data() method.
+
+        Args:
+            source: Source node ID
+            target: Target node ID
+
+        Returns:
+            Edge data dictionary or None
+        """
+        if self.store_type == "networkx" and hasattr(self.store, "get_edge_data"):
+            return self.store.get_edge_data(source, target)
+        else:
+            raise NotImplementedError(
+                f"get_edge_data() not available for {self.store_type}"
+            )
+
+    def number_of_edges(self):
+        """
+        Delegate to underlying NetworkX graph's number_of_edges() method.
+
+        Returns:
+            Number of edges in the graph
+        """
+        if self.store_type == "networkx" and hasattr(self.store, "number_of_edges"):
+            return self.store.number_of_edges()
+        else:
+            raise NotImplementedError(
+                f"number_of_edges() not available for {self.store_type}"
+            )
+
+    def __contains__(self, node_id):
+        """
+        Check if a node exists in the graph (for NetworkX compatibility).
+
+        Args:
+            node_id: The node ID to check
+
+        Returns:
+            True if node exists, False otherwise
+        """
+        if self.store_type == "networkx":
+            return node_id in self.store
+        else:
+            raise NotImplementedError(
+                f"__contains__ not available for {self.store_type}"
+            )

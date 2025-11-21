@@ -393,6 +393,10 @@ class IngestionPipeline:
     def get_graph_store(self):
         return self.graph_store
 
+    def get_vector_store(self):
+        """Get the vector store used by this pipeline."""
+        return self.vector_store
+
     def _persist_graph_to_store(self, graph: Optional[Graph]) -> None:
         if not graph or not self.graph_store:
             return
@@ -500,7 +504,88 @@ async def ingest_documents(
         "graph": getattr(pipeline, "last_graph", None),
         "graph_retriever": pipeline.get_graph_retriever(),
         "graph_store": pipeline.get_graph_store(),
+        "vector_store": pipeline.get_vector_store(),
     }
 
 
-__all__ = ["IngestionPipeline", "IngestionOptions", "ingest_documents"]
+async def ingest_from_vector_store(
+    vector_store,
+    embedding_model=None,
+    options: Optional[IngestionOptions] = None,
+    app_config=None,
+) -> Dict[str, Any]:
+    """
+    Extract entities from an existing vector store and create a knowledge graph.
+
+    This is useful when you already have a populated vector store and want to
+    add graph capabilities without re-ingesting documents. The graph nodes will
+    have vector_id references that match the vector store's document IDs.
+
+    Args:
+        vector_store: Existing vector store with documents
+        embedding_model: Embedding model for graph retriever (optional)
+        options: Ingestion options (only entity extraction options used)
+        app_config: Application configuration
+
+    Returns:
+        Dictionary with graph, graph_store, graph_retriever, vector_store, and stats
+    """
+    from ragdoll.app_config import bootstrap_app
+    from ragdoll.entity_extraction import EntityExtractionService
+    from ragdoll.graph_stores import get_graph_store
+    from ragdoll.retrieval import GraphRetriever
+
+    if not vector_store:
+        raise ValueError("Vector store is required")
+
+    options = options or IngestionOptions()
+    app_config = app_config or bootstrap_app()
+
+    # Initialize entity extractor
+    entity_extractor = EntityExtractionService(
+        llm_caller=options.llm_caller,
+        config=options.entity_extraction_options,
+        chunk_documents=False,  # Documents already chunked in vector store
+        app_config=app_config,
+    )
+
+    # Extract entities from vector store
+    graph = await entity_extractor.extract_from_vector_store(
+        vector_store=vector_store, batch_size=options.batch_size, include_metadata=True
+    )
+
+    # Create graph store
+    graph_store = None
+    if graph and (graph.nodes or graph.edges):
+        graph_store_config = options.graph_store_options or {}
+        graph_store = get_graph_store(graph=graph, **graph_store_config)
+
+    # Create graph retriever
+    graph_retriever = None
+    if graph_store and embedding_model:
+        graph_retriever = GraphRetriever(
+            graph_store=graph_store,
+            vector_store=vector_store,
+            embedding_model=embedding_model,
+            top_k=5,
+            max_hops=2,
+        )
+
+    return {
+        "graph": graph,
+        "graph_store": graph_store,
+        "graph_retriever": graph_retriever,
+        "vector_store": vector_store,
+        "stats": {
+            "entities_extracted": len(graph.nodes) if graph else 0,
+            "relationships_extracted": len(graph.edges) if graph else 0,
+        },
+    }
+
+
+__all__ = [
+    "IngestionPipeline",
+    "IngestionOptions",
+    "ingest_documents",
+    "ingest_from_vector_store",
+]

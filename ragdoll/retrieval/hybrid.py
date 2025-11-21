@@ -4,16 +4,26 @@ Hybrid Retriever
 Combines vector and graph retrieval strategies for enhanced RAG.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
+
 from ragdoll.retrieval.base import BaseRetriever
 from ragdoll.retrieval.vector import VectorRetriever
 from ragdoll.retrieval.graph import GraphRetriever
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class HybridRetriever(BaseRetriever):
     """
     Hybrid retriever combining vector similarity and graph traversal.
+
+    Can be instantiated either with pre-configured retrievers OR directly with stores
+    for simpler usage.
 
     Supports multiple combination strategies:
     - concat: Concatenate vector and graph results
@@ -22,25 +32,126 @@ class HybridRetriever(BaseRetriever):
     - expand: Use vector results to seed graph expansion
 
     Args:
-        vector_retriever: VectorRetriever instance
-        graph_retriever: Optional GraphRetriever instance
+        # Option 1: Pass pre-configured retrievers (advanced usage)
+        vector_retriever: Pre-configured VectorRetriever instance
+        graph_retriever: Pre-configured GraphRetriever instance
+
+        # Option 2: Pass stores directly (recommended for most use cases)
+        vector_store: Vector store for semantic search
+        graph_store: Graph store for entity/relationship traversal
+        embedding_model: Embedding model for query encoding (required with stores)
+
+        # Shared configuration
         mode: Combination strategy ("concat", "rerank", "weighted", "expand")
         vector_weight: Weight for vector results (0-1) in weighted mode
         graph_weight: Weight for graph results (0-1) in weighted mode
+        top_k: Number of results to retrieve per retriever
         deduplicate: Whether to remove duplicate documents
+
+        # Graph-specific options (when instantiating from stores)
+        max_hops: Maximum graph traversal depth
+        traversal_strategy: Graph traversal algorithm ("bfs" or "dfs")
+        enable_fallback: Enable fuzzy matching fallback for graph retrieval
+
+        # Vector-specific options (when instantiating from stores)
+        search_type: Vector search type ("similarity", "mmr", etc.)
+        search_kwargs: Additional search parameters
     """
 
     def __init__(
         self,
-        vector_retriever: VectorRetriever,
+        # Option 1: Pre-configured retrievers
+        vector_retriever: Optional[VectorRetriever] = None,
         graph_retriever: Optional[GraphRetriever] = None,
-        mode: str = "concat",
+        # Option 2: Direct store instantiation (recommended)
+        vector_store: Optional[VectorStore] = None,
+        graph_store: Optional[Any] = None,  # GraphStoreWrapper type
+        embedding_model: Optional[Embeddings] = None,
+        # Shared configuration
+        mode: Literal["concat", "rerank", "weighted", "expand"] = "concat",
         vector_weight: float = 0.6,
         graph_weight: float = 0.4,
+        top_k: int = 5,
         deduplicate: bool = True,
+        # Graph-specific options
+        max_hops: int = 2,
+        traversal_strategy: Literal["bfs", "dfs"] = "bfs",
+        enable_fallback: bool = True,
+        log_fallback_warnings: bool = True,
+        # Vector-specific options
+        search_type: str = "similarity",
+        search_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self.vector_retriever = vector_retriever
-        self.graph_retriever = graph_retriever
+        """
+        Initialize hybrid retriever with either pre-configured retrievers or stores.
+
+        Raises:
+            ValueError: If both retrievers and stores are provided, or neither are provided
+        """
+        super().__init__()
+
+        # Validate initialization options
+        has_retrievers = vector_retriever is not None or graph_retriever is not None
+        has_stores = vector_store is not None or graph_store is not None
+
+        if has_retrievers and has_stores:
+            raise ValueError(
+                "Provide either (vector_retriever, graph_retriever) OR "
+                "(vector_store, graph_store, embedding_model), not both"
+            )
+
+        if not has_retrievers and not has_stores:
+            raise ValueError(
+                "Must provide either pre-configured retrievers or stores. "
+                "For simple usage, pass vector_store, graph_store, and embedding_model."
+            )
+
+        # Option 1: Use provided retrievers (advanced usage)
+        if has_retrievers:
+            self.vector_retriever = vector_retriever
+            self.graph_retriever = graph_retriever
+            logger.info("Initialized HybridRetriever with pre-configured retrievers")
+
+        # Option 2: Create retrievers from stores (recommended)
+        else:
+            if vector_store and not embedding_model:
+                logger.warning(
+                    "Vector store provided without embedding_model. "
+                    "Vector retrieval may not work correctly."
+                )
+
+            self.vector_retriever = (
+                VectorRetriever(
+                    vector_store=vector_store,
+                    top_k=top_k,
+                    search_type=search_type,
+                    search_kwargs=search_kwargs or {},
+                )
+                if vector_store
+                else None
+            )
+
+            self.graph_retriever = (
+                GraphRetriever(
+                    graph_store=graph_store,
+                    vector_store=vector_store,  # For embedding-based seed search
+                    embedding_model=embedding_model,
+                    top_k=top_k,
+                    max_hops=max_hops,
+                    traversal_strategy=traversal_strategy,
+                    enable_fallback=enable_fallback,
+                    log_fallback_warnings=log_fallback_warnings,
+                )
+                if graph_store
+                else None
+            )
+
+            logger.info(
+                f"Initialized HybridRetriever from stores: "
+                f"vector={'present' if self.vector_retriever else 'none'}, "
+                f"graph={'present' if self.graph_retriever else 'none'}"
+            )
+
         self.mode = mode.lower()
         self.vector_weight = vector_weight
         self.graph_weight = graph_weight
@@ -53,6 +164,10 @@ class HybridRetriever(BaseRetriever):
                 # Normalize weights
                 self.vector_weight = self.vector_weight / total
                 self.graph_weight = self.graph_weight / total
+                logger.debug(
+                    f"Normalized weights to vector={self.vector_weight:.2f}, "
+                    f"graph={self.graph_weight:.2f}"
+                )
 
     def get_relevant_documents(self, query: str, **kwargs) -> List[Document]:
         """

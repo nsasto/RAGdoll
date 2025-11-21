@@ -160,6 +160,155 @@ class EntityExtractionService(BaseEntityExtractor):
         await self._store_graph(graph)
         return graph
 
+    async def extract_from_vector_store(
+        self,
+        vector_store,
+        batch_size: int = 10,
+        include_metadata: bool = True,
+        llm_override: Optional[Union[BaseLanguageModel, BaseLLMCaller]] = None,
+    ) -> Graph:
+        """
+        Extract entities directly from documents in a vector store.
+
+        This ensures graph nodes have valid vector_id references that match
+        the vector store's document IDs, eliminating ID mismatch issues.
+
+        Args:
+            vector_store: Vector store containing documents to process
+            batch_size: Number of documents to process at once
+            include_metadata: Whether to include document metadata in node properties
+            llm_override: Optional LLM override for relationship extraction
+
+        Returns:
+            Graph with entities and relationships, nodes contain vector_id references
+        """
+        if not vector_store:
+            raise ValueError("Vector store is required for this extraction method")
+
+        logger.info("Extracting entities from vector store")
+
+        # Get all documents from the vector store with their IDs
+        all_docs = []
+
+        # Unwrap if using BaseVectorStore wrapper
+        actual_store = getattr(vector_store, "_store", vector_store)
+        if hasattr(vector_store, "store"):
+            actual_store = vector_store.store
+
+        try:
+            # For Chroma (most common)
+            if hasattr(actual_store, "_collection"):
+                results = actual_store._collection.get()
+                doc_ids = results.get("ids", [])
+                doc_texts = results.get("documents", [])
+                doc_metadatas = results.get("metadatas", [])
+
+                for doc_id, text, metadata in zip(
+                    doc_ids, doc_texts, doc_metadatas or [{}] * len(doc_ids)
+                ):
+                    if text:  # Only process non-empty documents
+                        full_metadata = {**(metadata or {}), "vector_id": doc_id}
+                        doc = Document(
+                            page_content=text,
+                            metadata=(
+                                full_metadata
+                                if include_metadata
+                                else {"vector_id": doc_id}
+                            ),
+                        )
+                        all_docs.append(doc)
+
+                logger.info(
+                    f"Retrieved {len(all_docs)} documents from Chroma vector store"
+                )
+
+            # For FAISS
+            elif hasattr(actual_store, "docstore") and hasattr(
+                actual_store, "index_to_docstore_id"
+            ):
+                for idx, doc_id in actual_store.index_to_docstore_id.items():
+                    doc = actual_store.docstore.search(doc_id)
+                    if doc and hasattr(doc, "page_content"):
+                        doc.metadata = {**(doc.metadata or {}), "vector_id": doc_id}
+                        if not include_metadata:
+                            doc.metadata = {"vector_id": doc_id}
+                        all_docs.append(doc)
+
+                logger.info(
+                    f"Retrieved {len(all_docs)} documents from FAISS vector store"
+                )
+
+            # Generic fallback
+            else:
+                logger.warning(
+                    f"Vector store type not recognized ({type(actual_store).__name__}), attempting generic retrieval"
+                )
+                try:
+                    all_docs = vector_store.similarity_search("", k=10000)
+                    logger.warning(
+                        f"Retrieved {len(all_docs)} via similarity search (vector_ids may not be set)"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to retrieve documents: {e}")
+                    return Graph(nodes=[], edges=[])
+
+        except Exception as e:
+            logger.error(f"Error retrieving documents from vector store: {e}")
+            return Graph(nodes=[], edges=[])
+
+        if not all_docs:
+            logger.warning("No documents found in vector store")
+            return Graph(nodes=[], edges=[])
+
+        logger.info(f"Processing {len(all_docs)} documents for entity extraction")
+
+        # Process in batches
+        all_nodes = []
+        all_edges = []
+
+        for i in range(0, len(all_docs), batch_size):
+            batch = all_docs[i : i + batch_size]
+            logger.info(
+                f"Processing batch {i//batch_size + 1}/{(len(all_docs) + batch_size - 1)//batch_size}"
+            )
+
+            # Extract entities from this batch (reuse existing logic)
+            batch_graph = await self.extract(batch, llm_override=llm_override)
+            all_nodes.extend(batch_graph.nodes)
+            all_edges.extend(batch_graph.edges)
+
+        # Deduplicate
+        unique_nodes = self._deduplicate_nodes(all_nodes)
+        unique_edges = self._deduplicate_edges(all_edges)
+
+        final_graph = Graph(nodes=unique_nodes, edges=unique_edges)
+        logger.info(
+            f"Extraction complete: {len(unique_nodes)} nodes, {len(unique_edges)} edges"
+        )
+
+        return final_graph
+
+    def _deduplicate_nodes(self, nodes: List[GraphNode]) -> List[GraphNode]:
+        """Deduplicate nodes by ID, keeping the first occurrence."""
+        seen = set()
+        unique = []
+        for node in nodes:
+            if node.id not in seen:
+                seen.add(node.id)
+                unique.append(node)
+        return unique
+
+    def _deduplicate_edges(self, edges: List[GraphEdge]) -> List[GraphEdge]:
+        """Deduplicate edges by (source, target, type) tuple."""
+        seen = set()
+        unique = []
+        for edge in edges:
+            key = (edge.source, edge.target, edge.type)
+            if key not in seen:
+                seen.add(key)
+                unique.append(edge)
+        return unique
+
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
