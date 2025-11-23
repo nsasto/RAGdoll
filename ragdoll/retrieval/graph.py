@@ -218,26 +218,46 @@ class GraphRetriever(BaseRetriever):
         try:
             import faiss
 
-            distances, indices = self._embedding_index.search(
-                query_vector, min(top_k, len(self._index_to_node_id))
-            )
+            # Request more results from FAISS since we'll expand to multiple nodes per embedding
+            # This ensures we get top_k unique embeddings, which may map to more nodes
+            search_k = min(top_k * 2, len(self._index_to_node_ids))
+            distances, indices = self._embedding_index.search(query_vector, search_k)
 
             # Convert FAISS results to (node_id, score) tuples
             # FAISS returns L2 distances, convert to similarity scores
             seed_nodes = []
+            seen_indices = set()
+
             for dist, idx in zip(distances[0], indices[0]):
-                if idx < 0 or idx >= len(self._index_to_node_id):
+                if idx < 0 or idx >= len(self._index_to_node_ids):
                     continue
 
-                node_id = self._index_to_node_id[idx]
+                # Skip if we've already processed this embedding (deduplication)
+                if idx in seen_indices:
+                    continue
+                seen_indices.add(idx)
+
                 # Convert L2 distance to similarity score (higher is better)
                 # Use exponential decay: score = exp(-distance)
                 similarity_score = np.exp(-dist)
 
                 if similarity_score >= self.min_score:
-                    seed_nodes.append((node_id, float(similarity_score)))
+                    # Get all nodes that share this embedding
+                    node_ids = self._index_to_node_ids[idx]
+                    # Add all nodes with the same score
+                    for node_id in node_ids:
+                        seed_nodes.append((node_id, float(similarity_score)))
 
-            logger.debug(f"Found {len(seed_nodes)} seed nodes via embedding similarity")
+                # Stop once we have enough seed nodes
+                if len(seed_nodes) >= top_k:
+                    break
+
+            # Trim to top_k if we got too many
+            seed_nodes = seed_nodes[:top_k]
+
+            logger.debug(
+                f"Found {len(seed_nodes)} seed nodes from {len(seen_indices)} unique embeddings via similarity search"
+            )
             return seed_nodes
 
         except Exception as e:
@@ -376,8 +396,8 @@ class GraphRetriever(BaseRetriever):
         adapter = VectorStoreAdapter(self.vector_store)
 
         # Collect vector_ids from node properties
-        vector_ids = []
-        node_ids = []
+        # Track which nodes map to which vector_ids (many nodes can share one vector_id)
+        vector_id_to_nodes = {}  # Maps vector_id -> list of node_ids
 
         for node_id, node_data in nodes.items():
             vector_id = None
@@ -389,10 +409,11 @@ class GraphRetriever(BaseRetriever):
                 vector_id = node_data["vector_id"]
 
             if vector_id:
-                vector_ids.append(vector_id)
-                node_ids.append(node_id)
+                if vector_id not in vector_id_to_nodes:
+                    vector_id_to_nodes[vector_id] = []
+                vector_id_to_nodes[vector_id].append(node_id)
 
-        if not vector_ids:
+        if not vector_id_to_nodes:
             self._orphaned_nodes_count = len(nodes)
             if self.log_fallback_warnings:
                 logger.warning(
@@ -401,31 +422,54 @@ class GraphRetriever(BaseRetriever):
                 )
             return
 
-        # Fetch embeddings from vector store
-        logger.debug(f"Fetching embeddings for {len(vector_ids)} nodes")
-        embeddings_dict = adapter.get_embeddings_by_ids(vector_ids)
+        # Get unique vector_ids for fetching embeddings (deduplicated)
+        unique_vector_ids = list(vector_id_to_nodes.keys())
+        total_nodes = sum(len(node_list) for node_list in vector_id_to_nodes.values())
+
+        # Fetch embeddings from vector store (deduplicated IDs)
+        logger.info(
+            f"Attempting to fetch embeddings for {total_nodes} nodes "
+            f"({len(unique_vector_ids)} unique vector_ids) from vector store"
+        )
+        logger.debug(f"Sample vector_ids: {unique_vector_ids[:5]}")
+        embeddings_dict = adapter.get_embeddings_by_ids(unique_vector_ids)
 
         if not embeddings_dict:
-            logger.warning("Failed to retrieve any embeddings from vector store")
+            logger.warning(
+                f"Failed to retrieve any embeddings from vector store (requested {len(unique_vector_ids)} unique IDs)"
+            )
+            logger.debug(
+                f"Vector store type: {type(self.vector_store)}, Adapter backend: {adapter._backend}"
+            )
             return
 
         # Build index mapping and embedding matrix
+        # Multiple nodes can share the same embedding (from same document chunk)
         embeddings_list = []
         self._node_id_to_index = {}
-        self._index_to_node_id = {}
+        self._index_to_node_ids = (
+            {}
+        )  # Maps index -> list of all node_ids with that embedding
         orphaned_count = 0
 
-        for idx, (node_id, vector_id) in enumerate(zip(node_ids, vector_ids)):
+        for vector_id, node_list in vector_id_to_nodes.items():
             if vector_id in embeddings_dict:
                 embedding = embeddings_dict[vector_id]
+                # Add this embedding once to the list
+                embedding_index = len(embeddings_list)
                 embeddings_list.append(embedding)
-                self._node_id_to_index[node_id] = idx
-                self._index_to_node_id[idx] = node_id
-            else:
-                orphaned_count += 1
 
-        # Track orphaned nodes (nodes with vector_id but no embedding retrieved)
-        self._orphaned_nodes_count = orphaned_count + (len(nodes) - len(node_ids))
+                # All nodes with this vector_id map to the same embedding index
+                for node_id in node_list:
+                    self._node_id_to_index[node_id] = embedding_index
+                # Store all node_ids that share this embedding
+                self._index_to_node_ids[embedding_index] = node_list
+            else:
+                orphaned_count += len(
+                    node_list
+                )  # Track orphaned nodes (nodes with vector_id but no embedding retrieved)
+        # All nodes are accounted for in vector_id_to_nodes
+        self._orphaned_nodes_count = orphaned_count
 
         if self._orphaned_nodes_count > 0 and self.log_fallback_warnings:
             logger.debug(
@@ -446,9 +490,10 @@ class GraphRetriever(BaseRetriever):
         self._embedding_index = faiss.IndexFlatL2(self._embedding_dimension)
         self._embedding_index.add(embeddings_matrix)
 
+        indexed_nodes = len(self._node_id_to_index)
         logger.info(
-            f"Built FAISS index with {len(embeddings_list)} node embeddings "
-            f"(dimension={self._embedding_dimension})"
+            f"Built FAISS index with {len(embeddings_list)} unique embeddings "
+            f"covering {indexed_nodes} nodes (dimension={self._embedding_dimension})"
         )
 
     def _score_node(
@@ -724,7 +769,11 @@ class GraphRetriever(BaseRetriever):
         if hasattr(self.graph_store, "get_node"):
             return self.graph_store.get_node(node_id)
         elif hasattr(self.graph_store, "nodes") and node_id in self.graph_store:
-            return dict(self.graph_store.nodes[node_id])
+            # For GraphStoreWrapper, access the underlying store
+            if hasattr(self.graph_store, "store"):
+                return dict(self.graph_store.store.nodes[node_id])
+            else:
+                return dict(self.graph_store.nodes[node_id])
         else:
             return None
 

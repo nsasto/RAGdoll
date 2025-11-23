@@ -111,14 +111,30 @@ class VectorStoreAdapter:
             # Chroma's get() method with include embeddings
             if hasattr(store, "_collection"):
                 collection = store._collection
+                results = collection.get(ids=vector_ids, include=["embeddings"])
             elif hasattr(store, "get"):
                 # Direct Chroma store access
                 results = store.get(ids=vector_ids, include=["embeddings"])
-                embeddings_dict = {}
+            else:
+                logger.warning(
+                    "Chroma backend detected but cannot access .get() or ._collection"
+                )
+                return {}
 
-                if results and "embeddings" in results and results["embeddings"]:
-                    for i, vec_id in enumerate(results.get("ids", [])):
-                        embedding = np.array(results["embeddings"][i])
+            # Process results
+            embeddings_dict = {}
+            if results and "embeddings" in results:
+                embeddings_data = results.get("embeddings")
+                ids_data = results.get("ids", [])
+
+                # Check if embeddings exist (handle numpy arrays properly)
+                has_embeddings = (
+                    embeddings_data is not None and len(embeddings_data) > 0
+                )
+
+                if has_embeddings:
+                    for i, vec_id in enumerate(ids_data):
+                        embedding = np.array(embeddings_data[i])
 
                         if validate_dimension and expected_dimension:
                             if len(embedding) != expected_dimension:
@@ -129,13 +145,21 @@ class VectorStoreAdapter:
                                 continue
 
                         embeddings_dict[vec_id] = embedding
-
-                return embeddings_dict
+                else:
+                    logger.warning(
+                        f"Chroma get() returned no embeddings data. Results: {results is not None}, "
+                        f"has 'embeddings' key: {'embeddings' in results if results else False}"
+                    )
             else:
                 logger.warning(
-                    "Chroma backend detected but cannot access .get() method"
+                    "Chroma get() returned empty results or missing embeddings key"
                 )
-                return {}
+
+            logger.info(
+                f"Retrieved {len(embeddings_dict)}/{len(vector_ids)} embeddings from Chroma"
+            )
+            return embeddings_dict
+
         except Exception as e:
             logger.error(f"Error retrieving Chroma embeddings: {e}")
             return {}
