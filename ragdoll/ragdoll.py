@@ -97,22 +97,51 @@ class Ragdoll:
             self.vector_store.add_documents(documents)
         return documents
 
-    def query(self, question: str, *, k: int = 4, use_hybrid: bool = False) -> dict:
+    def query(
+        self,
+        question: str,
+        *,
+        k: int = 4,
+        use_hybrid: bool = False,
+        retriever_mode: str = "vector",
+    ) -> dict:
         """
         Retrieve context from the vector store, optionally call the configured LLM,
         and return both the answer (if available) and the supporting documents.
+
+        Args:
+            question: The question to answer
+            k: Number of documents to retrieve
+            use_hybrid: Legacy flag for hybrid retrieval (deprecated, use retriever_mode)
+            retriever_mode: One of "vector", "graph", or "hybrid"
         """
-        if use_hybrid and self.hybrid_retriever:
+        # Select retriever based on mode
+        if retriever_mode == "graph" and self.graph_retriever:
+            hits = self.graph_retriever.get_relevant_documents(question, top_k=k)
+            retriever_used = "graph"
+        elif retriever_mode == "hybrid" and self.hybrid_retriever:
             hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
+            retriever_used = "hybrid"
+        elif use_hybrid and self.hybrid_retriever:
+            # Legacy support for use_hybrid flag
+            hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
+            retriever_used = "hybrid"
         else:
+            # Default to vector retrieval
             hits = self.vector_store.similarity_search(question, k=k)
+            retriever_used = "vector"
 
         answer = None
         if self.llm_caller and hits:
             prompt = self._build_prompt(question, hits)
             answer = self._call_llm(prompt)
 
-        return {"answer": answer, "documents": hits}
+        return {
+            "answer": answer,
+            "documents": hits,
+            "retriever_used": retriever_used,
+            "num_documents": len(hits),
+        }
 
     def query_hybrid(self, question: str, *, k: int = 10) -> dict:
         """

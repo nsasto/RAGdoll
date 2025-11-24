@@ -10,53 +10,43 @@
       <p class="text-sm font-semibold text-gray-800 mb-1">RAG Engine</p>
       <p class="text-sm break-words whitespace-pre-wrap">{{ answer }}</p>
       <p class="text-[11px] text-gray-500 mt-2">
+        Retriever: {{ retriever_used or "vector" }} ·
+        Documents: {{ num_documents or 0 }} ·
         Sources: {{ (sources_used or []) | join(", ") or "none" }} ·
         Response time: {{ response_time or 0 }}s · LLM: {{ "yes" if used_llm else "no" }}
       </p>
     </div>
   </div>
-  {% set vector_hits = vector_hits_raw or vector_docs %}
-  {% set graph_hits = graph_hits_raw or graph_docs %}
-  <details class="bg-white border border-gray-200 rounded-2xl p-3 text-xs text-gray-600" {% if vector_hits or graph_hits %}open{% endif %}>
+  <details class="bg-white border border-gray-200 rounded-2xl p-3 text-xs text-gray-600" {% if documents %}open{% endif
+    %}>
     <summary class="cursor-pointer font-semibold text-gray-800">
-      Show Retrieval Trace (Context Used)
+      Show Retrieved Documents ({{ num_documents or 0 }} total)
     </summary>
     <div class="mt-2 space-y-2">
-      {% if vector_hits %}
+      {% if documents %}
       <div>
-        <p class="font-semibold text-gray-700">Vector hits</p>
+        <p class="font-semibold text-gray-700">Retrieved from: {{ retriever_used or "vector" }} retriever</p>
         <ul class="list-disc pl-4 space-y-1">
-          {% for doc in vector_hits %}
+          {% for doc in documents %}
           <li>
-            {{ (doc.content or "")[:220] }}
+            <span class="break-words">{{ (doc.page_content or "")[:300] }}{% if (doc.page_content or "")|length > 300
+              %}...{% endif %}</span>
             {% if doc.metadata %}
-            <span class="text-[10px] text-gray-400">(source: {{ doc.metadata.get("source") or "unknown" }})</span>
+            <div class="text-[10px] text-gray-400 mt-1">
+              Source: {{ doc.metadata.get("source") or "unknown" }}
+              {% if doc.metadata.get("page") %} | Page: {{ doc.metadata.get("page") }}{% endif %}
+              {% if doc.metadata.get("hop_distance") is not none %} | Hops: {{ doc.metadata.get("hop_distance") }}{%
+              endif %}
+              {% if doc.metadata.get("node_id") %} | Node: {{ doc.metadata.get("node_id") }}{% endif %}
+            </div>
             {% endif %}
           </li>
           {% endfor %}
         </ul>
       </div>
-      {% endif %}
-      {% if graph_hits %}
-      <div>
-        <p class="font-semibold text-gray-700">Graph hits</p>
-        <ul class="list-disc pl-4 space-y-1">
-          {% for doc in graph_hits %}
-          <li>
-            {{ (doc.content or "")[:220] }}
-            {% if doc.metadata %}
-            <span class="text-[10px] text-gray-400">
-              (type: {{ doc.metadata.get("node_type") or "node" }}, id: {{ doc.metadata.get("node_id") or "n/a" }}
-              {% if doc.metadata.get("connected_to") %} | neighbors: {{ doc.metadata.get("connected_to") | join(", ") }}{% endif %})
-            </span>
-            {% endif %}
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-      {% if not vector_hits and not graph_hits %}
-      <p class="text-gray-400">No retrieval context available. Run ingestion first.</p>
+      {% else %}
+      <p class="text-gray-400">No retrieval context available. Run ingestion first or check if documents were indexed.
+      </p>
       {% endif %}
     </div>
   </details>

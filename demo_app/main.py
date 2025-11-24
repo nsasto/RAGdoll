@@ -656,7 +656,9 @@ async def populate_graph(request: Request) -> HTMLResponse:
 
 
 @app.post("/chat", response_class=HTMLResponse)
-async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
+async def chat(
+    request: Request, question: str = Form(...), retriever: str = Form("hybrid")
+) -> HTMLResponse:
     try:
         app_state = get_app_state()
         ragdoll = app_state.ragdoll
@@ -665,7 +667,8 @@ async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
                 "Ragdoll instance not initialized. Please ingest data first."
             )
 
-        result = ragdoll.query(question)
+        # Use the selected retriever mode
+        result = ragdoll.query(question, retriever_mode=retriever)
 
     except ValueError as exc:
         return templates.TemplateResponse(
@@ -674,7 +677,7 @@ async def chat(request: Request, question: str = Form(...)) -> HTMLResponse:
             status_code=400,
         )
 
-    context = {"request": request, **result}
+    context = {"request": request, "question": question, **result}
     return templates.TemplateResponse("partials/chat_response.html", context)
 
 
