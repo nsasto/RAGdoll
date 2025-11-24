@@ -112,20 +112,30 @@ docs = vector_retriever.get_relevant_documents("query")
 
 ### GraphRetriever
 
-Multi-hop graph traversal with BFS/DFS strategies:
+Multi-hop graph traversal with BFS/DFS strategies and embedding-based seed search:
 
 ```python
 from ragdoll import GraphRetriever
 
 graph_retriever = GraphRetriever(
     graph_store=graph_store,
+    vector_store=vector_store,  # Optional: enables embedding-based seed search
+    embedding_model=embedding_model,  # Optional: required if vector_store provided
     top_k=5,
     max_hops=2,
     traversal_strategy="bfs",  # or "dfs"
-    include_edges=True
+    include_edges=True,
+    seed_strategy="embedding"  # or "fuzzy" for text-based matching
 )
 docs = graph_retriever.get_relevant_documents("query")
 ```
+
+**Key Features:**
+
+- **Embedding-based seed search**: When configured with `vector_store` and `embedding_model`, GraphRetriever can find seed nodes by embedding similarity rather than fuzzy text matching, significantly improving retrieval accuracy
+- **Automatic deduplication**: Handles multiple entities from the same document chunk that share vector IDs, ensuring efficient queries without duplicates
+- **Flexible seed strategies**: Choose between embedding-based (`seed_strategy="embedding"`) or text-based fuzzy matching (`seed_strategy="fuzzy"`)
+- **Vector store integration**: Seamlessly integrates with any LangChain vector store (Chroma, FAISS) to leverage existing embeddings
 
 ### HybridRetriever
 
@@ -149,16 +159,27 @@ docs = hybrid_retriever.get_relevant_documents("query")
 ```python
 import asyncio
 from ragdoll import Ragdoll
+from ragdoll.pipeline import ingest_from_vector_store
 
 async def main():
     ragdoll = Ragdoll()
 
-    # Ingest documents and build knowledge graph
+    # Method 1: Ingest documents and build knowledge graph in one step
     result = await ragdoll.ingest_with_graph(["path/to/docs/manual.pdf"])
 
     print(result["stats"])        # Ingestion metrics
     print(result["graph"])        # Pydantic Graph object
     print(result["graph_store"])  # NetworkX/Neo4j/JSON graph store
+    print(result["vector_store"]) # Vector store with document embeddings
+
+    # Method 2: Build graph from existing vector store (preserves vector_ids)
+    # This ensures graph nodes reference the same embeddings as the vector store
+    result = await ingest_from_vector_store(
+        vector_store=existing_vector_store,
+        graph_store=graph_store,
+        entity_service=entity_service
+    )
+    graph_retriever = result["graph_retriever"]  # Pre-configured with vector store
 
     # Use the automatically configured hybrid retriever
     answer = ragdoll.query_hybrid("How does the widget fail-safe work?")
@@ -182,6 +203,9 @@ retriever:
     enabled: true
     max_hops: 2
     traversal_strategy: "bfs"
+    seed_strategy: "embedding" # Use embedding-based seed search (recommended)
+    # seed_strategy: "fuzzy"    # Or use text-based fuzzy matching
+    include_edges: true
   hybrid:
     mode: "concat"
     vector_weight: 0.6
@@ -197,6 +221,25 @@ Ragdoll keeps both storage backends under the same orchestration surface:
 - `Ragdoll.ingest_data(...)` (or the lower-level `IngestionPipeline`) always loads documents, chunks them, embeds each chunk, and writes those embeddings into the configured **vector store**.
 - When `entity_extraction.extract_entities` (or `entity_extraction.graph_retriever.enabled`) is true, the same pipeline also fans out chunks to the **entity extraction service**, which generates a graph, persists it through the configured **graph store**, and can return a graph-aware retriever.
 - Both flows are coordinated inside `IngestionPipeline`: it receives the shared `AppConfig`, builds the ingestion service, embedding model, vector store, and optionally graph store, and emits stats/retrievers back through `Ragdoll`.
+
+**Building Graphs from Existing Vector Stores:**
+
+RAGdoll 2.1+ introduces `EntityExtractionService.extract_from_vector_store()` and the corresponding `ingest_from_vector_store()` pipeline function. This allows you to:
+
+- Extract documents directly from an existing vector store (Chroma, FAISS, or any LangChain vector store)
+- Build a knowledge graph that references the **same vector IDs** as the vector store
+- Create a GraphRetriever pre-configured with both the graph store and vector store for embedding-based seed search
+- Avoid vector ID mismatches between graph nodes and vector store documents
+
+This is particularly useful when you want to add graph capabilities to an existing vector store without re-ingesting all documents. The `vector_id` in each graph node's metadata matches the document ID in the vector store, enabling seamless integration between vector and graph retrieval.
+
+**Deduplication Handling:**
+
+Multiple entities extracted from the same document chunk naturally share the same `vector_id`. RAGdoll automatically deduplicates these shared IDs when:
+
+- Building the embedding index (prevents duplicate ID errors from Chroma)
+- Querying by embedding (returns all nodes sharing top embeddings without redundancy)
+- Traversing the graph (standard graph traversal logic)
 
 So even though `ragdoll/vector_stores` and `ragdoll/graph_stores` live in separate packages, their lifecycle is tied together via the pipeline entry points shown above.
 
