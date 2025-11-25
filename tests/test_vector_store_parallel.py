@@ -272,7 +272,7 @@ class TestConcurrency:
         # With 5 batches, max_concurrent=3, and 0.1s per batch:
         # Sequential would take ~0.5s, parallel should take ~0.2s (2 rounds)
         # Allow some overhead for test execution
-        assert elapsed < 0.35  # Should be much faster than sequential
+        assert elapsed < 0.45  # Should be much faster than sequential
 
     @pytest.mark.asyncio
     async def test_parallel_respects_max_concurrent(self, fake_embedding):

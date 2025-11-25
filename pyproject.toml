@@ -58,6 +58,7 @@ dev = [
     "black",
     "isort",
     "flake8",
+    "faiss-cpu>=1.7.0",
 ]
 entity = [
     "spacy>=3.7.0",
