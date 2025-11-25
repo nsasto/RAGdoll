@@ -63,6 +63,10 @@ class EmbeddingsConfig(BaseConfig):
         default=None,
         description="Alias of the default embedding model to use.",
     )
+    max_concurrent_embeddings: int = Field(
+        default=3,
+        description="Maximum number of concurrent embedding batches to process in parallel. Higher values improve throughput with remote embedding services.",
+    )
     models: Dict[str, Dict[str, Any]] = Field(
         default_factory=dict,
         description="Mapping of model aliases to provider-specific parameters.",

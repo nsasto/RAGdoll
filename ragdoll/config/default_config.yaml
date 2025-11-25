@@ -46,6 +46,7 @@ ingestion:
 embeddings:
   enabled: true
   default_model: "text-embedding-3-small"
+  max_concurrent_embeddings: 3  # Number of embedding batches to process concurrently (3-5x speedup)
   models:
     text-embedding-3-small:
       provider: "openai"

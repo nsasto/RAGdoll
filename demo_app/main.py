@@ -533,10 +533,13 @@ async def populate_vector(request: Request) -> HTMLResponse:
             vector_config.store_type, embedding=embedding_model
         )
 
-        # Add documents and CAPTURE vector IDs
-        vector_ids = vector_store.add_documents(chunks)
+        # Add documents in parallel and CAPTURE vector IDs
+        max_concurrent = app_config.config.embeddings_config.max_concurrent_embeddings
+        vector_ids = await vector_store.add_documents_parallel(
+            chunks, batch_size=10, max_concurrent=max_concurrent
+        )
         logger.info(
-            f"Added {len(chunks)} chunks to vector store, got {len(vector_ids)} IDs back"
+            f"Added {len(chunks)} chunks to vector store in parallel, got {len(vector_ids)} IDs back"
         )
 
         # CRITICAL: Write vector_ids back into chunk metadata

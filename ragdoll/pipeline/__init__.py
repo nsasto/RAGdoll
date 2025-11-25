@@ -30,12 +30,16 @@ class IngestionOptions:
     """Options for the ingestion pipeline."""
 
     batch_size: int = 10
-    parallel_extraction: bool = False
+    parallel_extraction: bool = True  # Enabled by default for better performance
     max_workers: int = 4
+    max_concurrent_llm_calls: int = (
+        8  # Number of concurrent LLM calls for entity extraction
+    )
     skip_vector_store: bool = False
     skip_graph_store: bool = False
     extract_entities: bool = True
     collect_metrics: bool = True
+    augment: bool = True  # If True, add to existing stores; if False, replace
 
     # Additional options for sub-components
     chunking_options: Dict[str, Any] = None
@@ -217,7 +221,14 @@ class IngestionPipeline:
         # Always create vector embeddings if entity extraction is enabled
         # This ensures graph nodes can reference embeddings
         if self.vector_store and chunks:
-            vector_ids = self.vector_store.add_documents(chunks)
+            max_concurrent = (
+                self.config_manager.embeddings_config.max_concurrent_embeddings
+            )
+            vector_ids = await self.vector_store.add_documents_parallel(
+                chunks,
+                batch_size=self.options.batch_size,
+                max_concurrent=max_concurrent,
+            )
             self.stats["vector_entries_added"] = len(chunks)
 
             # Store vector IDs and timestamp back into chunk metadata
@@ -248,7 +259,14 @@ class IngestionPipeline:
                 embedding=self.embedding_model,
             )
 
-            vector_ids = self.vector_store.add_documents(chunks)
+            max_concurrent = (
+                self.config_manager.embeddings_config.max_concurrent_embeddings
+            )
+            vector_ids = await self.vector_store.add_documents_parallel(
+                chunks,
+                batch_size=self.options.batch_size,
+                max_concurrent=max_concurrent,
+            )
             self.stats["vector_entries_added"] = len(chunks)
 
             from datetime import datetime, timezone

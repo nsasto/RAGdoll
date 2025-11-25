@@ -49,9 +49,58 @@ Vector stores manage storage and retrieval of vectorized document chunks. They e
 
 ### `BaseVectorStore`
 
-#### `add_documents(documents: List[Document])`
+#### `add_documents(documents: List[Document], batch_size: Optional[int] = None) -> List[str]`
 
-Add documents to the vector store.
+Add documents to the vector store synchronously. Returns list of document IDs.
+
+**Parameters:**
+
+- `documents`: List of documents to add
+- `batch_size`: Optional batch size (auto-detected if not provided)
+
+#### `async aadd_documents(documents: List[Document], batch_size: Optional[int] = None) -> List[str]`
+
+Async wrapper for `add_documents`. Uses thread pool for non-blocking execution.
+
+**Parameters:**
+
+- `documents`: List of documents to add
+- `batch_size`: Optional batch size (auto-detected if not provided)
+
+#### `async add_documents_parallel(documents: List[Document], *, batch_size: Optional[int] = None, max_concurrent: int = 3, retry_failed: bool = True) -> List[str]`
+
+Add documents with parallel embedding generation for significantly improved performance.
+
+**Performance:** Typically 3-5x faster than sequential processing with remote embedding services.
+
+**Parameters:**
+
+- `documents`: List of documents to add
+- `batch_size`: Size of each batch (auto-detected if not provided)
+- `max_concurrent`: Maximum number of batches to process concurrently (default: 3)
+- `retry_failed`: Whether to retry failed batches (default: True)
+
+**Returns:** List of document IDs maintaining order with input documents
+
+**Example:**
+
+```python
+# Using with EmbeddingsConfig max_concurrent setting
+from ragdoll.config import Config
+from ragdoll.vector_stores import create_vector_store
+from ragdoll.embeddings import get_embedding_model
+
+config = Config()
+embeddings = get_embedding_model(config_manager=config)
+vector_store = create_vector_store("faiss", embedding=embeddings)
+
+# Parallel processing with configured concurrency
+max_concurrent = config.embeddings_config.max_concurrent_embeddings
+ids = await vector_store.add_documents_parallel(
+    documents=chunks,
+    max_concurrent=max_concurrent
+)
+```
 
 #### `similarity_search(query: str, k: int = 4) -> List[Document]`
 

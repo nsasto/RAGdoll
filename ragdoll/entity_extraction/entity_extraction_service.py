@@ -67,6 +67,7 @@ class EntityExtractionService(BaseEntityExtractor):
         self.prompt_templates = merged_config.get("prompts", {}) or {}
         self.chunk_documents = chunk_documents
         self.text_splitter = text_splitter
+        self.max_concurrent_llm_calls = merged_config.get("max_concurrent_llm_calls", 8)
         llm_instance = llm or get_llm(
             config_manager=config_manager, app_config=self.app_config
         )
@@ -124,6 +125,24 @@ class EntityExtractionService(BaseEntityExtractor):
         logger.info("Extracting entities from %s documents", len(documents))
         processed_docs = await self._maybe_chunk_documents(documents)
         logger.info("After chunking, processing %s documents", len(processed_docs))
+
+        # Use parallel processing for better performance
+        use_parallel = len(processed_docs) > 3  # Only parallelize if more than 3 docs
+
+        if use_parallel:
+            graph = await self._extract_parallel(processed_docs, llm_override)
+        else:
+            graph = await self._extract_sequential(processed_docs, llm_override)
+
+        await self._store_graph(graph)
+        return graph
+
+    async def _extract_sequential(
+        self,
+        processed_docs: List[Document],
+        llm_override: Optional[Union[BaseLanguageModel, BaseLLMCaller]] = None,
+    ) -> Graph:
+        """Sequential extraction for small document sets."""
         nodes: List[GraphNode] = []
         edges: List[GraphEdge] = []
         llm_runner = self._resolve_llm_caller(llm_override)
@@ -148,9 +167,66 @@ class EntityExtractionService(BaseEntityExtractor):
                 len(edges),
             )
 
-        graph = Graph(nodes=nodes, edges=edges)
-        await self._store_graph(graph)
-        return graph
+        return Graph(nodes=nodes, edges=edges)
+
+    async def _extract_parallel(
+        self,
+        processed_docs: List[Document],
+        llm_override: Optional[Union[BaseLanguageModel, BaseLLMCaller]] = None,
+    ) -> Graph:
+        """Parallel extraction with rate limiting for large document sets."""
+        logger.info(
+            f"Using parallel entity extraction for {len(processed_docs)} documents"
+        )
+
+        # Determine concurrency limit (default 8, can be configured)
+        max_concurrent = getattr(self.config, "max_concurrent_llm_calls", 8)
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        llm_runner = self._resolve_llm_caller(llm_override)
+
+        async def process_document(
+            doc: Document, idx: int
+        ) -> tuple[List[GraphNode], List[GraphEdge]]:
+            """Process a single document with rate limiting."""
+            async with semaphore:
+                logger.debug(f"Processing document {idx}/{len(processed_docs)}")
+                # Run spaCy synchronously (it's CPU-bound)
+                nodes = await asyncio.to_thread(self._run_spacy, doc)
+                # Run LLM async with rate limiting
+                edges = await self._run_relationship_llm(doc, nodes, llm_runner)
+                return nodes, edges
+
+        # Process all documents concurrently with rate limiting
+        tasks = [
+            process_document(doc, idx + 1) for idx, doc in enumerate(processed_docs)
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Collect results
+        all_nodes: List[GraphNode] = []
+        all_edges: List[GraphEdge] = []
+
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Document {idx + 1} extraction failed: {result}")
+                continue
+
+            nodes, edges = result
+            all_nodes.extend(nodes)
+            all_edges.extend(edges)
+
+            if (idx + 1) % 10 == 0 or (idx + 1) == len(results):
+                logger.info(
+                    f"Progress: {idx + 1}/{len(results)} docs processed "
+                    f"(nodes: {len(all_nodes)}, edges: {len(all_edges)})"
+                )
+
+        logger.info(
+            f"Parallel extraction complete: {len(all_nodes)} nodes, {len(all_edges)} edges"
+        )
+        return Graph(nodes=all_nodes, edges=all_edges)
 
     async def extract_from_vector_store(
         self,
@@ -254,20 +330,31 @@ class EntityExtractionService(BaseEntityExtractor):
 
         logger.info(f"Processing {len(all_docs)} documents for entity extraction")
 
-        # Process in batches
+        # Process in batches with parallel execution
         all_nodes = []
         all_edges = []
 
+        num_batches = (len(all_docs) + batch_size - 1) // batch_size
+        logger.info(
+            f"Processing {len(all_docs)} documents in {num_batches} batches of {batch_size}"
+        )
+
         for i in range(0, len(all_docs), batch_size):
             batch = all_docs[i : i + batch_size]
+            batch_num = i // batch_size + 1
             logger.info(
-                f"Processing batch {i//batch_size + 1}/{(len(all_docs) + batch_size - 1)//batch_size}"
+                f"Processing batch {batch_num}/{num_batches} ({len(batch)} documents)"
             )
 
-            # Extract entities from this batch (reuse existing logic)
+            # Extract entities from this batch (uses parallel processing automatically)
             batch_graph = await self.extract(batch, llm_override=llm_override)
             all_nodes.extend(batch_graph.nodes)
             all_edges.extend(batch_graph.edges)
+
+            logger.info(
+                f"Batch {batch_num} complete: +{len(batch_graph.nodes)} nodes, "
+                f"+{len(batch_graph.edges)} edges (totals: {len(all_nodes)} nodes, {len(all_edges)} edges)"
+            )
 
         # Deduplicate
         unique_nodes = self._deduplicate_nodes(all_nodes)
@@ -591,8 +678,6 @@ class EntityExtractionService(BaseEntityExtractor):
             self.graph_persistence.save(graph)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to persist graph: %s", exc)
-
-
 
     def get_last_graph(self) -> Optional[Graph]:
         return self._last_graph
