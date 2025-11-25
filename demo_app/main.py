@@ -133,6 +133,38 @@ async def startup_event():
         app_state.ragdoll = Ragdoll(app_config=get_app_config())
         logger.info("Ragdoll instance initialized and stored in AppState.")
 
+        # Load any existing vector store and graph from disk
+        from ragdoll.embeddings import get_embedding_model
+        from ragdoll.vector_stores.base_vector_store import BaseVectorStore
+
+        embedding_model = get_embedding_model()
+
+        # Load vector store if it exists
+        loaded_vs = state.load_vector_store(embedding_model)
+        if loaded_vs:
+            logger.info("Loaded existing vector store from disk")
+            wrapped = BaseVectorStore(loaded_vs)
+            app_state.ragdoll.vector_store = wrapped
+            app_state.vector_store = wrapped
+            try:
+                if hasattr(loaded_vs, "docstore"):
+                    count = len(loaded_vs.docstore._dict)
+                    logger.info(f"Vector store contains {count} documents")
+            except Exception as e:
+                logger.warning(f"Could not get document count: {e}")
+
+        # Load graph if it exists
+        loaded_graph = state.load_graph()
+        if loaded_graph:
+            logger.info("Loaded existing graph from disk")
+            app_state.graph = loaded_graph
+            try:
+                logger.info(
+                    f"Graph contains {len(loaded_graph.nodes)} nodes and {len(loaded_graph.edges)} edges"
+                )
+            except Exception as e:
+                logger.warning(f"Could not get graph stats: {e}")
+
 
 def _config_context(
     request: Request,
@@ -501,8 +533,17 @@ async def populate_vector(request: Request) -> HTMLResponse:
             vector_config, embedding=embedding_model, documents=chunks
         )
 
-        # Save to state
+        # Wrap in BaseVectorStore for consistency
+        from ragdoll.vector_stores.base_vector_store import BaseVectorStore
+
+        wrapped_store = BaseVectorStore(vector_store)
+
+        # Save to disk AND update global state
         state.save_vector_store(vector_store)
+        app_state = get_app_state()
+        app_state.vector_store = wrapped_store
+        app_state.ragdoll.vector_store = wrapped_store
+        logger.info("Vector store saved to disk and updated in global state")
 
         duration = time.time() - start_time
 
@@ -599,9 +640,14 @@ async def populate_graph(request: Request) -> HTMLResponse:
         )
         duration = time.time() - start_time
 
-        # Save graph to state
+        # Save graph to disk AND update global state
         state.save_graph(graph)
-        logger.info("Graph populate: graph persisted to state in %.2fs", duration)
+        app_state = get_app_state()
+        app_state.graph = graph
+        logger.info(
+            "Graph populate: graph persisted to disk and updated in global state in %.2fs",
+            duration,
+        )
 
         # Prepare stats
         unique_entity_names = {
@@ -657,7 +703,7 @@ async def populate_graph(request: Request) -> HTMLResponse:
 
 @app.post("/chat", response_class=HTMLResponse)
 async def chat(
-    request: Request, question: str = Form(...), retriever: str = Form("hybrid")
+    request: Request, question: str = Form(...), retriever: str = Form("vector")
 ) -> HTMLResponse:
     try:
         app_state = get_app_state()
@@ -667,14 +713,81 @@ async def chat(
                 "Ragdoll instance not initialized. Please ingest data first."
             )
 
-        # Use the selected retriever mode
-        result = ragdoll.query(question, retriever_mode=retriever)
+        # Ensure ragdoll has access to global state's vector store and graph
+        if app_state.vector_store and not ragdoll.vector_store:
+            ragdoll.vector_store = app_state.vector_store
+            logger.info("Loaded vector store from global state into ragdoll")
+
+        # Create graph retriever if needed
+        if app_state.graph and not ragdoll.graph_retriever:
+            from ragdoll.retrieval import GraphRetriever
+            import networkx as nx
+
+            # Convert Graph (Pydantic model) to NetworkX graph
+            nx_graph = nx.DiGraph()
+
+            # Add nodes
+            for node in app_state.graph.nodes:
+                node_attrs = {
+                    "type": node.type,
+                    "name": node.name,
+                }
+                if node.label:
+                    node_attrs["label"] = node.label
+                if node.properties:
+                    node_attrs.update(node.properties)
+                elif node.metadata:
+                    node_attrs.update(node.metadata)
+                nx_graph.add_node(node.id, **node_attrs)
+
+            # Add edges
+            for edge in app_state.graph.edges:
+                nx_graph.add_edge(
+                    edge.source,
+                    edge.target,
+                    type=edge.type,
+                    **edge.metadata if edge.metadata else {},
+                )
+
+            logger.info(
+                f"Created NetworkX graph with {len(nx_graph.nodes)} nodes and {len(nx_graph.edges)} edges"
+            )
+
+            ragdoll.graph_retriever = GraphRetriever(
+                graph_store=nx_graph,
+                vector_store=ragdoll.vector_store if ragdoll.vector_store else None,
+                embedding_model=(
+                    ragdoll.embedding_model if ragdoll.embedding_model else None
+                ),
+                top_k=5,
+                max_hops=2,
+            )
+            logger.info("Created GraphRetriever from global state")
+
+            # Rebuild hybrid retriever now that we have graph retriever
+            ragdoll.hybrid_retriever = ragdoll._build_retriever()
+            logger.info("Rebuilt HybridRetriever with both vector and graph retrievers")
+
+        # Execute query
+        result = ragdoll.query(question, retriever_mode=retriever, k=5)
+        logger.info(
+            f"Query completed: {len(result.get('documents', []))} documents retrieved using {result.get('retriever_used')} retriever"
+        )
 
     except ValueError as exc:
         return templates.TemplateResponse(
             "partials/error.html",
             {"request": request, "message": str(exc)},
             status_code=400,
+        )
+    except Exception as exc:
+        import traceback
+
+        traceback.print_exc()
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {"request": request, "message": f"Unexpected error: {exc}"},
+            status_code=500,
         )
 
     context = {"request": request, "question": question, **result}
