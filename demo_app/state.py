@@ -17,6 +17,7 @@ GRAPH_PICKLE = STATE_DIR / "graph_output.gpickle"
 UPLOAD_DIR = STATE_DIR / "uploads"
 STAGED_MANIFEST = STATE_DIR / "staged_manifest.json"
 LOADED_DOCUMENTS = STATE_DIR / "loaded_documents.json"
+CHUNKED_DOCUMENTS = STATE_DIR / "chunked_documents.json"
 PIPELINE_PAYLOAD = STATE_DIR / "pipeline_payload.json"
 
 
@@ -183,6 +184,37 @@ def save_loaded_documents(docs: list[dict]) -> None:
 
 def read_loaded_documents() -> list[dict]:
     path = loaded_documents_path()
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def chunked_documents_path() -> Path:
+    ensure_state_dirs()
+    return CHUNKED_DOCUMENTS
+
+
+def save_chunked_documents(chunks: list[dict]) -> None:
+    """Save chunked documents with vector_id metadata.
+
+    Each chunk should be a dict with keys: `page_content`, `metadata` (including vector_id).
+    """
+    ensure_state_dirs()
+    try:
+        chunked_documents_path().write_text(
+            json.dumps(chunks, indent=2), encoding="utf-8"
+        )
+    except Exception:
+        # Best-effort persistence; don't raise for demo UI
+        pass
+
+
+def read_chunked_documents() -> list[dict]:
+    """Load chunked documents with vector_id metadata."""
+    path = chunked_documents_path()
     if not path.exists():
         return []
     try:

@@ -430,18 +430,17 @@ async def chunk_documents(
         }
 
         config_info = [
-            f"Chunker: RecursiveCharacterTextSplitter",
-            f"Chunk size: {chunk_size} characters",
-            f"Chunk overlap: {chunk_overlap} characters",
-            f"Total documents processed: {len(documents)}",
-            f"Total chunks created: {total_chunks}",
-            f"Chunking duration: {chunk_duration:.2f}s",
-            (
-                f"Avg chunks per document: {total_chunks / len(documents):.1f}"
-                if documents
-                else "N/A"
-            ),
-            f"Avg chunk size: {avg_chunk_size:.0f} characters",
+            {"key": "Chunker", "value": "RecursiveCharacterTextSplitter"},
+            {"key": "Chunk size", "value": f"{chunk_size} characters"},
+            {"key": "Chunk overlap", "value": f"{chunk_overlap} characters"},
+            {"key": "Documents processed", "value": len(documents)},
+            {"key": "Chunks created", "value": total_chunks},
+            {"key": "Chunking duration", "value": f"{chunk_duration:.2f}s"},
+            {
+                "key": "Avg chunks per doc",
+                "value": f"{total_chunks / len(documents):.1f}" if documents else "N/A",
+            },
+            {"key": "Avg chunk size", "value": f"{avg_chunk_size:.0f} characters"},
         ]
 
         # Serialize chunks to JSON-compatible format
@@ -521,28 +520,56 @@ async def populate_vector(request: Request) -> HTMLResponse:
         )
         chunks = split_documents(documents, text_splitter=splitter)
 
-        # Get embeddings and create vector store
+        # Get embeddings and create EMPTY vector store first
         start_time = time.time()
         embedding_model = get_embedding_model()
         vector_dimension = len(embedding_model.embed_query("test"))
 
-        # Configure vector store
+        # Configure vector store (create empty, don't use from_documents)
         vector_config = VectorStoreConfig(enabled=True, store_type="faiss", params={})
+        from ragdoll.vector_stores import create_vector_store
 
-        vector_store = vector_store_from_config(
-            vector_config, embedding=embedding_model, documents=chunks
+        vector_store = create_vector_store(
+            vector_config.store_type, embedding=embedding_model
         )
 
-        # Wrap in BaseVectorStore for consistency
-        from ragdoll.vector_stores.base_vector_store import BaseVectorStore
+        # Add documents and CAPTURE vector IDs
+        vector_ids = vector_store.add_documents(chunks)
+        logger.info(
+            f"Added {len(chunks)} chunks to vector store, got {len(vector_ids)} IDs back"
+        )
 
-        wrapped_store = BaseVectorStore(vector_store)
+        # CRITICAL: Write vector_ids back into chunk metadata
+        from datetime import datetime, timezone
+
+        embedding_timestamp = datetime.now(timezone.utc).isoformat()
+
+        if vector_ids and len(vector_ids) == len(chunks):
+            for chunk, vector_id in zip(chunks, vector_ids):
+                chunk.metadata["vector_id"] = vector_id
+                chunk.metadata["embedding_timestamp"] = embedding_timestamp
+            logger.info(f"Enriched {len(chunks)} chunks with vector_id metadata")
+        else:
+            logger.warning(
+                f"Vector ID count mismatch: {len(vector_ids)} IDs for {len(chunks)} chunks. "
+                "Graph nodes may not link to embeddings properly."
+            )
+
+        # Save enriched chunks for graph population
+        chunks_json = [
+            {"page_content": chunk.page_content, "metadata": chunk.metadata or {}}
+            for chunk in chunks
+        ]
+        state.save_chunked_documents(chunks_json)
+        logger.info(
+            "Saved enriched chunks with vector_id metadata for graph population"
+        )
 
         # Save to disk AND update global state
         state.save_vector_store(vector_store)
         app_state = get_app_state()
-        app_state.vector_store = wrapped_store
-        app_state.ragdoll.vector_store = wrapped_store
+        app_state.vector_store = vector_store
+        app_state.ragdoll.vector_store = vector_store
         logger.info("Vector store saved to disk and updated in global state")
 
         duration = time.time() - start_time
@@ -598,25 +625,51 @@ async def populate_graph(request: Request) -> HTMLResponse:
         logger.info("=== /populate_graph endpoint called ===")
         app_config = get_app_config()
 
-        # Get loaded documents
-        saved = state.read_loaded_documents()
-        if not saved:
-            return templates.TemplateResponse(
-                "partials/error.html",
-                {
-                    "request": request,
-                    "message": "No documents loaded. Please load documents first.",
-                },
-                status_code=400,
+        # Try to get enriched chunks with vector_id first, fall back to raw documents
+        saved_chunks = state.read_chunked_documents()
+        if saved_chunks:
+            documents = [
+                Document(
+                    page_content=d.get("page_content", ""),
+                    metadata=d.get("metadata") or {},
+                )
+                for d in saved_chunks
+            ]
+            logger.info(
+                "Graph populate: using %d enriched chunks with vector_id metadata",
+                len(documents),
             )
-
-        documents = [
-            Document(
-                page_content=d.get("page_content", ""), metadata=d.get("metadata") or {}
+            # Log sample metadata to verify vector_id presence
+            if documents and documents[0].metadata:
+                sample_meta = documents[0].metadata
+                has_vector_id = "vector_id" in sample_meta
+                logger.info(f"Sample chunk metadata has vector_id: {has_vector_id}")
+                if has_vector_id:
+                    logger.info(f"Sample vector_id: {sample_meta['vector_id']}")
+        else:
+            # Fallback to raw documents (will result in orphaned nodes)
+            saved = state.read_loaded_documents()
+            if not saved:
+                return templates.TemplateResponse(
+                    "partials/error.html",
+                    {
+                        "request": request,
+                        "message": "No documents loaded. Please populate vector store first.",
+                    },
+                    status_code=400,
+                )
+            documents = [
+                Document(
+                    page_content=d.get("page_content", ""),
+                    metadata=d.get("metadata") or {},
+                )
+                for d in saved
+            ]
+            logger.warning(
+                "Graph populate: using %d raw documents (no vector_id metadata). "
+                "Graph nodes will be orphaned. Please run /populate_vector first.",
+                len(documents),
             )
-            for d in saved
-        ]
-        logger.info("Graph populate: loaded %d documents from state", len(documents))
 
         # Get LLM caller for entity extraction
         llm_caller = get_llm_caller(app_config=app_config)
