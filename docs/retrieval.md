@@ -57,6 +57,10 @@ retriever:
     include_edges: true
     traversal_strategy: "bfs" # Options: "bfs" (breadth-first), "dfs" (depth-first)
     min_score: 0.0
+    prebuild_index: false # Build FAISS index during initialization for faster first queries
+    hybrid_alpha: 1.0 # Weight for embedding similarity (1.0 = embedding only, 0.0 = BM25 only)
+    enable_fallback: true # Fall back to fuzzy matching when embeddings unavailable
+    log_fallback_warnings: true # Log warnings when fallback mechanisms are used
 
   # Hybrid combination settings
   hybrid:
@@ -162,6 +166,10 @@ retriever:
     include_edges: true # Include relationship information
     traversal_strategy: "bfs"
     min_score: 0.0 # Minimum relevance score for seeds
+    prebuild_index: false # Build FAISS index during initialization
+    hybrid_alpha: 1.0 # Weight for embedding similarity (1.0 = embedding only)
+    enable_fallback: true # Fall back to fuzzy matching if embeddings unavailable
+    log_fallback_warnings: true # Log warnings when using fallback
 ```
 
 **Usage:**
@@ -171,10 +179,16 @@ from ragdoll.retrieval import GraphRetriever
 
 graph_retriever = GraphRetriever(
     graph_store=graph_store,
+    vector_store=vector_store,  # Optional: enables embedding-based seed search
+    embedding_model=embedding_model,  # Optional: required if vector_store provided
     top_k=5,
     max_hops=2,
     traversal_strategy="bfs",
-    include_edges=True
+    include_edges=True,
+    prebuild_index=False,  # Build FAISS index during initialization
+    hybrid_alpha=1.0,  # Weight for embedding similarity
+    enable_fallback=True,  # Fall back to fuzzy matching
+    log_fallback_warnings=True  # Log warnings when using fallback
 )
 
 docs = graph_retriever.get_relevant_documents("Who works for Acme Corp?")
@@ -520,7 +534,15 @@ retriever:
   graph:
     enabled: true
     backend: "networkx"
+    top_k: 5
     max_hops: 2
+    traversal_strategy: "bfs"
+    include_edges: true
+    min_score: 0.0
+    prebuild_index: false
+    hybrid_alpha: 1.0
+    enable_fallback: true
+    log_fallback_warnings: true
 ```
 
 ## See Also

@@ -34,12 +34,73 @@ flowchart TD
 
 Defined under `entity_extraction` and `graph_database_config` in your app config (`configuration.md`):
 
-- `chunk_documents`: toggle splitter use; override splitter via `text_splitter`.
-- `spacy_model`: spaCy model name (e.g., `en_core_web_sm`).
-- `relationship_prompts`: prompt keys and provider-specific overrides.
-- `relationship_parsing`: parser class/schema overrides.
-- `graph_database_config.output_file` / `neo4j` creds: where/how to persist.
-- `graph_retriever.enabled` + `backend` (`simple` or `neo4j`): create a retriever alongside persistence; extra keys are forwarded to the backend.
+### Core Settings
+
+- **`spacy_model`**: spaCy model name (e.g., `en_core_web_sm`).
+- **`chunk_documents`**: toggle splitter use; override splitter via `text_splitter`.
+- **`chunking_strategy`**: Use `'default'` to use the chunker config, `'none'` to disable chunking, or specify a strategy.
+- **`chunk_size`**: Size of text chunks for extraction (default: 1000).
+- **`chunk_overlap`**: Overlap between chunks (default: 50).
+- **`splitter_type`**: Type of text splitter to use (e.g., `'markdown'`).
+
+### Extraction Method Settings
+
+- **`coreference_resolution_method`**: How to resolve pronominal and nominal coreferences.
+
+  - `rule_based`: Fast heuristic-based rules (default)
+  - `llm`: Language model-based resolution (higher quality, slower)
+  - `none`: Skip coreference resolution
+
+- **`entity_extraction_methods`**: List of methods for entity extraction (can combine multiple).
+
+  - `ner`: spaCy NER (default)
+  - `llm`: Language model-based extraction
+
+- **`relationship_extraction_method`**: How to extract relationships between entities.
+  - `llm`: Language model-based extraction (default)
+
+### Gleaning and Linking
+
+- **`gleaning_enabled`**: Enable iterative extraction passes (default: `true`).
+- **`max_gleaning_steps`**: Maximum gleaning iterations (default: 2).
+- **`entity_linking_enabled`**: Enable entity consolidation (default: `true`).
+- **`entity_linking_method`**: Method for linking entities (default: `string_similarity`).
+- **`entity_linking_threshold`**: Similarity threshold for linking (default: 0.8).
+
+### Entity and Relationship Types
+
+- **`entity_types`**: List of entity types to extract (e.g., PERSON, ORGANIZATION, etc.).
+- **`relationship_types`**: List of relationship types to recognize.
+- **`relationship_type_mapping`**: Map natural language phrases to standardized relationship types.
+
+### Postprocessing
+
+- **`postprocessing_steps`**: List of cleanup operations (default: `["merge_similar_entities", "normalize_relations"]`).
+
+### Prompt and Parsing Configuration
+
+- **`relationship_prompts`**: Map providers to prompt template names.
+
+  - `default`: Default prompt template
+  - `providers`: Provider-specific overrides (e.g., `openai`, `anthropic`)
+
+- **`relationship_parsing`**: Parser configuration.
+  - `preferred_format`: Output format (`json`, `markdown`, `auto`)
+  - `parser_class`: Custom parser class path
+  - `schema`: Custom Pydantic model
+  - `parser_kwargs`: Additional parser arguments
+
+### Graph Storage and Output
+
+- **`output_format`**: Output format (default: `json`).
+- **`graph_database_config`**: Graph persistence settings.
+  - `output_file`: JSON output path (default: `graph_output.json`)
+  - `clear_before_save`: Clear existing graph before save (default: `false`)
+  - Neo4j credentials (if using Neo4j backend)
+
+### LLM Provider Hint
+
+- **`llm_provider_hint`**: Manually specify the provider string if auto-detection fails.
 
 ### Extraction/Graph-Build Options
 
@@ -62,7 +123,7 @@ The following options control how entities and relationships are extracted from 
 
 - **`gleaning_enabled`** and **`max_gleaning_steps`**: Enables iterative entity and relationship extraction to improve graph completeness.
 
-  - When `true`, the service performs multiple passes over longer documents or chunks, using the graph built so far as context to discover new entities and relationships that might have been missed initially. `max_gleaning_steps` limits the number of iterations (e.g., 3) to prevent infinite loops. This is particularly effective for complex or technical documents where important connections emerge gradually.
+  - When `true`, the service performs multiple passes over longer documents or chunks, using the graph built so far as context to discover new entities and relationships that might have been missed initially. `max_gleaning_steps` limits the number of iterations (e.g., 2-3) to prevent infinite loops. This is particularly effective for complex or technical documents where important connections emerge gradually.
 
 - **`entity_linking_enabled`** and related settings: Controls consolidation of similar or identical entities.
 
