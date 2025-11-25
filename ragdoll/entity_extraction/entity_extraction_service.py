@@ -85,7 +85,7 @@ class EntityExtractionService(BaseEntityExtractor):
             self._active_llm_provider = str(self.llm_caller.provider).lower()
 
         graph_db_config = merged_config.get("graph_database_config", {}) or {}
-        graph_retriever_config = merged_config.get("graph_retriever", {}) or {}
+        graph_db_config = merged_config.get("graph_database_config", {}) or {}
         self.graph_persistence = GraphPersistenceService(
             output_format=graph_db_config.get(
                 "output_format",
@@ -98,15 +98,7 @@ class EntityExtractionService(BaseEntityExtractor):
                 if graph_db_config.get(key)
             }
             or None,
-            retriever_backend=graph_retriever_config.get("backend"),
-            retriever_config={
-                key: value
-                for key, value in graph_retriever_config.items()
-                if key not in {"enabled", "backend"}
-            },
         )
-        self.graph_retriever_enabled = graph_retriever_config.get("enabled", False)
-        self.graph_retriever_config = graph_retriever_config
         self._last_graph: Optional[Graph] = None
 
         spacy_model = merged_config.get("spacy_model", "en_core_web_sm")
@@ -600,16 +592,7 @@ class EntityExtractionService(BaseEntityExtractor):
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to persist graph: %s", exc)
 
-    def create_graph_retriever(self, **kwargs: Any):
-        if not self.graph_retriever_enabled:
-            raise RuntimeError(
-                "Graph retriever creation is disabled. Enable "
-                "`entity_extraction.graph_retriever.enabled` in config."
-            )
-        return self.graph_persistence.create_retriever(
-            graph=kwargs.pop("graph", self._last_graph),
-            **kwargs,
-        )
+
 
     def get_last_graph(self) -> Optional[Graph]:
         return self._last_graph
