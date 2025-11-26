@@ -1,10 +1,7 @@
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 from pathlib import Path
-import math
 import logging
-import asyncio
-import copy
 from langchain_core.documents import Document
 
 
@@ -30,8 +27,6 @@ class IngestionOptions:
     """Options for the ingestion pipeline."""
 
     batch_size: int = 10
-    parallel_extraction: bool = True  # Enabled by default for better performance
-    max_workers: int = 4
     max_concurrent_llm_calls: int = (
         8  # Number of concurrent LLM calls for entity extraction
     )
@@ -111,8 +106,6 @@ class IngestionPipeline:
             **(self.options.embedding_options or {}),
         )
 
-        self._entity_extractor_factory_kwargs: Optional[Dict[str, Any]] = None
-
         if self.options.extract_entities:
             extraction_options = self.options.entity_extraction_options or {}
             config_overrides = extraction_options.get("config", {})
@@ -127,22 +120,15 @@ class IngestionPipeline:
                 llm_override, llm_caller_override
             )
 
-            self._entity_extractor_factory_kwargs = {
-                "config": entity_config,
-                "llm_caller": resolved_llm_caller,
-                "text_splitter": self.text_splitter,
-                "chunk_documents": False,
-                "app_config": self.app_config,
-            }
-
-            self._custom_entity_extractor_supplied = entity_extractor is not None
-
             self.entity_extractor = entity_extractor or EntityExtractionService(
-                **self._entity_extractor_factory_kwargs
+                config=entity_config,
+                llm_caller=resolved_llm_caller,
+                text_splitter=self.text_splitter,
+                chunk_documents=False,
+                app_config=self.app_config,
             )
         else:
             self.entity_extractor = None
-            self._custom_entity_extractor_supplied = False
 
         if not self.options.skip_vector_store:
             if self.embedding_model is None:
@@ -340,70 +326,22 @@ class IngestionPipeline:
 
         logger.info("Extracting entities from %s chunks", len(chunks))
 
-        parallel_enabled = self._can_parallelize_entity_extraction()
-
-        if self.options.parallel_extraction and not parallel_enabled:
-            logger.warning(
-                "Parallel entity extraction requested but unavailable (custom extractor or missing config). "
-                "Falling back to sequential processing."
-            )
-
-        if parallel_enabled:
-            groups = self._build_parallel_groups(chunks)
-            tasks = [
-                asyncio.create_task(self._run_parallel_entity_extraction(group))
-                for group in groups
-                if group
-            ]
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                merged_nodes = []
-                merged_edges = []
-                for idx, result in enumerate(results):
-                    if isinstance(result, Exception):
-                        logger.warning(
-                            "Parallel extraction task %s failed: %s", idx, result
-                        )
-                        continue
-                    if result is None:
-                        continue
-                    merged_nodes.extend(result.nodes)
-                    merged_edges.extend(result.edges)
-
-                if merged_nodes or merged_edges:
-                    graph = Graph(nodes=merged_nodes, edges=merged_edges)
-                    self.last_graph = graph
-                    self.stats["graph_entries_added"] = len(graph.edges)
-                    self.stats["relationships_extracted"] = len(graph.edges)
-                    self.stats["entities_extracted"] = len(graph.nodes)
-                    self._persist_graph_to_store(graph)
-                    if getattr(self.entity_extractor, "graph_retriever_enabled", False):
-                        try:
-                            self.graph_retriever = (
-                                self.entity_extractor.create_graph_retriever(
-                                    graph=graph
-                                )
-                            )
-                            self.stats["graph_retriever_available"] = True
-                        except Exception as exc:  # pragma: no cover - defensive
-                            logger.warning("Unable to create graph retriever: %s", exc)
-        else:
-            graph = await self.entity_extractor.extract(chunks)
-            self.last_graph = graph
-            edge_count = len(graph.edges) if graph else 0
-            node_count = len(graph.nodes) if graph else 0
-            self.stats["graph_entries_added"] = edge_count
-            self.stats["relationships_extracted"] = edge_count
-            self.stats["entities_extracted"] = node_count
-            self._persist_graph_to_store(graph)
-            if getattr(self.entity_extractor, "graph_retriever_enabled", False):
-                try:
-                    self.graph_retriever = self.entity_extractor.create_graph_retriever(
-                        graph=graph
-                    )
-                    self.stats["graph_retriever_available"] = True
-                except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning("Unable to create graph retriever: %s", exc)
+        graph = await self.entity_extractor.extract(chunks)
+        self.last_graph = graph
+        edge_count = len(graph.edges) if graph else 0
+        node_count = len(graph.nodes) if graph else 0
+        self.stats["graph_entries_added"] = edge_count
+        self.stats["relationships_extracted"] = edge_count
+        self.stats["entities_extracted"] = node_count
+        self._persist_graph_to_store(graph)
+        if getattr(self.entity_extractor, "graph_retriever_enabled", False):
+            try:
+                self.graph_retriever = self.entity_extractor.create_graph_retriever(
+                    graph=graph
+                )
+                self.stats["graph_retriever_available"] = True
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Unable to create graph retriever: %s", exc)
 
     def get_graph_retriever(self):
         return self.graph_retriever
@@ -432,45 +370,6 @@ class IngestionPipeline:
                 )
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Unable to persist graph to graph store: %s", exc)
-
-    def _build_parallel_groups(self, chunks: List[Document]) -> List[List[Document]]:
-        if not chunks:
-            return []
-        max_workers = max(1, self.options.max_workers)
-        if max_workers <= 1 or len(chunks) <= 1:
-            return [chunks]
-
-        group_size = max(1, math.ceil(len(chunks) / max_workers))
-        groups = [
-            chunks[idx : idx + group_size] for idx in range(0, len(chunks), group_size)
-        ]
-        return groups
-
-    async def _run_parallel_entity_extraction(
-        self, documents: List[Document]
-    ) -> Optional[Graph]:
-        extractor = self._build_entity_extractor_instance()
-        if extractor is None:
-            return await self.entity_extractor.extract(documents)
-        return await extractor.extract(documents)
-
-    def _build_entity_extractor_instance(self) -> Optional[EntityExtractionService]:
-        if not self._entity_extractor_factory_kwargs:
-            return None
-        kwargs = copy.deepcopy(self._entity_extractor_factory_kwargs)
-        extractor = EntityExtractionService(**kwargs)
-        extractor.graph_persistence = None
-        extractor.graph_retriever_enabled = False
-        extractor.graph_retriever_config = {}
-        return extractor
-
-    def _can_parallelize_entity_extraction(self) -> bool:
-        return (
-            self.options.parallel_extraction
-            and self.entity_extractor is not None
-            and self._entity_extractor_factory_kwargs is not None
-            and not getattr(self, "_custom_entity_extractor_supplied", False)
-        )
 
     def _resolve_llm_caller(
         self,
