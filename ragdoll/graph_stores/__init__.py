@@ -224,8 +224,9 @@ def _create_json_graph_store(
             json_store = {"data": None, "graph": None}
 
             # Load from file if specified
-            if "input_file" in config and os.path.exists(config["input_file"]):
-                with open(config["input_file"], "r") as f:
+            input_file = config.get("input_file")
+            if input_file and os.path.exists(input_file):
+                with open(input_file, "r") as f:
                     json_data = f.read()
                     json_store["data"] = json_data
 
