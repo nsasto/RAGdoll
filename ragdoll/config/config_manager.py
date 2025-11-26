@@ -112,6 +112,7 @@ class ConfigManager:
         This creates a comprehensive retriever configuration with:
         - Vector retrieval settings
         - Graph retrieval settings
+        - PageRank retrieval settings
         - Hybrid combination strategy
         """
         retriever_config = self._config.setdefault("retriever", {})
@@ -132,6 +133,26 @@ class ConfigManager:
         graph_config.setdefault("include_edges", True)
         graph_config.setdefault("traversal_strategy", "bfs")
         graph_config.setdefault("min_score", 0.0)
+
+        # PageRank retrieval defaults
+        pagerank_config = retriever_config.setdefault("pagerank", {})
+        pagerank_config.setdefault("enabled", False)
+        pagerank_config.setdefault("top_k", 5)
+        pagerank_config.setdefault("max_nodes", 200)
+        pagerank_config.setdefault("max_hops", 3)
+        pagerank_config.setdefault("seed_strategy", "embedding")
+        pagerank_config.setdefault("num_seed_chunks", 5)
+        pagerank_config.setdefault("damping_factor", 0.15)
+        pagerank_config.setdefault("max_iter", 50)
+        pagerank_config.setdefault("tol", 1e-6)
+        pagerank_config.setdefault(
+            "allowed_node_types", ["entity", "event", "document"]
+        )
+        pagerank_config.setdefault("min_score", 0.0)
+        pagerank_config.setdefault("dedup_on_vector_id", True)
+        pagerank_config.setdefault("include_edges", True)
+        pagerank_config.setdefault("enable_fallback", True)
+        pagerank_config.setdefault("log_fallback_warnings", True)
 
         # Hybrid combination defaults
         hybrid_config = retriever_config.setdefault("hybrid", {})

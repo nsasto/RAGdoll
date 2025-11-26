@@ -197,6 +197,27 @@ retriever:
     graph_weight: 0.4
     deduplicate: true
 
+  # PageRank graph retrieval settings
+  pagerank:
+    enabled: false
+    top_k: 5                           # Number of final chunks to return
+    max_nodes: 200                     # Max nodes in the local subgraph
+    max_hops: 3                        # Hop radius for local subgraph extraction
+    seed_strategy: "embedding"         # Options: "embedding" or "keyword"
+    num_seed_chunks: 5                 # Number of chunks to use as seeds
+    damping_factor: 0.15               # Teleport probability in PPR (alpha)
+    max_iter: 50                       # Maximum iterations for power iteration
+    tol: 1e-6                          # Convergence tolerance
+    allowed_node_types:                # Node types to include in ranking
+      - "entity"
+      - "event"
+      - "document"
+    min_score: 0.0                     # Minimum PageRank score threshold
+    dedup_on_vector_id: true           # Collapse multiple nodes mapping to same chunk
+    include_edges: true                # Include relationship information
+    enable_fallback: true              # Fall back to vector search if needed
+    log_fallback_warnings: true        # Log warnings when fallback occurs
+
 # References to prompt files (without .md extension)
 llm_prompts:
   entity_extraction: entity_extraction
