@@ -86,4 +86,10 @@ scripts/
 graph_output.json
 knowledge_graph.png
 
-*.ps1
+# Benchmark data and results (large files)
+benchmarks/datasets/*.json
+benchmarks/db/
+benchmarks/results/*.json
+
+# Keep PowerShell scripts except addCertsZscaler.ps1
+!benchmarks/*.ps1

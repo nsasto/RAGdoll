@@ -368,4 +368,4 @@ Or it will use the default value (3) from `EmbeddingsConfig`.
 
 - **2.1.0**: Initial parallel execution in pipeline (deprecated approach)
 - **2.1.1**: Refactored to vector store layer (current, breaking change)
-- **2.2.0**: (Future) Additional performance optimizations and monitoring
+- **2.2.0**: Additional performance optimizations and monitoring

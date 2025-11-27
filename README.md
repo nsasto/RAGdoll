@@ -284,6 +284,69 @@ asyncio.run(main())
 
 The helper `ingest_with_graph_sync()` wraps `asyncio.run()` for scripts that are not already running an event loop.
 
+### What the LLM Receives: Graph-Augmented Context
+
+When using hybrid retrieval with graph expansion, RAGdoll returns documents enriched with **structured relationship triples** alongside the original passage text. This dual representation gives LLMs both unstructured context and explicit entity relationships for improved reasoning.
+
+#### Example: Retrieved Document Structure
+
+**Query:** "Who is the father of Ava Kolker?"
+
+**Graph-Expanded Document:**
+
+```python
+{
+    "page_content": """Ava Kolker (born December 5, 2006) is an American child actress and singer. She is best known for playing Ava Morgenstern on the Disney Channel series Girl Meets World and Olive Rozalski on the Nickelodeon series Sydney to the Max.""",
+
+    "metadata": {
+        "title": "Ava Kolker",  # Original passage title from vector store
+        "entity_name": "Ava Kolker",  # The entity from the graph
+        "node_type": "PERSON",  # Entity type
+        "relevance_score": 0.95,  # Similarity score
+        "hop_distance": 0,  # Direct match (seed node)
+        "retrieval_method": "graph_expanded",  # Indicates graph enhancement
+
+        # Structured relationship triples for precise reasoning:
+        "relationship_triples": [
+            ("Ava Kolker", "CHILD_OF", "Doug Kolker"),
+            ("Ava Kolker", "ACTED_IN", "Girl Meets World"),
+            ("Ava Kolker", "ACTED_IN", "Sydney to the Max"),
+            ("Ava Kolker", "BORN_IN", "Los Angeles"),
+            ("Girl Meets World", "SPIN_OFF_OF", "Boy Meets World")
+        ]
+    }
+}
+```
+
+**Connected Entity (1-hop neighbor):**
+
+```python
+{
+    "page_content": """Doug Kolker is an American television producer and writer, known for his work on sitcoms...""",
+
+    "metadata": {
+        "title": "Doug Kolker",  # Retrieved via graph traversal
+        "entity_name": "Doug Kolker",
+        "hop_distance": 1,  # One hop from Ava Kolker
+
+        "relationship_triples": [
+            ("Doug Kolker", "PARENT_OF", "Ava Kolker"),  # Inverse relationship
+            ("Doug Kolker", "WORKS_ON", "Girl Meets World"),
+            ("Doug Kolker", "OCCUPATION", "Television Producer")
+        ]
+    }
+}
+```
+
+#### Benefits
+
+- **Explicit relationships**: No need to extract "father" from free text—the triple `("Ava Kolker", "CHILD_OF", "Doug Kolker")` states it directly
+- **Multi-hop reasoning**: LLMs can follow relationship chains across documents using `hop_distance` and triples
+- **Provenance tracking**: `retrieval_method` distinguishes graph-enhanced results from pure vector results
+- **Confidence signals**: `relevance_score` and `hop_distance` indicate reliability of each document
+
+This approach combines the best of both worlds: semantic search finds relevant passages, while graph expansion adds structured knowledge that enables precise, explainable reasoning.
+
 **Configuration:** All retrieval and performance settings are now consolidated in your config:
 
 ```yaml
@@ -599,7 +662,7 @@ This project began as a learning exercise; use the table below as a rough orient
 | Summaries                  | Precomputed community summaries                                      | Often none or single-level                                        | Often skipped; sometimes on-demand                  | None precomputed; summaries come from query-time LLM calls if you add them              |
 | Retrieval                  | Combines vector + hierarchical graph summaries                       | Lightweight graph or vector                                       | Flat graph traversal; vector when configured        | Vector-first; optional simple/Neo4j graph retriever from `ingest_with_graph`            |
 | Defaults                   | Cloud LLMs (GPT-4/O) with hierarchical post-processing               | Small/local-friendly LLMs                                         | Async/flat graph tuned for speed                    | LangChain defaults; OpenAI models by default but fully swappable to local/open-source   |
-| Benchmarks                 | Published externally                                                 | Vary by implementation                                            | Vary by implementation                              | None published here—measure with your models/stores                                     |
+| Benchmarks                 | Published externally                                                 | Vary by implementation                                            | Vary by implementation                              | Vary by implementation                                                                  |
 
 ## Contributing
 
