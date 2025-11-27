@@ -1,45 +1,274 @@
 cache:
   enabled: true
-  cache_ttl: 45
+  cache_ttl: 3600
 
 monitor:
-  enabled: true
+  enabled: false
   collect_metrics: true
 
+chunker:
+  default_splitter: recursive
+  chunk_size: 1000
+  chunk_overlap: 200
+  chunking_strategy: "markdown"  # Options: 'none', 'recursive', 'character', 'markdown', 'code', 'token'
+  enabled: true
+
 ingestion:
-  max_threads: 4
-  batch_size: 3
-  retry_attempts: 2
-  retry_delay: 2
-  retry_backoff: 1.5
+  max_threads: 10
+  batch_size: 100
+  retry_attempts: 3
+  retry_delay: 1
+  retry_backoff: 2
   loaders:
     file_mappings:
+      .json: langchain_community.document_loaders.JSONLoader
+      .jsonl: langchain_community.document_loaders.JSONLoader
+      .yaml: langchain_community.document_loaders.JSONLoader
+      .csv: langchain_community.document_loaders.CSVLoader
+      .epub: langchain_markitdown.loaders.EpubLoader
+      .xlsx: langchain_markitdown.loaders.XlsxLoader
+      .html: langchain_markitdown.loaders.HtmlLoader
+      .bmp: langchain_markitdown.loaders.ImageLoader
+      .jpeg: langchain_markitdown.loaders.ImageLoader
+      .jpg: langchain_markitdown.loaders.ImageLoader
+      .png: langchain_markitdown.loaders.ImageLoader
+      .tiff: langchain_markitdown.loaders.ImageLoader
       .md: langchain_community.document_loaders.TextLoader
+      .pdf: langchain_community.document_loaders.PyMuPDFLoader
+      .pptx: langchain_markitdown.loaders.PptxLoader
+      .docx: langchain_markitdown.loaders.DocxLoader
+      .xml: langchain_markitdown.loaders.RssLoader
       .txt: langchain_community.document_loaders.TextLoader
+      .rtf: langchain_community.document_loaders.RtfLoader
       arxiv: langchain_community.retrievers.ArxivRetriever
-
-vector_stores:
-  default_store: demo_chroma
-  stores:
-    demo_chroma:
-      store_type: chroma
-      enabled: true
-      params:
-        persist_directory: "./demo_state/app_config_chroma"
-        collection_name: "app-config-demo"
+      website: langchain_community.document_loaders.WebBaseLoader
 
 embeddings:
-  default_model: "all-mpnet-base-v2"
+  enabled: true
+  default_model: "text-embedding-3-small"
+  max_concurrent_embeddings: 3  # Number of embedding batches to process concurrently (3-5x speedup)
   models:
+    text-embedding-3-small:
+      provider: "openai"
+      api_key: "os.environ/OPENAI_API_KEY"
+      model: "text-embedding-3-small"
     all-mpnet-base-v2:
-      provider: huggingface
+      provider: "huggingface"
       model_name: "sentence-transformers/all-mpnet-base-v2"
-
-llm_prompts:
-  entity_extraction: "custom_entity_extraction_template"
+      api_key: "your_default_api_key"
 
 entity_extraction:
-  gleaning_enabled: false
+  spacy_model: "en_core_web_sm"
+  chunking_strategy: "none"  # Use 'default' to use the chunker config or 'none' to disable chunking
+  chunk_size: 1000
+  chunk_overlap: 50
+  splitter_type: "markdown"
+  coreference_resolution_method: "rule_based"  # Options: "rule_based", "llm", "none"
+  entity_extraction_methods: ["ner"] # Options: ["ner", "llm"]
+  relationship_extraction_method: "llm"
+  entity_types:
+    - "PERSON"
+    - "ORGANIZATION"
+    - "GEO_POLITICAL_ENTITY"
+    - "DATE"
+    - "LOCATION"
+    - "PRODUCT"
+    - "EVENT"
+    - "WORK_OF_ART"
+    - "LAW"
+    - "ROLE"
+    - "NORP"
+    - "FACILITY"
+    - "LANGUAGE"
+    - "PERCENT"
+    - "MONEY"
+    - "QUANTITY"
+    - "ORDINAL"
+    - "CARDINAL"
+    - "TIME"
+    - "CONCEPT"
+    - "DOMAIN"
+    - "SUBSTANCE"
+    - "DISEASE"
+    - "ANIMAL"
+    - "PLANT"
+    - "VEHICLE"
+    - "DEVICE"
+    - "SOFTWARE"
+    - "GAME"
+    - "FOOD"
+    - "DRINK"
+    - "MUSICAL_INSTRUMENT"
+    - "MEDIA"
+    - "SYMBOL"
+    - "IDEOLOGY"
+    - "ETHNICITY"
+    - "RELIGION"
+    - "ACADEMIC_DISCIPLINE"
+  relationship_types:
+    - "HAS_ROLE"
+    - "WORKS_FOR"
+    - "LOCATED_IN"
+    - "BORN_IN"
+    - "FOUNDED"
+    - "PARENT_OF"
+    - "SPOUSE_OF"
+    - "AFFILIATED_WITH"
+    - "BELONGS_TO"
+    - "CREATED"
+    - "PART_OF"
+    - "IS_A"
+    - "HAS_MEMBER"
+    - "CONTAINS"
+    - "USES"
+    - "PRODUCES"
+    - "IS_RELATED_TO"
+    - "HAS_ATTRIBUTE"
+    - "HAS_CAUSE"
+    - "HAS_EFFECT"
+    - "MANAGES"
+    - "OWNS"
+    - "COMPETES_WITH"
+    - "ACQUIRED"
+    - "LOCATED_NEAR"
+    - "CONNECTED_TO"
   relationship_type_mapping:
-    "custom relation": "CUSTOM_RELATION"
-  llm_provider_hint: "openai"
+    "works for": "WORKS_FOR"
+    "is a": "IS_A"
+    "is an": "IS_A"
+    "located in": "LOCATED_IN"
+    "located at": "LOCATED_IN"
+    "born in": "BORN_IN"
+    "lives in": "LOCATED_IN"
+    "married to": "SPOUSE_OF"
+    "spouse of": "SPOUSE_OF"
+    "parent of": "PARENT_OF"
+    "child of": "PARENT_OF"
+    "works with": "AFFILIATED_WITH"
+  gleaning_enabled: true
+  max_gleaning_steps: 2
+  entity_linking_enabled: true
+  entity_linking_method: "string_similarity"
+  entity_linking_threshold: 0.8
+  postprocessing_steps: ["merge_similar_entities", "normalize_relations"]
+  output_format: "json"
+  graph_database_config:
+    backend: "networkx"  # Options: "networkx", "neo4j", "simple"
+    output_file: "graph_output.json"
+    clear_before_save: false
+  relationship_parsing:
+    preferred_format: "auto"
+    parser_class:
+    schema:
+    parser_kwargs: {}
+  relationship_prompts:
+    default: "relationship_extraction"
+    providers:
+      openai: "relationship_extraction_openai"
+      anthropic: "relationship_extraction_claude"
+  llm_provider_hint:
+
+# Retriever configuration - Unified retrieval settings
+retriever:
+  # Vector retrieval settings
+  vector:
+    enabled: true
+    top_k: 3
+    search_type: "similarity"  # Options: "similarity", "mmr", "similarity_score_threshold"
+    search_kwargs: {}
+  
+  # Graph retrieval settings
+  graph:
+    enabled: true
+    backend: "networkx"  # Options: "networkx", "neo4j", "simple"
+    max_hops: 2
+    include_edges: true
+    traversal_strategy: "bfs"  # Options: "bfs" (breadth-first), "dfs" (depth-first)
+    min_score: 0.0
+    prebuild_index: false  # Whether to build FAISS index during ingestion (vs lazy on first query)
+    hybrid_alpha: 1.0  # Weight for embedding similarity vs BM25 lexical matching (1.0 = embedding only)
+    enable_fallback: true  # If true, fall back to fuzzy matching when embedding search fails
+    log_fallback_warnings: true  # If true, log warnings when fallback mechanisms are used
+  
+  # Hybrid combination settings
+  hybrid:
+    mode: "concat"  # Options: "concat", "rerank", "weighted", "expand"
+    vector_weight: 0.6
+    graph_weight: 0.4
+    deduplicate: true
+
+  # PageRank graph retrieval settings
+  pagerank:
+    enabled: false
+    top_k: 5                           # Number of final chunks to return
+    max_nodes: 200                     # Max nodes in the local subgraph
+    max_hops: 3                        # Hop radius for local subgraph extraction
+    seed_strategy: "embedding"         # Options: "embedding" or "keyword"
+    num_seed_chunks: 5                 # Number of chunks to use as seeds
+    damping_factor: 0.15               # Teleport probability in PPR (alpha)
+    max_iter: 50                       # Maximum iterations for power iteration
+    tol: 1e-6                          # Convergence tolerance
+    allowed_node_types:                # Node types to include in ranking
+      - "entity"
+      - "event"
+      - "document"
+    min_score: 0.0                     # Minimum PageRank score threshold
+    dedup_on_vector_id: true           # Collapse multiple nodes mapping to same chunk
+    include_edges: true                # Include relationship information
+    enable_fallback: true              # Fall back to vector search if needed
+    log_fallback_warnings: true        # Log warnings when fallback occurs
+
+# References to prompt files (without .md extension)
+llm_prompts:
+  entity_extraction: entity_extraction
+  extract_relationships: relationship_extraction
+  coreference_resolution: coreference_resolution
+  entity_relationship_gleaning: entity_relationship_gleaning
+  entity_relationship_gleaning_continue: entity_relationship_gleaning_continue
+
+llms:
+  default_model: gpt-4o-mini
+  model_list:
+    - model_name: gpt-4o
+      provider: openai
+      params:
+        model: gpt-4o
+        api_key: "os.environ/OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 8192
+    - model_name: gpt-4o-mini
+      provider: openai
+      params:
+        model: gpt-4o-mini
+        api_key: "os.environ/OPENAI_API_KEY"
+        temperature: 0.0
+        max_tokens: 4096
+    - model_name: claude-3-5-sonnet
+      provider: anthropic
+      params:
+        model: claude-3-5-sonnet-latest
+        api_key: "#ANTHROPIC_API_KEY"
+        temperature: 0.0
+        max_tokens: 1024
+    - model_name: gemini-1.5-pro
+      provider: google
+      params:
+        model: gemini-1.5-pro
+        api_key: "#GOOGLE_API_KEY"
+        temperature: 0.0
+        max_tokens: 1024
+
+vector_stores:
+  default_store: faiss
+  stores:
+    faiss:
+      distance_strategy: "cosine"
+    chroma:
+      collection_name: "ragdoll_documents"
+      params:
+        collection_name: "ragdoll"
+        persist_directory: ".ragdoll/chroma"
+    pinecone:
+      api_key: "os.environ/PINECONE_API_KEY"
+      environment: "os.environ/PINECONE_ENVIRONMENT"
+      index_name: "ragdoll-index"
