@@ -264,6 +264,21 @@ Based on benchmarking with 2wikimultihopqa dataset (51 queries, top_k=8):
 - Hybrid mode shows slight edge (+2%) with best recall and perfect retrieval
 - Latency: Vector fastest (365ms), Hybrid moderate (691ms), PageRank slowest (857ms)
 
+**Architectural Note - Chunking vs Passage-Level Retrieval**:
+
+RAGdoll's benchmark results should not be directly compared to external baseline systems (e.g., FastGraphRAG's VectorDB baseline reporting 32% on multihop queries) due to a fundamental architectural difference:
+
+- **RAGdoll**: Uses chunked retrieval with 2000-character chunks and 200-character overlap. This breaks passages into smaller semantic units before embedding.
+- **External Baselines**: Typically use whole-passage retrieval without chunking, embedding entire documents as single units.
+
+This chunking strategy explains RAGdoll's stronger performance (45% vs external 32% on multi-hop queries):
+
+1. **Finer-grained semantic matching**: Smaller chunks allow embeddings to capture specific facts more precisely
+2. **Multi-hop advantage**: When questions require combining facts from different parts of long passages, chunked retrieval can surface each fact independently
+3. **Reduced noise**: Smaller semantic units mean less irrelevant content diluting the embedding representation
+
+This is an implementation choice, not a fundamental algorithmic advantage. External systems could achieve similar results by adopting chunk-based ingestion. The key insight is that **chunking granularity significantly impacts retrieval performance** on complex multi-hop reasoning tasks.
+
 **Note on PageRank Mode**: The PageRank retriever is included for graph-first experiments, but its primary purpose is to complement vector search rather than replace it entirely. Results may emphasize entity-centric passages.
 
 **By Design**: RAGdoll implements **Graph-Augmented RAG**, where the graph enhances vector search rather than replacing it. This differs from traditional Graph-RAG systems that use graph traversal as the primary retrieval mechanism. RAGdoll's approach:
