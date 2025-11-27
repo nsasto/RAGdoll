@@ -1,5 +1,5 @@
-from typing import List, Dict, Optional
-from pydantic import BaseModel, Field
+from typing import List, Dict, Optional, Any
+from pydantic import BaseModel, Field, field_validator
 import uuid
 
 
@@ -13,6 +13,14 @@ class Relationship(BaseModel):
     subject: str
     relationship: str
     object: str
+
+    @field_validator("subject", "relationship", "object", mode="before")
+    @classmethod
+    def coerce_to_string(cls, v: Any) -> str:
+        """Coerce any type to string - LLMs sometimes return integers."""
+        if v is None:
+            return ""
+        return str(v)
 
 
 class EntityList(BaseModel):
@@ -45,6 +53,14 @@ class GraphEdge(BaseModel):
     type: str
     metadata: Dict = Field(default_factory=dict)
     source_document_id: Optional[str] = None  # Link back to the originating document
+
+    @field_validator("source_document_id", mode="before")
+    @classmethod
+    def coerce_document_id_to_string(cls, v: Any) -> Optional[str]:
+        """Coerce document ID to string - often comes as hash integer."""
+        if v is None:
+            return None
+        return str(v)
 
 
 class Graph(BaseModel):

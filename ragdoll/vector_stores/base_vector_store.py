@@ -194,8 +194,16 @@ class BaseVectorStore:
     def similarity_search_with_relevance_scores(
         self, query: str, k: int = 4, **kwargs: Any
     ) -> List[tuple[Document, float]]:
-        """Return documents with relevance scores."""
-        return self._store.similarity_search_with_relevance_scores(query, k=k, **kwargs)
+        """Return documents with relevance scores (normalized to 0-1 range)."""
+        results = self._store.similarity_search_with_relevance_scores(
+            query, k=k, **kwargs
+        )
+        # Normalize scores to [0, 1] range to handle cosine distance edge cases
+        normalized = []
+        for doc, score in results:
+            clamped_score = max(0.0, min(1.0, score))
+            normalized.append((doc, clamped_score))
+        return normalized
 
     def delete(self, ids: Sequence[str]) -> Any:
         """Delete documents if the wrapped store supports deletion."""

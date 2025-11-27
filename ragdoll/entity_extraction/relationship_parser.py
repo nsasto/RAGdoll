@@ -59,11 +59,14 @@ class RelationshipOutputParser:
             if isinstance(rel, Relationship):
                 normalized.append(rel)
             elif isinstance(rel, BaseModel):
-                normalized.append(Relationship(**rel.model_dump()))
+                try:
+                    normalized.append(Relationship(**rel.model_dump()))
+                except Exception:
+                    continue
             elif isinstance(rel, dict):
                 try:
                     normalized.append(Relationship(**rel))
-                except TypeError:
+                except (TypeError, Exception):
                     continue
         if normalized:
             return normalized
@@ -92,7 +95,8 @@ class RelationshipOutputParser:
 
         data_rows = rows[1:]
         if data_rows and all(
-            cell.replace(":", "").replace("-", "").strip() == "" for cell in data_rows[0]
+            cell.replace(":", "").replace("-", "").strip() == ""
+            for cell in data_rows[0]
         ):
             data_rows = data_rows[1:]
 

@@ -538,11 +538,17 @@ class EntityExtractionService(BaseEntityExtractor):
         llm_runner: Optional[BaseLLMCaller],
     ) -> List[GraphEdge]:
         if not llm_runner:
+            logger.debug("No LLM runner provided for relationship extraction")
             return []
 
         prompt = self._build_relationship_prompt(document)
         response = await llm_runner.call(prompt)
-        return self._parse_relationships(response, document, nodes)
+        edges = self._parse_relationships(response, document, nodes)
+        if not edges:
+            logger.debug(
+                f"No relationships extracted from document (response length: {len(response)}, nodes: {len(nodes)})"
+            )
+        return edges
 
     def _build_relationship_prompt(self, document: Document) -> str:
         prompt_key = self._select_relationship_prompt_key()

@@ -716,7 +716,8 @@ class GraphRetriever(BaseRetriever):
                 if key not in ["name", "type", "id", "relevance_score", "hop_distance"]:
                     content_parts.append(f"  {key}: {value}")
 
-            # Add relationships if requested
+            # Extract relationship triples for metadata
+            relationship_triples = []
             if include_edges:
                 node_edges = [
                     e for e in edges if e["source"] == node_id or e["target"] == node_id
@@ -730,22 +731,79 @@ class GraphRetriever(BaseRetriever):
                                 "name", edge["target"]
                             )
                             content_parts.append(f"    -> {rel_type} -> {other}")
+                            # Add structured triple: (subject, predicate, object)
+                            relationship_triples.append((name, rel_type, other))
                         else:
                             other = nodes.get(edge["source"], {}).get(
                                 "name", edge["source"]
                             )
                             content_parts.append(f"    <- {rel_type} <- {other}")
+                            # Add structured triple: (subject, predicate, object)
+                            relationship_triples.append((other, rel_type, name))
 
-            # Create document
-            doc = Document(
-                page_content="\n".join(content_parts),
-                metadata={
+            # Try to get source passage from vector store if vector_id is available
+            source_doc = None
+            vector_id = None
+            if "properties" in node_data:
+                vector_id = node_data["properties"].get("vector_id")
+            elif "vector_id" in node_data:
+                vector_id = node_data.get("vector_id")
+
+            # Retrieve source document if we have vector_id and vector_store
+            if vector_id and self.vector_store:
+                try:
+                    from ragdoll.vector_stores.adapter import VectorStoreAdapter
+
+                    adapter = VectorStoreAdapter(self.vector_store)
+                    docs_dict = adapter.get_documents_by_ids([vector_id])
+                    if vector_id in docs_dict:
+                        source_doc = docs_dict[vector_id]
+                        logger.debug(
+                            f"Retrieved source passage for entity {name} (vector_id: {vector_id[:8]}...)"
+                        )
+                except Exception as e:
+                    logger.debug(
+                        f"Could not retrieve source passage for {vector_id}: {e}"
+                    )
+
+            # Build metadata - prioritize source passage metadata if available
+            if source_doc:
+                # Use source passage metadata but add graph context
+                doc_metadata = dict(source_doc.get("metadata", {}))
+                doc_metadata.update(
+                    {
+                        "node_id": node_id,
+                        "node_type": node_type,
+                        "entity_name": name,
+                        "relevance_score": node_data.get("relevance_score", 0),
+                        "hop_distance": node_data.get("hop_distance", 0),
+                        "retrieval_method": "graph_expanded",
+                    }
+                )
+                # Add relationship triples if available
+                if relationship_triples:
+                    doc_metadata["relationship_triples"] = relationship_triples
+                # Use source passage content instead of entity description
+                page_content = source_doc.get("page_content", "\n".join(content_parts))
+            else:
+                # Fallback to entity description if source not found
+                doc_metadata = {
                     "source": "graph_retrieval",
                     "node_id": node_id,
                     "node_type": node_type,
+                    "entity_name": name,
                     "relevance_score": node_data.get("relevance_score", 0),
                     "hop_distance": node_data.get("hop_distance", 0),
-                },
+                }
+                # Add relationship triples if available
+                if relationship_triples:
+                    doc_metadata["relationship_triples"] = relationship_triples
+                page_content = "\n".join(content_parts)
+
+            # Create document
+            doc = Document(
+                page_content=page_content,
+                metadata=doc_metadata,
             )
             documents.append(doc)
 

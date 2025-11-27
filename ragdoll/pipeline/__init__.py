@@ -86,6 +86,11 @@ class IngestionPipeline:
         self.config_manager = config_manager or self.app_config.config
         self.options = options or IngestionOptions()
 
+        # Auto-skip graph store if not extracting entities (no graph will be built)
+        if not self.options.extract_entities and not self.options.skip_graph_store:
+            self.options.skip_graph_store = True
+            logger.debug("Auto-enabled skip_graph_store since extract_entities=False")
+
         self.content_extraction_service = (
             content_extraction_service
             or DocumentLoaderService(

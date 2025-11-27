@@ -66,7 +66,8 @@ class GraphPersistenceService:
             return graph
 
         logger.warning(
-            "Unsupported output format %s; returning graph unchanged", self.output_format
+            "Unsupported output format %s; returning graph unchanged",
+            self.output_format,
         )
         return graph
 
@@ -96,12 +97,21 @@ class GraphPersistenceService:
 
         nx_graph = nx.DiGraph()
         for node in graph.nodes:
-            nx_graph.add_node(
-                node.id,
-                type=node.type,
-                name=node.name,
-                **(node.metadata or {}),
-            )
+            node_attrs = {
+                "type": node.type,
+                "name": node.name,
+            }
+            # Add label if present
+            if node.label:
+                node_attrs["label"] = node.label
+            # Merge properties if present (contains vector_id and other metadata)
+            if node.properties:
+                node_attrs.update(node.properties)
+            # Fall back to metadata for backwards compatibility
+            elif node.metadata:
+                node_attrs.update(node.metadata)
+
+            nx_graph.add_node(node.id, **node_attrs)
         for edge in graph.edges:
             nx_graph.add_edge(
                 edge.source,
@@ -155,7 +165,11 @@ class GraphPersistenceService:
                     SET n += $props
                     """,
                     id=node.id,
-                    props={"type": node.type, "name": node.name, **(node.metadata or {})},
+                    props={
+                        "type": node.type,
+                        "name": node.name,
+                        **(node.metadata or {}),
+                    },
                 )
 
             for edge in graph.edges:

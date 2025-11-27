@@ -93,6 +93,154 @@ class VectorStoreAdapter:
             logger.error(f"Failed to retrieve embeddings by IDs: {e}")
             return {}
 
+    def get_documents_by_ids(
+        self,
+        vector_ids: List[str],
+    ) -> Dict[str, Any]:
+        """
+        Retrieve full documents (with metadata) for given vector IDs.
+
+        Args:
+            vector_ids: List of vector store document IDs
+
+        Returns:
+            Dictionary mapping vector_id to dict with 'page_content' and 'metadata'
+
+        Example return:
+            {
+                "abc123": {
+                    "page_content": "The quick brown fox...",
+                    "metadata": {"title": "Example Document", "source": "file.txt"}
+                }
+            }
+        """
+        if not vector_ids:
+            return {}
+
+        try:
+            if self._backend == "chroma":
+                return self._get_chroma_documents(vector_ids)
+            elif self._backend == "faiss":
+                return self._get_faiss_documents(vector_ids)
+            else:
+                return self._get_generic_documents(vector_ids)
+        except Exception as e:
+            logger.error(f"Failed to retrieve documents by IDs: {e}")
+            return {}
+
+    def _get_chroma_documents(
+        self,
+        vector_ids: List[str],
+    ) -> Dict[str, Any]:
+        """Retrieve full documents from Chroma backend."""
+        store = (
+            self.vector_store._store
+            if hasattr(self.vector_store, "_store")
+            else self.vector_store
+        )
+
+        try:
+            # Chroma's get() method with documents and metadata
+            if hasattr(store, "_collection"):
+                collection = store._collection
+                results = collection.get(
+                    ids=vector_ids, include=["documents", "metadatas"]
+                )
+            elif hasattr(store, "get"):
+                results = store.get(ids=vector_ids, include=["documents", "metadatas"])
+            else:
+                logger.warning(
+                    "Chroma backend detected but cannot access .get() or ._collection"
+                )
+                return {}
+
+            # Process results
+            documents_dict = {}
+            if results:
+                ids_data = results.get("ids", [])
+                documents_data = results.get("documents", [])
+                metadatas_data = results.get("metadatas", [])
+
+                for i, vec_id in enumerate(ids_data):
+                    if i < len(documents_data):
+                        documents_dict[vec_id] = {
+                            "page_content": (
+                                documents_data[i] if i < len(documents_data) else ""
+                            ),
+                            "metadata": (
+                                metadatas_data[i] if i < len(metadatas_data) else {}
+                            ),
+                        }
+
+            logger.debug(
+                f"Retrieved {len(documents_dict)}/{len(vector_ids)} documents from Chroma"
+            )
+            return documents_dict
+
+        except Exception as e:
+            logger.error(f"Error retrieving Chroma documents: {e}")
+            return {}
+
+    def _get_faiss_documents(
+        self,
+        vector_ids: List[str],
+    ) -> Dict[str, Any]:
+        """Retrieve full documents from FAISS backend."""
+        store = (
+            self.vector_store._store
+            if hasattr(self.vector_store, "_store")
+            else self.vector_store
+        )
+
+        try:
+            if not hasattr(store, "docstore") or not hasattr(
+                store, "index_to_docstore_id"
+            ):
+                logger.warning("FAISS backend missing docstore or index mapping")
+                return {}
+
+            documents_dict = {}
+            id_to_index = {
+                doc_id: idx for idx, doc_id in store.index_to_docstore_id.items()
+            }
+
+            for vec_id in vector_ids:
+                if vec_id not in id_to_index:
+                    logger.debug(f"Vector ID {vec_id} not found in FAISS index")
+                    continue
+
+                try:
+                    doc = store.docstore.search(vec_id)
+                    if doc and hasattr(doc, "page_content"):
+                        documents_dict[vec_id] = {
+                            "page_content": doc.page_content,
+                            "metadata": getattr(doc, "metadata", {}),
+                        }
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to retrieve FAISS document for {vec_id}: {e}"
+                    )
+                    continue
+
+            return documents_dict
+
+        except Exception as e:
+            logger.error(f"Error retrieving FAISS documents: {e}")
+            return {}
+
+    def _get_generic_documents(
+        self,
+        vector_ids: List[str],
+    ) -> Dict[str, Any]:
+        """
+        Generic fallback for vector stores without direct document access.
+        """
+        logger.warning(
+            f"Using generic fallback for {self._backend} backend. "
+            "Direct document retrieval may not be supported."
+        )
+        return {}
+
     def _get_chroma_embeddings(
         self,
         vector_ids: List[str],
