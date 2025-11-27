@@ -6,7 +6,7 @@ Inspired by fast-graphrag and HippoRAG approaches.
 """
 
 import logging
-from typing import List, Optional, Dict, Any, Set, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Set
 from collections import deque
 import numpy as np
 from langchain_core.documents import Document
@@ -45,6 +45,7 @@ class PageRankGraphRetriever(BaseRetriever):
         include_edges: Whether to include relationship information in results
         enable_fallback: If True, fall back to vector search if subgraph empty
         log_fallback_warnings: If True, log warnings when fallback occurs
+        edge_weight_field: Edge metadata field to use when weighting transitions
     """
 
     def __init__(
@@ -66,6 +67,7 @@ class PageRankGraphRetriever(BaseRetriever):
         include_edges: bool = True,
         enable_fallback: bool = True,
         log_fallback_warnings: bool = True,
+        edge_weight_field: str = "weight",
     ):
         self.graph_store = graph_store
         self.vector_store = vector_store
@@ -88,6 +90,7 @@ class PageRankGraphRetriever(BaseRetriever):
         self.include_edges = include_edges
         self.enable_fallback = enable_fallback
         self.log_fallback_warnings = log_fallback_warnings
+        self.edge_weight_field = edge_weight_field
 
         if self.seed_strategy not in ["embedding", "keyword"]:
             raise ValueError(
@@ -108,7 +111,9 @@ class PageRankGraphRetriever(BaseRetriever):
         if not self.graph_store:
             logger.warning("No graph store available for PageRank retrieval")
             if self.enable_fallback and self.vector_store:
-                return self.vector_store.similarity_search(query, k=self.top_k)
+                docs = self.vector_store.similarity_search(query, k=self.top_k)
+                self._annotate_retrieval_source(docs)
+                return docs
             return []
 
         # Allow runtime parameter overrides
@@ -123,7 +128,9 @@ class PageRankGraphRetriever(BaseRetriever):
             if not seed_nodes:
                 logger.debug("No seed nodes found, attempting fallback")
                 if self.enable_fallback and self.vector_store:
-                    return self.vector_store.similarity_search(query, k=top_k)
+                    docs = self.vector_store.similarity_search(query, k=top_k)
+                    self._annotate_retrieval_source(docs)
+                    return docs
                 return []
 
             logger.debug(f"Selected {len(seed_nodes)} seed nodes")
@@ -136,7 +143,9 @@ class PageRankGraphRetriever(BaseRetriever):
             if not subgraph:
                 logger.debug("Empty subgraph, attempting fallback")
                 if self.enable_fallback and self.vector_store:
-                    return self.vector_store.similarity_search(query, k=top_k)
+                    docs = self.vector_store.similarity_search(query, k=top_k)
+                    self._annotate_retrieval_source(docs)
+                    return docs
                 return []
 
             logger.debug(
@@ -144,9 +153,10 @@ class PageRankGraphRetriever(BaseRetriever):
             )
 
             # Step 3: Run personalized PageRank
-            seed_node_ids = {node_id for node_id, _ in seed_nodes}
             seed_indices = {
-                node_to_idx[nid] for nid in seed_node_ids if nid in node_to_idx
+                node_to_idx[node_id]: score
+                for node_id, score in seed_nodes
+                if node_id in node_to_idx
             }
             scores = self._run_personalized_pagerank(
                 subgraph, node_to_idx, seed_indices
@@ -160,7 +170,9 @@ class PageRankGraphRetriever(BaseRetriever):
             if not vector_ids:
                 logger.debug("No vector IDs found after ranking, attempting fallback")
                 if self.enable_fallback and self.vector_store:
-                    return self.vector_store.similarity_search(query, k=top_k)
+                    docs = self.vector_store.similarity_search(query, k=top_k)
+                    self._annotate_retrieval_source(docs)
+                    return docs
                 return []
 
             # Step 5: Fetch final documents from vector store
@@ -171,13 +183,18 @@ class PageRankGraphRetriever(BaseRetriever):
                 if "vector_id" in doc.metadata:
                     doc.metadata["retrieval_source"] = "pagerank"
 
+            # Ensure retrieval source is present even on fallback paths
+            self._annotate_retrieval_source(documents)
+
             logger.debug(f"Retrieved {len(documents)} final documents")
             return documents
 
         except Exception as e:
             logger.error(f"PageRank retrieval error: {e}", exc_info=True)
             if self.enable_fallback and self.vector_store:
-                return self.vector_store.similarity_search(query, k=self.top_k)
+                docs = self.vector_store.similarity_search(query, k=self.top_k)
+                self._annotate_retrieval_source(docs)
+                return docs
             return []
 
     async def aget_relevant_documents(self, query: str, **kwargs) -> List[Document]:
@@ -188,6 +205,13 @@ class PageRankGraphRetriever(BaseRetriever):
         don't have native async support.
         """
         return self.get_relevant_documents(query, **kwargs)
+
+    def _annotate_retrieval_source(self, documents: List[Document]) -> None:
+        """Mark documents as coming from the PageRank retriever."""
+        for doc in documents or []:
+            metadata = doc.metadata or {}
+            metadata["retrieval_source"] = "pagerank"
+            doc.metadata = metadata
 
     def _select_seeds(self, query: str) -> List[Tuple[str, float]]:
         """
@@ -218,9 +242,36 @@ class PageRankGraphRetriever(BaseRetriever):
 
         try:
             # Find top chunks by similarity
-            chunks = self.vector_store.similarity_search_with_scores(
-                query, k=self.num_seed_chunks
-            )
+            chunks = None
+            def _try_fetch(method_name: str):
+                if not hasattr(self.vector_store, method_name):
+                    return None
+                try:
+                    result = getattr(self.vector_store, method_name)(
+                        query, k=self.num_seed_chunks
+                    )
+                except Exception:
+                    return None
+                if result is None:
+                    return None
+                if not isinstance(result, (list, tuple)):
+                    try:
+                        result = list(result)
+                    except Exception:
+                        return None
+                return result or None
+
+            # Prefer LangChain's relevance-scores API, then legacy with_scores
+            chunks = _try_fetch("similarity_search_with_relevance_scores")
+            if chunks is None:
+                chunks = _try_fetch("similarity_search_with_scores")
+
+            # Final fallback: plain similarity search without explicit scores
+            if chunks is None:
+                docs = self.vector_store.similarity_search(
+                    query, k=self.num_seed_chunks
+                )
+                chunks = [(doc, 1.0) for doc in docs]
 
             if not chunks:
                 logger.debug("No similar chunks found in vector store")
@@ -365,17 +416,16 @@ class PageRankGraphRetriever(BaseRetriever):
                 if neighbor_id not in visited and len(visited) < max_nodes:
                     visited.add(neighbor_id)
                     queue.append((neighbor_id, depth + 1))
-                    adjacency[neighbor_id] = []
-
-                if neighbor_id in visited or neighbor_id in adjacency.get(node_id, []):
-                    continue
+                    adjacency.setdefault(neighbor_id, [])
 
                 # Get edge weight
                 edge_weight = self._get_edge_weight(node_id, neighbor_id)
 
                 # Add edge in both directions (undirected for PageRank)
-                adjacency.setdefault(node_id, []).append((neighbor_id, edge_weight))
-                adjacency.setdefault(neighbor_id, []).append((node_id, edge_weight))
+                if neighbor_id not in [nid for nid, _ in adjacency.get(node_id, [])]:
+                    adjacency.setdefault(node_id, []).append((neighbor_id, edge_weight))
+                if node_id not in [nid for nid, _ in adjacency.get(neighbor_id, [])]:
+                    adjacency.setdefault(neighbor_id, []).append((node_id, edge_weight))
 
         # Create index mappings
         node_to_idx = {node_id: i for i, node_id in enumerate(sorted(visited))}
@@ -398,7 +448,7 @@ class PageRankGraphRetriever(BaseRetriever):
         try:
             edge_data = self.graph_store.get_edge_data(src_id, dst_id)
             if isinstance(edge_data, dict):
-                return float(edge_data.get("weight", 1.0))
+                return float(edge_data.get(self.edge_weight_field, 1.0))
         except Exception:
             pass
         return 1.0
@@ -407,7 +457,7 @@ class PageRankGraphRetriever(BaseRetriever):
         self,
         adjacency: Dict[str, List[Tuple[str, float]]],
         node_to_idx: Dict[str, int],
-        seed_indices: Set[int],
+        seed_indices: Dict[int, float] | Set[int],
     ) -> np.ndarray:
         """
         Run personalized PageRank using power iteration.
@@ -415,7 +465,7 @@ class PageRankGraphRetriever(BaseRetriever):
         Args:
             adjacency: Adjacency dict mapping node_id -> [(neighbor_id, weight), ...]
             node_to_idx: Mapping from node_id to vector index
-            seed_indices: Set of seed node indices in the vector
+            seed_indices: Mapping of seed node index -> seed score
 
         Returns:
             Array of PageRank scores indexed by node index
@@ -426,11 +476,19 @@ class PageRankGraphRetriever(BaseRetriever):
         if n == 0:
             return np.array([])
 
-        # Initialize personalization vector: uniform over seeds
+        # Initialize personalization vector: proportional to seed scores
         personalization = np.zeros(n)
         if seed_indices:
-            for idx in seed_indices:
-                personalization[idx] = 1.0 / len(seed_indices)
+            # Accept both {idx: score} and {idx1, idx2} legacy set input
+            if isinstance(seed_indices, dict):
+                total = sum(seed_indices.values())
+                for idx, score in seed_indices.items():
+                    personalization[idx] = (
+                        score / total if total > 0 else 1.0 / len(seed_indices)
+                    )
+            else:
+                for idx in seed_indices:
+                    personalization[idx] = 1.0 / len(seed_indices)
         else:
             personalization[:] = 1.0 / n
 

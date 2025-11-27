@@ -153,6 +153,7 @@ entity_extraction:
   postprocessing_steps: ["merge_similar_entities", "normalize_relations"]
   output_format: "json"
   graph_database_config:
+    backend: "networkx"  # Options: "networkx", "neo4j", "simple"
     output_file: "graph_output.json"
     clear_before_save: false
   relationship_parsing:
@@ -215,6 +216,7 @@ retriever:
     min_score: 0.0                     # Minimum PageRank score threshold
     dedup_on_vector_id: true           # Collapse multiple nodes mapping to same chunk
     include_edges: true                # Include relationship information
+    edge_weight_field: "weight"        # Edge metadata field to use for PageRank weights
     enable_fallback: true              # Fall back to vector search if needed
     log_fallback_warnings: true        # Log warnings when fallback occurs
 

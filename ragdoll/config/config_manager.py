@@ -153,6 +153,7 @@ class ConfigManager:
         pagerank_config.setdefault("include_edges", True)
         pagerank_config.setdefault("enable_fallback", True)
         pagerank_config.setdefault("log_fallback_warnings", True)
+        pagerank_config.setdefault("edge_weight_field", "weight")
 
         # Hybrid combination defaults
         hybrid_config = retriever_config.setdefault("hybrid", {})

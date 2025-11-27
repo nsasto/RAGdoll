@@ -440,6 +440,7 @@ class Ragdoll:
             include_edges=pr_cfg.get("include_edges", True),
             enable_fallback=pr_cfg.get("enable_fallback", True),
             log_fallback_warnings=pr_cfg.get("log_fallback_warnings", True),
+            edge_weight_field=pr_cfg.get("edge_weight_field", "weight"),
         )
 
     def _build_retriever(self) -> Optional[HybridRetriever]:
