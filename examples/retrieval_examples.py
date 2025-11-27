@@ -1,222 +1,212 @@
 """
-RAGdoll Retrieval Examples
+RAGdoll Retrieval Examples (self-contained).
 
-Demonstrates the new modular retrieval architecture with vector, graph,
-and hybrid retrieval strategies.
+Loads the bundled comparison sample, ingests it with vector + graph stores, and
+demonstrates each retriever (vector, graph, hybrid, pagerank) with timing and a
+simple keyword-based precision/recall proxy. Uses FakeEmbeddings so no API keys
+are required.
 """
 
-from ragdoll import Ragdoll, VectorRetriever, GraphRetriever, HybridRetriever
+from __future__ import annotations
+
+import sys
+import time
+from pathlib import Path
+from typing import Dict, List
+
+from dotenv import load_dotenv
+from langchain_core.documents import Document
+
+# Ensure local package imports when running from examples/
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from ragdoll import Ragdoll
+from ragdoll.settings import bootstrap_app
+from ragdoll.pipeline import IngestionOptions
 
 
-def example_basic_retrieval():
-    """Basic example using the Ragdoll orchestrator."""
+# Globals shared across examples
+load_dotenv(ROOT / ".env")
+CONFIG_PATH = ROOT / "examples" / "app_config_demo.yaml"
+APP_CONFIG = bootstrap_app(str(CONFIG_PATH))
+# Ensure pagerank retriever is enabled for the demo
+_raw = getattr(APP_CONFIG.config, "_config", {})
+_raw.setdefault("retriever", {}).setdefault("pagerank", {})
+_raw["retriever"]["pagerank"]["enabled"] = True
+SAMPLE_FILE = Path(__file__).parent / "retriever_comparison_sample.txt"
 
-    # Initialize RAGdoll with config
-    ragdoll = Ragdoll(config_path="app_config.yaml")
 
-    # Ingest documents and build knowledge graph
-    result = ragdoll.ingest_with_graph_sync(
-        ["docs/architecture.md", "docs/configuration.md", "examples/README.md"]
-    )
+def _build_ragdoll(with_graph: bool = True) -> Ragdoll:
+    """Initialize Ragdoll from config and ingest the sample corpus."""
+    ragdoll = Ragdoll(app_config=APP_CONFIG)
+    if with_graph:
+        graph_dir = ROOT / "demo_state"
+        graph_dir.mkdir(exist_ok=True)
+        ragdoll.ingest_with_graph_sync(
+            [str(SAMPLE_FILE)],
+            options=IngestionOptions(
+                graph_store_options={
+                    "store_type": "networkx",
+                    "output_file": str(graph_dir / "retrieval_examples_graph.pkl"),
+                }
+            ),
+        )
+    else:
+        ragdoll.ingest_data([str(SAMPLE_FILE)])
+    return ragdoll
 
-    print(f"Ingested {result['stats'].get('total_documents', 0)} documents")
-    print(f"Graph has {result['stats'].get('entities_extracted', 0)} entities")
 
-    # Use the automatically configured hybrid retriever
+def _print_docs(docs: List[Document]) -> None:
+    for i, doc in enumerate(docs, 1):
+        source = doc.metadata.get("retrieval_source", "unknown")
+        print(f"  {i}. [{source}] {doc.page_content[:120]}...")
+
+
+def _evaluate_keywords(docs: List[Document], keywords: List[str]) -> Dict[str, float]:
+    content = " ".join(doc.page_content for doc in docs).lower()
+    found = sum(1 for kw in keywords if kw.lower() in content)
+    recall = found / len(keywords) if keywords else 0.0
+    precision = found / max(len(docs) * len(keywords), 1)
+    return {"precision": precision, "recall": recall}
+
+
+def example_basic_hybrid():
+    print("\n=== Basic Hybrid Retrieval ===")
+    ragdoll = _build_ragdoll(with_graph=True)
     query = "What are the main components of RAGdoll?"
     result = ragdoll.query_hybrid(query, k=5)
-
-    print(f"\nQuery: {query}")
     print(f"Answer: {result['answer']}")
-    print(f"\nRetrieved {len(result['documents'])} documents:")
-    for i, doc in enumerate(result["documents"], 1):
-        source = doc.metadata.get("retrieval_source", "unknown")
-        print(f"  {i}. [{source}] {doc.page_content[:100]}...")
+    print(f"Retrieved {len(result['documents'])} docs:")
+    _print_docs(result["documents"])
 
 
 def example_vector_only():
-    """Example using vector retrieval only."""
-
-    ragdoll = Ragdoll()
-
-    # Ingest without graph extraction
-    documents = ragdoll.ingest_data(["docs/README.md"])
-
-    # Create vector retriever directly
-    vector_retriever = VectorRetriever(
-        vector_store=ragdoll.vector_store,
-        top_k=5,
-        search_type="mmr",  # Maximum Marginal Relevance for diversity
-    )
-
-    # Query
-    docs = vector_retriever.get_relevant_documents("How do I configure embeddings?")
-
-    print(f"Found {len(docs)} relevant documents")
-    for doc in docs:
-        print(f"- {doc.metadata.get('source', 'unknown')}")
+    print("\n=== Vector Retrieval ===")
+    ragdoll = _build_ragdoll(with_graph=False)
+    docs = ragdoll.vector_store.similarity_search("How do I configure embeddings?", k=5)
+    print(f"Retrieved {len(docs)} docs:")
+    _print_docs(docs)
 
 
 def example_graph_only():
-    """Example using graph retrieval only."""
-
-    ragdoll = Ragdoll()
-
-    # Ingest with graph extraction
-    result = ragdoll.ingest_with_graph_sync(["docs/entity_extraction.md"])
-
-    # Access the graph retriever
-    graph_retriever = ragdoll.graph_retriever
-
-    if graph_retriever:
-        # Query for entity relationships
-        docs = graph_retriever.get_relevant_documents(
-            "What entities are related to LLM?"
-        )
-
-        print(f"Found {len(docs)} graph nodes")
-        for doc in docs:
-            node_type = doc.metadata.get("node_type", "Entity")
-            hop_dist = doc.metadata.get("hop_distance", 0)
-            print(f"- {node_type} (distance: {hop_dist})")
-            print(f"  {doc.page_content[:150]}")
-    else:
-        print("Graph retriever not available")
-
-
-def example_custom_hybrid():
-    """Example with custom hybrid retriever configuration."""
-
-    ragdoll = Ragdoll()
-    result = ragdoll.ingest_with_graph_sync(["docs/*.md"])
-
-    # Create custom vector retriever with specific settings
-    vector_retriever = VectorRetriever(
-        vector_store=ragdoll.vector_store,
-        top_k=10,
-        search_type="similarity_score_threshold",
-        search_kwargs={"score_threshold": 0.7},
+    print("\n=== Graph Retrieval ===")
+    ragdoll = _build_ragdoll(with_graph=True)
+    docs = ragdoll.graph_retriever.get_relevant_documents(
+        "What entities are related to Kubernetes?", top_k=5
     )
+    print(f"Retrieved {len(docs)} docs:")
+    _print_docs(docs)
 
-    # Create custom graph retriever with deep traversal
-    graph_retriever = GraphRetriever(
-        graph_store=ragdoll.graph_store,
-        top_k=3,
-        max_hops=3,  # Deep traversal
-        traversal_strategy="dfs",  # Depth-first for chains
-        include_edges=True,
-        min_score=0.5,
+
+def example_hybrid_custom():
+    print("\n=== Hybrid Retrieval (custom weights) ===")
+    ragdoll = _build_ragdoll(with_graph=True)
+    ragdoll.hybrid_retriever.mode = "concat"
+    docs = ragdoll.hybrid_retriever.get_relevant_documents(
+        "Explain the relationship between graph traversal and vector search", top_k=5
     )
-
-    # Combine with weighted strategy
-    hybrid_retriever = HybridRetriever(
-        vector_retriever=vector_retriever,
-        graph_retriever=graph_retriever,
-        mode="rerank",  # Re-score combined results
-        vector_weight=0.7,
-        graph_weight=0.3,
-        deduplicate=True,
-    )
-
-    # Query
-    docs = hybrid_retriever.get_relevant_documents(
-        "Explain the relationship between entities and graphs"
-    )
-
-    print(f"Retrieved {len(docs)} documents using custom hybrid strategy")
-
-    # Get statistics
-    stats = hybrid_retriever.get_stats()
-    print("\nRetriever Configuration:")
-    print(f"  Mode: {stats['mode']}")
-    print(f"  Vector top_k: {stats['vector_stats']['top_k']}")
-    print(f"  Graph max_hops: {stats['graph_stats']['max_hops']}")
+    print(f"Retrieved {len(docs)} docs:")
+    _print_docs(docs)
 
 
 def example_comparison():
-    """Compare different retrieval strategies."""
+    """
+    Compare retrievers with timing and keyword coverage (precision/recall proxy).
+    """
+    print("\n=== Retriever Comparison (vector / graph / hybrid / pagerank) ===")
+    ragdoll = _build_ragdoll(with_graph=True)
 
-    ragdoll = Ragdoll()
-    result = ragdoll.ingest_with_graph_sync(["docs/retrieval.md"])
+    test_cases = [
+        {
+            "query": "Which companies attended the summit?",
+            "keywords": ["Microsoft", "Google", "Amazon"],
+        },
+        {
+            "query": "How are Kubernetes and distributed systems connected?",
+            "keywords": ["Kubernetes", "distributed systems"],
+        },
+        {
+            "query": "What does the PageRank retriever do?",
+            "keywords": ["PageRank", "graph"],
+        },
+    ]
 
-    query = "What is graph traversal?"
+    for case in test_cases:
+        query = case["query"]
+        keywords = case["keywords"]
+        print(f"\nQuery: {query}")
 
-    print(f"Query: {query}\n")
+        timings = []
+        # Vector
+        start = time.perf_counter()
+        v_docs = ragdoll.vector_store.similarity_search(query, k=5)
+        timings.append(("vector", time.perf_counter() - start, v_docs))
+        # Graph
+        start = time.perf_counter()
+        g_docs = ragdoll.graph_retriever.get_relevant_documents(query, top_k=5)
+        timings.append(("graph", time.perf_counter() - start, g_docs))
+        # Hybrid
+        start = time.perf_counter()
+        h_docs = ragdoll.hybrid_retriever.get_relevant_documents(query, top_k=5)
+        timings.append(("hybrid", time.perf_counter() - start, h_docs))
+        # PageRank
+        p_docs: List[Document] = []
+        if ragdoll.pagerank_retriever:
+            start = time.perf_counter()
+            p_docs = ragdoll.pagerank_retriever.get_relevant_documents(query, top_k=5)
+            timings.append(("pagerank", time.perf_counter() - start, p_docs))
+        else:
+            timings.append(("pagerank", 0.0, []))
 
-    # 1. Vector-only
-    vector_docs = ragdoll.vector_store.similarity_search(query, k=3)
-    print(f"Vector-only: {len(vector_docs)} documents")
-
-    # 2. Graph-only
-    if ragdoll.graph_retriever:
-        graph_docs = ragdoll.graph_retriever.get_relevant_documents(query)
-        print(f"Graph-only: {len(graph_docs)} documents")
-
-    # 3. Hybrid concat
-    ragdoll.hybrid_retriever.mode = "concat"
-    concat_docs = ragdoll.hybrid_retriever.get_relevant_documents(query)
-    print(f"Hybrid (concat): {len(concat_docs)} documents")
-
-    # 4. Hybrid rerank
-    ragdoll.hybrid_retriever.mode = "rerank"
-    rerank_docs = ragdoll.hybrid_retriever.get_relevant_documents(query)
-    print(f"Hybrid (rerank): {len(rerank_docs)} documents")
-
-    # Show top result from each strategy
-    print("\nTop result from each strategy:")
-    print(f"\nVector: {vector_docs[0].page_content[:100]}...")
-    if ragdoll.graph_retriever and graph_docs:
-        print(f"\nGraph: {graph_docs[0].page_content[:100]}...")
-    print(f"\nReranked: {rerank_docs[0].page_content[:100]}...")
+        for name, elapsed, docs in timings:
+            metrics = _evaluate_keywords(docs, keywords)
+            print(
+                f"  {name:<8} time={elapsed*1000:6.2f} ms  "
+                f"precision~={metrics['precision']:.2f}  recall~={metrics['recall']:.2f}  "
+                f"docs={len(docs)}"
+            )
+        print("  Top results (vector / hybrid / pagerank):")
+        for label, docs in [
+            ("vector", v_docs),
+            ("hybrid", h_docs),
+            ("pagerank", p_docs),
+        ]:
+            if docs:
+                print(f"    {label:<8}: {docs[0].page_content[:80]}...")
 
 
-def example_async_retrieval():
-    """Example using async retrieval."""
-
-    import asyncio
-
-    async def retrieve_async():
-        ragdoll = Ragdoll()
-        await ragdoll.ingest_with_graph(["docs/README.md"])
-
-        # Async retrieval
-        docs = await ragdoll.hybrid_retriever.aget_relevant_documents(
-            "What is RAGdoll?"
+def main():
+    if not SAMPLE_FILE.exists():
+        raise FileNotFoundError(
+            f"Sample corpus missing at {SAMPLE_FILE}. Add the text file and retry."
         )
 
-        print(f"Retrieved {len(docs)} documents asynchronously")
-        return docs
+    print(
+        """
+Available examples:
+  1 - Basic Hybrid Retrieval
+  2 - Vector-Only Retrieval
+  3 - Graph-Only Retrieval
+  4 - Hybrid Retrieval (custom)
+  5 - Retriever Comparison (latency + keyword coverage)
+"""
+    )
 
-    # Run async function
-    docs = asyncio.run(retrieve_async())
-    return docs
+    choice = sys.argv[1] if len(sys.argv) > 1 else "5"
+    if choice == "1":
+        example_basic_hybrid()
+    elif choice == "2":
+        example_vector_only()
+    elif choice == "3":
+        example_graph_only()
+    elif choice == "4":
+        example_hybrid_custom()
+    else:
+        print("No param specified. Running default: Retriever Comparison\n")
+        example_comparison()
 
 
 if __name__ == "__main__":
-    print("=" * 70)
-    print("RAGdoll Retrieval Examples")
-    print("=" * 70)
-
-    print("\n1. Basic Hybrid Retrieval")
-    print("-" * 70)
-    example_basic_retrieval()
-
-    print("\n\n2. Vector-Only Retrieval")
-    print("-" * 70)
-    example_vector_only()
-
-    print("\n\n3. Graph-Only Retrieval")
-    print("-" * 70)
-    example_graph_only()
-
-    print("\n\n4. Custom Hybrid Configuration")
-    print("-" * 70)
-    example_custom_hybrid()
-
-    print("\n\n5. Strategy Comparison")
-    print("-" * 70)
-    example_comparison()
-
-    print("\n\n6. Async Retrieval")
-    print("-" * 70)
-    example_async_retrieval()
+    main()
