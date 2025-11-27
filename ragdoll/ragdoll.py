@@ -17,7 +17,12 @@ from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.llms import get_llm_caller
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
 from ragdoll.pipeline import IngestionOptions, IngestionPipeline
-from ragdoll.retrieval import VectorRetriever, GraphRetriever, HybridRetriever
+from ragdoll.retrieval import (
+    VectorRetriever,
+    GraphRetriever,
+    HybridRetriever,
+    PageRankGraphRetriever,
+)
 from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
 
 logger = logging.getLogger(__name__)
@@ -82,6 +87,7 @@ class Ragdoll:
             else getattr(self.llm_caller, "llm", None)
         )
         self.graph_retriever: Optional[GraphRetriever] = None
+        self.pagerank_retriever: Optional[PageRankGraphRetriever] = None
         self.hybrid_retriever: Optional[HybridRetriever] = None
         self.last_graph: Optional[Graph] = None
         self.graph_ingestion_stats: Optional[Dict[str, Any]] = None
@@ -113,10 +119,13 @@ class Ragdoll:
             question: The question to answer
             k: Number of documents to retrieve
             use_hybrid: Legacy flag for hybrid retrieval (deprecated, use retriever_mode)
-            retriever_mode: One of "vector", "graph", or "hybrid"
+            retriever_mode: One of "vector", "graph", "pagerank", or "hybrid"
         """
         # Select retriever based on mode
-        if retriever_mode == "graph" and self.graph_retriever:
+        if retriever_mode == "pagerank" and self.pagerank_retriever:
+            hits = self.pagerank_retriever.get_relevant_documents(question, top_k=k)
+            retriever_used = "pagerank"
+        elif retriever_mode == "graph" and self.graph_retriever:
             hits = self.graph_retriever.get_relevant_documents(question, top_k=k)
             retriever_used = "graph"
         elif retriever_mode == "hybrid" and self.hybrid_retriever:
@@ -159,6 +168,25 @@ class Ragdoll:
             answer = self._call_llm(prompt)
 
         return {"answer": answer, "documents": hits}
+
+    def query_pagerank(self, question: str, *, k: int = 5) -> dict:
+        """
+        Retrieve context using PageRank-based graph retrieval when available.
+
+        Falls back to vector retrieval if PageRank retriever is unavailable.
+
+        Args:
+            question: The question to answer
+            k: Number of documents to retrieve
+
+        Returns:
+            Dictionary with answer, documents, and retriever metadata
+        """
+        if not self.pagerank_retriever:
+            # Fallback to vector-only retrieval
+            return self.query(question, k=k, retriever_mode="vector")
+
+        return self.query(question, k=k, retriever_mode="pagerank")
 
     @staticmethod
     def _to_documents(documents: Iterable[Any]) -> List[Document]:
@@ -290,12 +318,14 @@ class Ragdoll:
 
         # Build new-style retrievers
         self.graph_retriever = self._build_graph_retriever(graph_store)
+        self.pagerank_retriever = self._build_pagerank_retriever(graph_store)
         self.hybrid_retriever = self._build_retriever()
 
         return {
             "stats": stats,
             "graph": graph,
             "graph_retriever": self.graph_retriever,
+            "pagerank_retriever": self.pagerank_retriever,
             "graph_store": graph_store,
         }
 
@@ -365,6 +395,54 @@ class Ragdoll:
             log_fallback_warnings=graph_cfg.get("log_fallback_warnings", True),
         )
 
+    def _build_pagerank_retriever(
+        self, graph_store: Optional[Any]
+    ) -> Optional[PageRankGraphRetriever]:
+        """
+        Build a PageRankGraphRetriever for personalized PageRank retrieval.
+
+        Args:
+            graph_store: Graph persistence service or graph structure
+
+        Returns:
+            Configured PageRankGraphRetriever or None if no graph store
+        """
+        if not graph_store:
+            return None
+
+        # Get pagerank retriever config
+        raw_config = getattr(self.config_manager, "_config", None)
+        pr_cfg = {}
+        if isinstance(raw_config, dict):
+            pr_cfg = raw_config.get("retriever", {}).get("pagerank", {})
+
+        # Only build if enabled
+        if not pr_cfg.get("enabled", False):
+            return None
+
+        return PageRankGraphRetriever(
+            graph_store=graph_store,
+            vector_store=self.vector_store,
+            embedding_model=self.embedding_model,
+            top_k=pr_cfg.get("top_k", 5),
+            max_nodes=pr_cfg.get("max_nodes", 200),
+            max_hops=pr_cfg.get("max_hops", 3),
+            seed_strategy=pr_cfg.get("seed_strategy", "embedding"),
+            num_seed_chunks=pr_cfg.get("num_seed_chunks", 5),
+            damping_factor=pr_cfg.get("damping_factor", 0.15),
+            max_iter=pr_cfg.get("max_iter", 50),
+            tol=pr_cfg.get("tol", 1e-6),
+            allowed_node_types=pr_cfg.get(
+                "allowed_node_types", ["entity", "event", "document"]
+            ),
+            min_score=pr_cfg.get("min_score", 0.0),
+            dedup_on_vector_id=pr_cfg.get("dedup_on_vector_id", True),
+            include_edges=pr_cfg.get("include_edges", True),
+            enable_fallback=pr_cfg.get("enable_fallback", True),
+            log_fallback_warnings=pr_cfg.get("log_fallback_warnings", True),
+            edge_weight_field=pr_cfg.get("edge_weight_field", "weight"),
+        )
+
     def _build_retriever(self) -> Optional[HybridRetriever]:
         """
         Build a HybridRetriever combining vector and graph retrieval.
@@ -410,7 +488,9 @@ class Ragdoll:
         Retrieve context and stream the response from the LLM.
         """
         hits = []
-        if retriever_mode == "hybrid" and self.hybrid_retriever:
+        if retriever_mode == "pagerank" and self.pagerank_retriever:
+            hits = self.pagerank_retriever.get_relevant_documents(question, top_k=k)
+        elif retriever_mode == "hybrid" and self.hybrid_retriever:
             hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
         elif retriever_mode == "graph" and self.graph_retriever:
             hits = self.graph_retriever.get_relevant_documents(question, top_k=k)

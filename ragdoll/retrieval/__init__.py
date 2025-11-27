@@ -10,10 +10,12 @@ from ragdoll.retrieval.base import BaseRetriever
 from ragdoll.retrieval.vector import VectorRetriever
 from ragdoll.retrieval.graph import GraphRetriever
 from ragdoll.retrieval.hybrid import HybridRetriever
+from ragdoll.retrieval.pagerank import PageRankGraphRetriever
 
 __all__ = [
     "BaseRetriever",
     "VectorRetriever",
     "GraphRetriever",
     "HybridRetriever",
+    "PageRankGraphRetriever",
 ]
