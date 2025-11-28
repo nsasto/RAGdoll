@@ -63,6 +63,7 @@ async def create_ragdoll_index(
     vector_dir: Path,
     mode: str = "hybrid",
     extract_entities: bool = True,
+    no_chunking: bool = False,
 ) -> Dict[str, Any]:
     """
     Create RAGdoll index with ingestion pipeline.
@@ -73,6 +74,7 @@ async def create_ragdoll_index(
         vector_dir: Directory for shared vector store
         mode: Retrieval mode (vector, graph, hybrid)
         extract_entities: Whether to extract entities
+        no_chunking: If True, disable chunking (whole-passage retrieval)
 
     Returns:
         Dict with vector_store, graph_store, embeddings
@@ -108,6 +110,7 @@ async def create_ragdoll_index(
         skip_graph_store=not extract_entities,  # Skip graph store when not extracting entities
         collect_metrics=False,  # Disable metrics collection for clean benchmarks
         chunking_options={
+            "chunking_strategy": "none" if no_chunking else "recursive",
             "chunk_size": 2000,  # Larger chunks = fewer LLM calls
             "chunk_overlap": 200,
         },
@@ -235,6 +238,7 @@ async def run_benchmark(
     vector_dir: Path,
     create: bool = False,
     benchmark: bool = False,
+    no_chunking: bool = False,
 ):
     """
     Run complete benchmark workflow.
@@ -247,6 +251,7 @@ async def run_benchmark(
         vector_dir: Directory containing the shared vector store
         create: Whether to create index
         benchmark: Whether to run benchmark
+        no_chunking: If True, disable chunking for whole-passage retrieval
     """
     datasets_dir = Path(__file__).parent / "datasets"
 
@@ -407,13 +412,17 @@ async def run_benchmark(
         results_dir = Path(__file__).parent / "results"
         results_dir.mkdir(exist_ok=True)
 
-        output_file = results_dir / f"ragdoll_{dataset_name}_{subset}_{mode}.json"
+        chunk_suffix = "_nochunk" if no_chunking else ""
+        output_file = (
+            results_dir / f"ragdoll_{dataset_name}_{subset}_{mode}{chunk_suffix}.json"
+        )
 
         config_output = {
             "dataset": dataset_name,
             "subset": subset,
             "mode": mode,
             "top_k": 8,
+            "no_chunking": no_chunking,
         }
 
         # Add hybrid_mode if applicable
@@ -453,6 +462,11 @@ def main():
         choices=["vector", "pagerank", "hybrid"],
         help="Retrieval mode",
     )
+    parser.add_argument(
+        "--no-chunking",
+        action="store_true",
+        help="Disable chunking (use whole-passage retrieval)",
+    )
 
     args = parser.parse_args()
 
@@ -462,13 +476,18 @@ def main():
         return
 
     base_dir = Path(__file__).parent / "db"
-    vector_dir = base_dir / f"ragdoll_{args.dataset}_{args.n}_vector"
+
+    # Add suffix for no-chunking mode to keep indices separate
+    chunk_suffix = "_nochunk" if args.no_chunking else ""
+    vector_dir = base_dir / f"ragdoll_{args.dataset}_{args.n}_vector{chunk_suffix}"
 
     if args.mode == "vector":
         working_dir = vector_dir
     else:
         suffix = MODE_WORKDIR_SUFFIX.get(args.mode, args.mode)
-        working_dir = base_dir / f"ragdoll_{args.dataset}_{args.n}_{suffix}"
+        working_dir = (
+            base_dir / f"ragdoll_{args.dataset}_{args.n}_{suffix}{chunk_suffix}"
+        )
 
     vector_dir.mkdir(parents=True, exist_ok=True)
     working_dir.mkdir(parents=True, exist_ok=True)
@@ -483,6 +502,7 @@ def main():
             vector_dir,
             create=args.create,
             benchmark=args.benchmark,
+            no_chunking=args.no_chunking,
         )
     )
 
