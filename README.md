@@ -1,13 +1,13 @@
 ![Ragdoll](img/github-header-image.png)
 
 [![CI](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml/badge.svg)](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/nsasto/RAGdoll/releases)
+[![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)](https://github.com/nsasto/RAGdoll/releases)
 [![Stable](https://badge.fury.io/py/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 # RAGdoll: A Flexible and Extensible RAG Framework
 
-Welcome to Ragdoll 2.0! This release marks a significant overhaul of the Ragdoll project, focusing on enhanced flexibility, extensibility, and maintainability. We've completely refactored the core architecture to make it easier than ever to adapt Ragdoll to your specific needs and integrate it with the broader LangChain ecosystem. This document outlines the major changes and improvements you'll find in this new version.
+Welcome to RAGdoll 2.2! This release continues the evolution of the RAGdoll project with enhanced flexibility, extensibility, and maintainability. We've refactored the core architecture to make it easier than ever to adapt RAGdoll to your specific needs and integrate it with the broader LangChain ecosystem. Version 2.2 introduces advanced entity extraction controls, improved graph retrieval with embedding-based seed search, and comprehensive configuration options for fine-tuning your RAG pipeline.
 
 # 🧭 Project Overview
 
@@ -207,7 +207,10 @@ graph_retriever = GraphRetriever(
     max_hops=2,
     traversal_strategy="bfs",  # or "dfs"
     include_edges=True,
-    seed_strategy="embedding"  # or "fuzzy" for text-based matching
+    prebuild_index=False,  # Build embedding index during initialization
+    hybrid_alpha=1.0,  # Weight for embedding similarity (1.0 = embedding only)
+    enable_fallback=True,  # Fall back to fuzzy matching if embeddings unavailable
+    log_fallback_warnings=True  # Log warnings when using fallback
 )
 docs = graph_retriever.get_relevant_documents("query")
 ```
@@ -216,8 +219,9 @@ docs = graph_retriever.get_relevant_documents("query")
 
 - **Embedding-based seed search**: When configured with `vector_store` and `embedding_model`, GraphRetriever can find seed nodes by embedding similarity rather than fuzzy text matching, significantly improving retrieval accuracy
 - **Automatic deduplication**: Handles multiple entities from the same document chunk that share vector IDs, ensuring efficient queries without duplicates
-- **Flexible seed strategies**: Choose between embedding-based (`seed_strategy="embedding"`) or text-based fuzzy matching (`seed_strategy="fuzzy"`)
+- **Intelligent fallback**: Automatically falls back to fuzzy text matching when embeddings are unavailable, with configurable warnings
 - **Vector store integration**: Seamlessly integrates with any LangChain vector store (Chroma, FAISS) to leverage existing embeddings
+- **Configurable index prebuilding**: Option to build FAISS index during initialization for faster first queries
 
 ### HybridRetriever
 
@@ -358,15 +362,21 @@ retriever:
     search_type: "similarity"
   graph:
     enabled: true
+    backend: "networkx" # Options: "networkx", "neo4j", "simple"
+    top_k: 5
     max_hops: 2
-    traversal_strategy: "bfs"
-    seed_strategy: "embedding" # Use embedding-based seed search (recommended)
-    # seed_strategy: "fuzzy"    # Or use text-based fuzzy matching
+    traversal_strategy: "bfs" # Options: "bfs", "dfs"
     include_edges: true
+    min_score: 0.0
+    prebuild_index: false # Build FAISS index during initialization
+    hybrid_alpha: 1.0 # Weight for embedding similarity (1.0 = embedding only)
+    enable_fallback: true # Fall back to fuzzy matching if embeddings unavailable
+    log_fallback_warnings: true # Log warnings when using fallback
   hybrid:
-    mode: "concat"
+    mode: "concat" # Options: "concat", "rerank", "weighted", "expand"
     vector_weight: 0.6
     graph_weight: 0.4
+    deduplicate: true
 
 # Performance settings (applied via IngestionOptions)
 # These can also be configured programmatically
@@ -476,11 +486,13 @@ RAGdoll's architecture is built around modular components and abstract base clas
 - **`vector_stores`:** Manages the storage and retrieval of vector embeddings.
 - **`llms`:** Provides an interface to interact with different large language models.
 - **`graph_stores`:** Manages the storage and querying of knowledge graphs.
-- **`chains`:** Defines different types of chains, like retrieval QA (not implemented)
+- **`retrieval`:** Provides vector, graph, and hybrid retrieval components.
+- **`entity_extraction`:** Extracts entities and relationships from documents to build knowledge graphs.
+- **`pipeline`:** Orchestrates ingestion, chunking, embedding, and graph building workflows.
 
 ### Abstract Base Classes
 
-Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseEmbeddings`, `BaseVectorStore`, `BaseGraphStore`, `BaseChain`) or protocol (the `BaseLLMCaller` interface) that defines a standard contract for that component type.
+Each module has an abstract base class (`BaseLoader`, `BaseChunker`, `BaseVectorStore`, `BaseGraphStore`, `BaseRetriever`) or protocol (the `BaseLLMCaller` interface) that defines a standard contract for that component type. Embeddings use LangChain's `Embeddings` interface directly.
 
 ### Default Implementations
 
@@ -624,31 +636,57 @@ ragdoll = Ragdoll(app_config=app)
 
 ### Entity Extraction Controls
 
-The `entity_extraction` section of `default_config.yaml` now exposes several knobs for graph-centric workflows:
+The `entity_extraction` section of `default_config.yaml` exposes comprehensive controls for graph-centric workflows:
 
-- `relationship_parsing`: choose the preferred output format (`json`, `markdown`, `auto`), optionally supply a custom parser class or schema, and pass parser-specific kwargs. This lets you tighten validation for LLM responses (e.g., point at your own Pydantic schema).
-- `relationship_prompts`: declare a default prompt template plus per-provider overrides (e.g., map `"anthropic"` to a Claude-specific prompt). The service picks the prompt whose provider matches the active `BaseLLMCaller`.
-- `graph_retriever`: enable creation of a graph retriever after entity extraction, select the backend (`simple` or `neo4j/langchain_neo4j`), and tune parameters like `top_k` or `include_edges`. When enabled, `EntityExtractionService` and `IngestionPipeline` expose a retriever you can plug into downstream chains.
+#### Extraction Methods
+
+- **`coreference_resolution_method`**: Choose how to resolve entity mentions (`rule_based`, `llm`, or `none`)
+- **`entity_extraction_methods`**: List methods for entity extraction (e.g., `["ner"]` for spaCy NER, or add `"llm"` for model-based extraction)
+- **`relationship_extraction_method`**: How to extract relationships (typically `llm`)
+
+#### Quality and Coverage
+
+- **`gleaning_enabled`**: Enable iterative extraction passes to discover missed entities/relationships (default: `true`)
+- **`max_gleaning_steps`**: Number of gleaning iterations (default: 2)
+- **`entity_linking_enabled`**: Merge similar entities (default: `true`)
+- **`entity_linking_method`**: Method for entity consolidation (default: `string_similarity`)
+- **`entity_linking_threshold`**: Similarity threshold for linking (default: 0.8)
+- **`postprocessing_steps`**: List of cleanup operations (e.g., `["merge_similar_entities", "normalize_relations"]`)
+
+#### Prompt and Parsing
+
+- **`relationship_parsing`**: Choose the preferred output format (`json`, `markdown`, `auto`), optionally supply a custom parser class or schema, and pass parser-specific kwargs. This lets you tighten validation for LLM responses (e.g., point at your own Pydantic schema).
+- **`relationship_prompts`**: Declare a default prompt template plus per-provider overrides (e.g., map `"anthropic"` to a Claude-specific prompt). The service picks the prompt whose provider matches the active `BaseLLMCaller`.
+
+#### Chunking
+
+- **`chunking_strategy`**: Use `'default'` to use the chunker config, `'none'` to disable chunking
+- **`chunk_size`**: Size of text chunks for extraction (default: 1000)
+- **`chunk_overlap`**: Overlap between chunks (default: 50)
 
 Example excerpt:
 
 ```yaml
 entity_extraction:
+  coreference_resolution_method: "rule_based"
+  entity_extraction_methods: ["ner"]
+  relationship_extraction_method: "llm"
+  gleaning_enabled: true
+  max_gleaning_steps: 2
+  entity_linking_enabled: true
+  entity_linking_method: "string_similarity"
+  entity_linking_threshold: 0.8
+  postprocessing_steps: ["merge_similar_entities", "normalize_relations"]
   relationship_parsing:
-    preferred_format: "markdown"
-    schema: "my_project.schemas.RelationshipListV2"
+    preferred_format: "auto"
   relationship_prompts:
     default: "relationship_extraction"
     providers:
       openai: "relationship_extraction_openai"
       anthropic: "relationship_extraction_claude"
-  graph_retriever:
-    enabled: true
-    backend: "neo4j"
-    top_k: 10
 ```
 
-See `docs/configuration.md` for the full field reference.
+See `docs/configuration.md` and `docs/entity_extraction.md` for the full field reference.
 
 ## Comparison with GraphRAG-style projects
 

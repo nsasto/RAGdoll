@@ -44,7 +44,7 @@ The ingestion module orchestrates the end-to-end pipeline for document processin
 2. **Chunking**: Loaded documents are split into smaller chunks using pluggable chunkers.
 3. **Embedding**: Each chunk is converted into a vector representation using the selected embedding model.
 4. **Graph creation (optional)**: When `entity_extraction.extract_entities` is enabled, chunks feed into `EntityExtractionService`, which persists the resulting graph via `GraphPersistenceService`.
-5. **Graph retrieval (optional)**: If `entity_extraction.graph_retriever.enabled` is `true`, the pipeline instantiates a retriever (`simple` in-memory or `neo4j`) and exposes it on `IngestionPipeline`.
+5. **Graph retrieval (optional)**: If `retriever.graph.enabled` is `true`, the pipeline instantiates a GraphRetriever (NetworkX in-memory, simple, or Neo4j) and exposes it on `IngestionPipeline`.
 
 Each step is modular and can be replaced or extended as needed.
 
@@ -76,7 +76,27 @@ graph = pipeline.last_graph
 - After `ingest()`, the pipeline exposes:
   - `stats`: document/chunk counts, vector/graph entries, errors, whether a graph retriever is available.
   - `last_graph`: the most recent `Graph` object returned by `EntityExtractionService`.
-  - `get_graph_retriever()`: returns the in-memory or Neo4j retriever when `graph_retriever.enabled` is `true`.
+  - `get_graph_retriever()`: returns the configured GraphRetriever (simple in-memory, NetworkX, or Neo4j).
+
+### `ingest_from_vector_store`
+
+```python
+from ragdoll.pipeline import ingest_from_vector_store
+
+result = await ingest_from_vector_store(
+    vector_store=existing_vector_store,
+    graph_store=graph_store,
+    entity_service=entity_service
+)
+graph_retriever = result["graph_retriever"]  # Pre-configured with vector store
+```
+
+This helper function builds a knowledge graph directly from an existing vector store:
+
+- Extracts documents from the vector store
+- Creates a graph that references the same vector IDs
+- Returns a GraphRetriever pre-configured with both graph store and vector store
+- Useful for adding graph capabilities to existing vector stores without re-ingesting
 
 ---
 
