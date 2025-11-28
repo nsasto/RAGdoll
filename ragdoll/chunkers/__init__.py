@@ -84,6 +84,10 @@ def get_text_splitter(
         else:
             actual_splitter_type = chunker_config.get("default_splitter", "recursive")
 
+    # Filter out chunking_strategy from kwargs before passing to LangChain splitters
+    # (LangChain TextSplitter doesn't accept this parameter)
+    kwargs = {k: v for k, v in kwargs.items() if k != "chunking_strategy"}
+
     # Get chunk parameters with appropriate defaults
     actual_chunk_size = chunk_size or chunker_config.get("chunk_size", 1000)
     actual_chunk_overlap = chunk_overlap or chunker_config.get("chunk_overlap", 200)
@@ -354,13 +358,19 @@ def split_documents(
             ]:
                 splitter_to_use = actual_strategy
 
+            # Filter out chunking_strategy from kwargs before passing to get_text_splitter
+            # (LangChain splitters don't accept this parameter)
+            splitter_kwargs = {
+                k: v for k, v in kwargs.items() if k != "chunking_strategy"
+            }
+
             text_splitter = get_text_splitter(
                 splitter_type=splitter_to_use,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
                 config_manager=config_manager,
                 config=config,
-                **kwargs,
+                **splitter_kwargs,
             )
 
         if isinstance(text_splitter, MarkdownHeaderTextSplitter):
