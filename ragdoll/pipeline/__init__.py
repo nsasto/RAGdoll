@@ -316,12 +316,18 @@ class IngestionPipeline:
         if not documents:
             return []
 
+        # Extract chunking strategy from options to pass to split_documents
+        chunking_strategy = None
+        if self.options.chunking_options:
+            chunking_strategy = self.options.chunking_options.get("chunking_strategy")
+
         logger.info(
             "Chunking %s documents using %s", len(documents), self.text_splitter
         )
         return split_documents(
             documents=documents,
             splitter=self.text_splitter,
+            strategy=chunking_strategy,
             batch_size=self.options.batch_size,
         )
 
