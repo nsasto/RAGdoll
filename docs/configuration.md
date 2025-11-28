@@ -98,10 +98,22 @@ Recent refactors introduced richer controls for graph/entity workflows:
 
 - `entity_extraction.relationship_parsing`: configure how LLM relationship output is parsed. Keys include `preferred_format` (`json`, `markdown`, `auto`), `parser_class` (dotted path to a custom parser), `schema` (custom Pydantic model), and `parser_kwargs`.
 - `entity_extraction.relationship_prompts`: map provider hints to prompt template names. The service picks `providers[provider_name]` when the LLM caller advertises its provider, otherwise it falls back to `default`.
-- `entity_extraction.graph_retriever`: enable optional retriever creation (`enabled: true`) and choose a backend (`simple` or `neo4j`). Additional keys like `top_k` or `include_edges` are forwarded to the retriever factory, and Neo4j credentials are taken from `graph_database_config`.
 - `entity_extraction.llm_provider_hint`: manually specify the provider string if the chosen LLM caller cannot be auto-detected. This drives both prompt selection and downstream logging.
+- `entity_extraction.coreference_resolution_method`: choose how to resolve entity mentions (`rule_based`, `llm`, or `none`).
+- `entity_extraction.entity_extraction_methods`: list methods for entity extraction (e.g., `["ner"]`, `["llm"]`, or both).
+- `entity_extraction.gleaning_enabled` and `entity_extraction.max_gleaning_steps`: enable iterative extraction passes to improve graph completeness.
+- `entity_extraction.entity_linking_enabled`, `entity_linking_method`, and `entity_linking_threshold`: control entity consolidation.
+- `entity_extraction.postprocessing_steps`: define cleanup operations like `["merge_similar_entities", "normalize_relations"]`.
 
-When these sections are present in `default_config.yaml`, `ConfigManager` merges them into `entity_extraction_config`, so `EntityExtractionService` and `IngestionPipeline` pick up the new behavior automatically.
+### Retriever Configuration
+
+Retriever settings have been moved from `entity_extraction.graph_retriever` to a unified `retriever` section:
+
+- `retriever.vector`: vector retrieval settings (`enabled`, `top_k`, `search_type`, `search_kwargs`).
+- `retriever.graph`: graph retrieval settings (`enabled`, `backend`, `top_k`, `max_hops`, `traversal_strategy`, `include_edges`, `min_score`, `prebuild_index`, `hybrid_alpha`, `enable_fallback`, `log_fallback_warnings`).
+- `retriever.hybrid`: hybrid combination settings (`mode`, `vector_weight`, `graph_weight`, `deduplicate`).
+
+When these sections are present in `default_config.yaml`, `ConfigManager` merges them into `entity_extraction_config` and retriever configs, so `EntityExtractionService`, `IngestionPipeline`, and retrieval components pick up the new behavior automatically.
 
 ---
 
