@@ -9,11 +9,21 @@ Demonstrates:
 
 import asyncio
 from pathlib import Path
+import os
 from ragdoll import Ragdoll, settings
 from ragdoll.pipeline import IngestionOptions
 from dotenv import load_dotenv
+import logging
 
+logging.basicConfig(level=logging.INFO)
 load_dotenv(override=True)
+# Ensure we use the repo config with public OpenAI models
+os.environ.setdefault(
+    "RAGDOLL_CONFIG_PATH",
+    str(Path(__file__).resolve().parents[1] / "ragdoll" / "config" / "default_config.yaml"),
+)
+# logging.getLogger("httpx").setLevel(logging.DEBUG)
+# logging.getLogger("openai").setLevel(logging.DEBUG)
 
 
 async def main():
@@ -22,6 +32,12 @@ async def main():
 
     # Initialize RAGdoll (creates stores if needed)
     ragdoll = Ragdoll()
+    if ragdoll.llm_caller:
+        try:
+            probe = await ragdoll.llm_caller.call("ping")
+            print("LLM smoke test:", (probe or "")[:120], "...")
+        except Exception as smoke_err:
+            print(f"LLM smoke test failed: {smoke_err}")
 
     print("=" * 60)
     print("STEP 1: Initial Population")

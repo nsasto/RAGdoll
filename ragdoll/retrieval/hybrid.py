@@ -180,15 +180,19 @@ class HybridRetriever(BaseRetriever):
         Returns:
             Combined list of relevant documents
         """
+        logger.info("HybridRetriever:get_relevant_documents start query=%s kwargs=%s", query, kwargs)
         # Get vector results
         vector_docs = self.vector_retriever.get_relevant_documents(query, **kwargs)
+        logger.info("HybridRetriever:vector_docs=%s", len(vector_docs))
 
         # If no graph retriever, return vector results only
         if not self.graph_retriever:
+            logger.info("HybridRetriever:no_graph_retriever returning vector-only")
             return vector_docs
 
         # Get graph results
         graph_docs = self.graph_retriever.get_relevant_documents(query, **kwargs)
+        logger.info("HybridRetriever:graph_docs=%s", len(graph_docs))
 
         # Combine based on strategy
         if self.mode == "concat":
@@ -207,6 +211,7 @@ class HybridRetriever(BaseRetriever):
         if self.deduplicate:
             combined = self._deduplicate_documents(combined)
 
+        logger.info("HybridRetriever:combined_docs=%s", len(combined))
         return combined
 
     async def aget_relevant_documents(self, query: str, **kwargs) -> List[Document]:

@@ -15,6 +15,8 @@ from ragdoll.embeddings import get_embedding_model
 from ragdoll.entity_extraction.models import Graph
 from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.llms import get_llm_caller
+import threading
+
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
 from ragdoll.pipeline import IngestionOptions, IngestionPipeline
 from ragdoll.retrieval import (
@@ -160,12 +162,17 @@ class Ragdoll:
             # Fallback to vector-only path if hybrid retriever is unavailable.
             return self.query(question, k=k, use_hybrid=False)
 
+        logger.info("query_hybrid:start question=%s k=%s", question, k)
         hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
+        logger.info("query_hybrid:retrieved documents=%s", len(hits))
 
         answer = None
         if self.llm_caller and hits:
             prompt = self._build_prompt(question, hits)
             answer = self._call_llm(prompt)
+            logger.info("query_hybrid:llm_answer_present=%s", bool(answer))
+        else:
+            logger.info("query_hybrid:skipping_llm llm_caller=%s hits=%s", bool(self.llm_caller), len(hits))
 
         return {"answer": answer, "documents": hits}
 
@@ -261,13 +268,50 @@ class Ragdoll:
         if not self.llm_caller:
             return None
 
-        try:
-            response = call_llm_sync(self.llm_caller, prompt)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("LLM call failed: %s", exc)
+        import time
+
+        # Allow a generous timeout so we don't hang the whole example if the provider stalls
+        llm_timeout = 60  # seconds
+
+        start = time.perf_counter()
+        logger.info(
+            "query_hybrid:llm_call_start prompt_chars=%s prompt_preview=%s",
+            len(prompt),
+            prompt[:500],
+        )
+
+        response_box: dict[str, Optional[str]] = {}
+        error_box: dict[str, Exception] = {}
+
+        def _run() -> None:
+            try:
+                response_box["value"] = call_llm_sync(self.llm_caller, prompt)
+            except Exception as exc:  # pragma: no cover - defensive
+                error_box["error"] = exc
+
+        worker = threading.Thread(target=_run, daemon=True)
+        worker.start()
+        worker.join(llm_timeout)
+
+        if worker.is_alive():
+            logger.error(
+                "LLM call timed out after %ss (check provider/network)", llm_timeout
+            )
             return None
 
-        cleaned = response.strip()
+        if error_box:
+            logger.error("LLM call failed: %s", error_box["error"])
+            return None
+
+        response = response_box.get("value", "")
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "query_hybrid:llm_call_done elapsed_ms=%.2f has_result=%s",
+            elapsed_ms,
+            bool(response),
+        )
+
+        cleaned = (response or "").strip()
         return cleaned or None
 
     async def _acall_llm(self, prompt: str) -> AsyncGenerator[str, None]:

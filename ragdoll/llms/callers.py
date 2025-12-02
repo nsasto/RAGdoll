@@ -4,6 +4,7 @@ import asyncio
 import threading
 from typing import Any, Protocol, runtime_checkable
 
+from langchain_core.messages import HumanMessage, BaseMessage
 
 @runtime_checkable
 class BaseLLMCaller(Protocol):
@@ -28,15 +29,25 @@ class LangChainLLMCaller(BaseLLMCaller):
         return str(result)
 
     async def _invoke(self, prompt: str) -> Any:
+        """
+        Invoke the underlying LangChain LLM/chat model with a simple string prompt.
+
+        For chat models, explicitly wrap the string in a HumanMessage list to avoid
+        provider-specific type expectations.
+        """
+        payload: Any = prompt
+        if hasattr(self.llm, "bind"):  # Chat model or Runnable
+            payload = [HumanMessage(content=prompt)]
+
         if hasattr(self.llm, "ainvoke"):
-            return await self.llm.ainvoke(prompt)
+            return await self.llm.ainvoke(payload)
 
         invoke = getattr(self.llm, "invoke", None)
         if asyncio.iscoroutinefunction(invoke):
-            return await invoke(prompt)
+            return await invoke(payload)
 
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, lambda: self.llm.invoke(prompt))
+        return await loop.run_in_executor(None, lambda: self.llm.invoke(payload))
 
 
 def call_llm_sync(llm_caller: BaseLLMCaller, prompt: str) -> str:

@@ -108,10 +108,19 @@ class GraphRetriever(BaseRetriever):
         include_edges = kwargs.get("include_edges", self.include_edges)
 
         try:
+            logger.info(
+                "GraphRetriever:get_relevant_documents start query=%s top_k=%s max_hops=%s include_edges=%s",
+                query,
+                top_k,
+                max_hops,
+                include_edges,
+            )
             # Step 1: Find seed nodes
             seed_nodes = self._find_seed_nodes(query, top_k)
+            logger.info("GraphRetriever:seed_nodes=%s", len(seed_nodes))
 
             if not seed_nodes:
+                logger.info("GraphRetriever:no_seed_nodes returning []")
                 return []
 
             # Step 2: Traverse graph from seeds
@@ -122,6 +131,7 @@ class GraphRetriever(BaseRetriever):
                 subgraph, include_edges=include_edges
             )
 
+            logger.info("GraphRetriever:documents=%s", len(documents))
             return documents
 
         except Exception as e:
