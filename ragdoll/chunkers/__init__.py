@@ -79,7 +79,17 @@ def get_text_splitter(
     actual_splitter_type = splitter_type
     if not actual_splitter_type:
         chunking_strategy = chunker_config.get("chunking_strategy")
-        if chunking_strategy in ["recursive", "character", "markdown", "code", "token"]:
+        # If chunking is disabled, return None to signal no splitting
+        if chunking_strategy == "none":
+            logger.info("Chunking disabled (strategy='none') - returning None splitter")
+            return None
+        elif chunking_strategy in [
+            "recursive",
+            "character",
+            "markdown",
+            "code",
+            "token",
+        ]:
             actual_splitter_type = chunking_strategy
         else:
             actual_splitter_type = chunker_config.get("default_splitter", "recursive")
@@ -334,14 +344,24 @@ def split_documents(
 
     actual_strategy = strategy or chunker_config.get("chunking_strategy", "markdown")
 
+    logger.info(
+        f"Chunking strategy: '{actual_strategy}' (from strategy={strategy}, config={chunker_config.get('chunking_strategy')})"
+    )
+
     if actual_strategy == "none":
-        logger.debug("No chunking strategy applied")
+        logger.info("No chunking strategy applied - returning documents unchanged")
         return documents
 
     # Get or use the text splitter
     try:
         # If a text splitter is provided directly, use it
-        if text_splitter is not None:
+        # BUT if text_splitter is None, that means chunking was disabled at get_text_splitter level
+        if text_splitter is None:
+            logger.info(
+                "No text splitter provided (chunking disabled) - returning documents unchanged"
+            )
+            return documents
+        elif text_splitter is not None:
             logger.debug(
                 f"Using provided text splitter: {text_splitter.__class__.__name__}"
             )

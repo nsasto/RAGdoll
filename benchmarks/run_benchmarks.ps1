@@ -6,7 +6,9 @@ param(
     [string]$Dataset = "2wikimultihopqa",
     [switch]$CreateOnly,
     [switch]$BenchmarkOnly,
-    [switch]$SkipBaseline
+    [switch]$SkipBaseline,
+    [switch]$IncludeNoChunking,
+    [string]$Mode  # Specific mode: "vector", "pagerank", "hybrid", or empty for all modes
 )
 
 # Load .env file from project root if it exists
@@ -45,6 +47,12 @@ Write-Host $separator -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Dataset: $Dataset" -ForegroundColor Green
 Write-Host "Subset:  $Subset queries" -ForegroundColor Green
+if ($Mode) {
+    Write-Host "Mode:    $Mode (single mode)" -ForegroundColor Green
+}
+else {
+    Write-Host "Mode:    All modes (vector, pagerank, hybrid)" -ForegroundColor Green
+}
 Write-Host ""
 
 # Check if dataset exists
@@ -93,80 +101,97 @@ if (-not $SkipBaseline) {
     Write-Host ""
 }
 
-# Run RAGdoll Vector Mode
-Write-Host $separator -ForegroundColor Cyan
-Write-Host "2. RAGdoll (Vector Only)" -ForegroundColor Cyan
-Write-Host $separator -ForegroundColor Cyan
-Write-Host ""
-
-if ($CreateOnly -or -not $BenchmarkOnly) {
-    if (Test-Path $vectorCollectionPath) {
-        Write-Host "Reusing existing vector index at $vectorIndexPath" -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "Creating vector index..." -ForegroundColor Green
-        python ragdoll_benchmark.py -d $Dataset -n $Subset --mode vector --create
-    }
+# Determine which modes to run
+$modes = if ($Mode) {
+    @($Mode)
+}
+else {
+    @("vector", "pagerank", "hybrid")
 }
 
-if ($BenchmarkOnly -or -not $CreateOnly) {
-    Write-Host "Running benchmark..." -ForegroundColor Green
-    python ragdoll_benchmark.py -d $Dataset -n $Subset --mode vector --benchmark
-}
-
-Write-Host ""
-
-# Run RAGdoll Hybrid Mode
-Write-Host $separator -ForegroundColor Cyan
-Write-Host "3. RAGdoll (PageRank Graph)" -ForegroundColor Cyan
-Write-Host $separator -ForegroundColor Cyan
-Write-Host ""
-
-if ($CreateOnly -or -not $BenchmarkOnly) {
-    if (Test-Path $graphIndexMarker) {
-        Write-Host "Reusing existing graph index at $graphIndexPath" -ForegroundColor Yellow
+# Run RAGdoll modes (chunked)
+$sectionNumber = 2
+foreach ($ragdollMode in $modes) {
+    $modeTitle = switch ($ragdollMode) {
+        "vector" { "RAGdoll (Vector Only - Chunked)" }
+        "pagerank" { "RAGdoll (PageRank Graph - Chunked)" }
+        "hybrid" { "RAGdoll (Hybrid: Vector + Graph - Chunked)" }
     }
-    else {
-        Write-Host "Creating PageRank index (includes entity extraction)..." -ForegroundColor Green
-        python ragdoll_benchmark.py -d $Dataset -n $Subset --mode pagerank --create
+    
+    Write-Host $separator -ForegroundColor Cyan
+    Write-Host "$sectionNumber. $modeTitle" -ForegroundColor Cyan
+    Write-Host $separator -ForegroundColor Cyan
+    Write-Host ""
+    
+    if ($CreateOnly -or -not $BenchmarkOnly) {
+        Write-Host "Creating $ragdollMode index..." -ForegroundColor Green
+        python ragdoll_benchmark.py -d $Dataset -n $Subset --mode $ragdollMode --create
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Failed to create $ragdollMode index" -ForegroundColor Red
+            exit 1
+        }
+    }
+    
+    if ($BenchmarkOnly -or -not $CreateOnly) {
+        Write-Host "Running benchmark..." -ForegroundColor Green
+        python ragdoll_benchmark.py -d $Dataset -n $Subset --mode $ragdollMode --benchmark
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Failed to benchmark $ragdollMode" -ForegroundColor Red
+            exit 1
+        }
+    }
+    
+    Write-Host ""
+    $sectionNumber++
+}
+
+# Run RAGdoll modes with no-chunking if requested
+if ($IncludeNoChunking) {
+    foreach ($ragdollMode in $modes) {
+        $modeTitle = switch ($ragdollMode) {
+            "vector" { "RAGdoll (Vector Only - No Chunking)" }
+            "pagerank" { "RAGdoll (PageRank Graph - No Chunking)" }
+            "hybrid" { "RAGdoll (Hybrid: Vector + Graph - No Chunking)" }
+        }
+        
+        Write-Host $separator -ForegroundColor Cyan
+        Write-Host "$sectionNumber. $modeTitle" -ForegroundColor Cyan
+        Write-Host $separator -ForegroundColor Cyan
+        Write-Host ""
+        
+        if ($CreateOnly -or -not $BenchmarkOnly) {
+            Write-Host "Creating $ragdollMode no-chunking index..." -ForegroundColor Green
+            python ragdoll_benchmark.py -d $Dataset -n $Subset --mode $ragdollMode --no-chunking --create
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "ERROR: Failed to create $ragdollMode no-chunking index" -ForegroundColor Red
+                exit 1
+            }
+        }
+        
+        if ($BenchmarkOnly -or -not $CreateOnly) {
+            Write-Host "Running benchmark..." -ForegroundColor Green
+            python ragdoll_benchmark.py -d $Dataset -n $Subset --mode $ragdollMode --no-chunking --benchmark
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "ERROR: Failed to benchmark $ragdollMode no-chunking" -ForegroundColor Red
+                exit 1
+            }
+        }
+        
+        Write-Host ""
+        $sectionNumber++
     }
 }
-
-if ($BenchmarkOnly -or -not $CreateOnly) {
-    Write-Host "Running benchmark..." -ForegroundColor Green
-    python ragdoll_benchmark.py -d $Dataset -n $Subset --mode pagerank --benchmark
-}
-
-Write-Host ""
-
-Write-Host $separator -ForegroundColor Cyan
-Write-Host "4. RAGdoll (Hybrid: Vector + Graph)" -ForegroundColor Cyan
-Write-Host $separator -ForegroundColor Cyan
-Write-Host ""
-
-if ($CreateOnly -or -not $BenchmarkOnly) {
-    if (Test-Path $graphIndexMarker) {
-        Write-Host "Hybrid mode will reuse shared graph index at $graphIndexPath" -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "Creating hybrid index (this may take a while)..." -ForegroundColor Green
-        python ragdoll_benchmark.py -d $Dataset -n $Subset --mode hybrid --create
-    }
-}
-
-if ($BenchmarkOnly -or -not $CreateOnly) {
-    Write-Host "Running benchmark..." -ForegroundColor Green
-    python ragdoll_benchmark.py -d $Dataset -n $Subset --mode hybrid --benchmark
-}
-
-Write-Host ""
 
 Write-Host ""
 
 # Generate comparison report
 if ($BenchmarkOnly -or -not $CreateOnly) {
     Write-Host $separator -ForegroundColor Cyan
-    Write-Host "5. Generating Comparison Report" -ForegroundColor Cyan
+    Write-Host "$sectionNumber. Generating Comparison Report" -ForegroundColor Cyan
     Write-Host $separator -ForegroundColor Cyan
     Write-Host ""
     
