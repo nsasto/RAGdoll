@@ -11,6 +11,7 @@ from ragdoll.retrieval.vector import VectorRetriever
 from ragdoll.retrieval.graph import GraphRetriever
 from ragdoll.retrieval.hybrid import HybridRetriever
 from ragdoll.retrieval.pagerank import PageRankGraphRetriever
+from ragdoll.retrieval.reranker import RerankerRetriever
 
 __all__ = [
     "BaseRetriever",
@@ -18,4 +19,5 @@ __all__ = [
     "GraphRetriever",
     "HybridRetriever",
     "PageRankGraphRetriever",
+    "RerankerRetriever",
 ]

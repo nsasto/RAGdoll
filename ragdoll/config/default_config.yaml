@@ -220,6 +220,31 @@ retriever:
     enable_fallback: true              # Fall back to vector search if needed
     log_fallback_warnings: true        # Log warnings when fallback occurs
 
+  # Reranking settings - Improves result quality by scoring relevance
+  reranker:
+    enabled: false                     # Enable reranking of retrieved documents
+    provider: "cross-encoder"          # Options: "llm", "cohere", "cross-encoder"
+    top_k: 5                           # Number of documents to return after reranking
+    over_retrieve_multiplier: 2        # Retrieve N*top_k before reranking (e.g., 2 = retrieve 10, return 5)
+    score_threshold: 0.0               # Minimum relevance score (0-1) to include documents
+    batch_size: 10                     # Number of documents to score in parallel
+    log_scores: false                  # Log reranking scores for debugging
+    
+    # LLM-based reranking (flexible, uses separate model from main LLM)
+    llm:
+      model_name: "gpt-3.5-turbo"      # Fast, cheap model for scoring (separate from main LLM)
+      temperature: 0.0                 # Deterministic scoring
+      max_tokens: 10                   # Just need a numeric score
+    
+    # Cohere reranking (fast, purpose-built for reranking)
+    cohere:
+      model: "rerank-english-v3"       # Cohere rerank model
+      api_key_env: "COHERE_API_KEY"    # Environment variable name for API key
+    
+    # Cross-encoder reranking (fast, local, no API calls)
+    cross_encoder:
+      model_name: "cross-encoder/ms-marco-MiniLM-L-12-v2"  # Sentence-transformers model
+
 # References to prompt files (without .md extension)
 llm_prompts:
   entity_extraction: entity_extraction

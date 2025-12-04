@@ -172,7 +172,11 @@ class Ragdoll:
             answer = self._call_llm(prompt)
             logger.info("query_hybrid:llm_answer_present=%s", bool(answer))
         else:
-            logger.info("query_hybrid:skipping_llm llm_caller=%s hits=%s", bool(self.llm_caller), len(hits))
+            logger.info(
+                "query_hybrid:skipping_llm llm_caller=%s hits=%s",
+                bool(self.llm_caller),
+                len(hits),
+            )
 
         return {"answer": answer, "documents": hits}
 
@@ -439,6 +443,51 @@ class Ragdoll:
             log_fallback_warnings=graph_cfg.get("log_fallback_warnings", True),
         )
 
+    def _maybe_wrap_with_reranker(
+        self, base_retriever: Optional[BaseRetriever]
+    ) -> Optional[BaseRetriever]:
+        """
+        Wrap a retriever with reranking if enabled in config.
+
+        Args:
+            base_retriever: The retriever to potentially wrap
+
+        Returns:
+            RerankerRetriever wrapping base_retriever, or base_retriever unchanged
+        """
+        if base_retriever is None:
+            return None
+
+        # Get reranker config
+        raw_config = getattr(self.config_manager, "_config", None)
+        reranker_cfg = {}
+        if isinstance(raw_config, dict):
+            reranker_cfg = raw_config.get("retriever", {}).get("reranker", {})
+
+        # Only wrap if enabled
+        if not reranker_cfg.get("enabled", False):
+            return base_retriever
+
+        try:
+            from ragdoll.retrieval.reranker import RerankerRetriever
+
+            return RerankerRetriever(
+                base_retriever=base_retriever,
+                app_config=self.app_config,
+                config_manager=self.config_manager,
+                provider=reranker_cfg.get("provider", "llm"),
+                top_k=reranker_cfg.get("top_k", 5),
+                over_retrieve_multiplier=reranker_cfg.get(
+                    "over_retrieve_multiplier", 2
+                ),
+                score_threshold=reranker_cfg.get("score_threshold", 0.0),
+                batch_size=reranker_cfg.get("batch_size", 10),
+                log_scores=reranker_cfg.get("log_scores", False),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize reranker, using base retriever: {e}")
+            return base_retriever
+
     def _build_pagerank_retriever(
         self, graph_store: Optional[Any]
     ) -> Optional[PageRankGraphRetriever]:
@@ -464,7 +513,7 @@ class Ragdoll:
         if not pr_cfg.get("enabled", False):
             return None
 
-        return PageRankGraphRetriever(
+        base_retriever = PageRankGraphRetriever(
             graph_store=graph_store,
             vector_store=self.vector_store,
             embedding_model=self.embedding_model,
@@ -486,6 +535,9 @@ class Ragdoll:
             log_fallback_warnings=pr_cfg.get("log_fallback_warnings", True),
             edge_weight_field=pr_cfg.get("edge_weight_field", "weight"),
         )
+
+        # Wrap with reranker if enabled
+        return self._maybe_wrap_with_reranker(base_retriever)
 
     def _build_retriever(self) -> Optional[HybridRetriever]:
         """
@@ -516,7 +568,7 @@ class Ragdoll:
         )
 
         # Build hybrid retriever (graph retriever may be None)
-        return HybridRetriever(
+        base_retriever = HybridRetriever(
             vector_retriever=vector_retriever,
             graph_retriever=self.graph_retriever,
             mode=hybrid_cfg.get("mode", "concat"),
@@ -524,6 +576,9 @@ class Ragdoll:
             graph_weight=hybrid_cfg.get("graph_weight", 0.4),
             deduplicate=hybrid_cfg.get("deduplicate", True),
         )
+
+        # Wrap with reranker if enabled
+        return self._maybe_wrap_with_reranker(base_retriever)
 
     async def query_stream(
         self, question: str, *, k: int = 4, retriever_mode: str = "hybrid"

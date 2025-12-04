@@ -545,6 +545,174 @@ retriever:
     log_fallback_warnings: true
 ```
 
+## Reranking
+
+### RerankerRetriever
+
+Wraps any retriever to improve result quality by scoring and reranking documents based on query relevance. Reranking is particularly effective for:
+
+- Filtering noise from hybrid/graph retrievers
+- Improving precision when recall is already high
+- Multi-hop questions requiring critical reasoning chains
+- Reducing token costs by selecting only the most relevant documents
+
+**Key Benefits:**
+
+- **Cost Efficiency**: Use a cheap model (gpt-3.5-turbo) or local cross-encoder for scoring
+- **Quality Improvement**: LLM-based relevance scoring catches semantic nuances
+- **Flexibility**: Swap between LLM, Cohere, or cross-encoder strategies
+
+### Configuration
+
+```yaml
+retriever:
+  reranker:
+    enabled: true
+    provider: "llm" # Options: "llm", "cohere", "cross-encoder"
+    top_k: 5 # Return top 5 after reranking
+    over_retrieve_multiplier: 2 # Retrieve 10, rerank to 5
+    score_threshold: 0.3 # Filter documents scoring below 0.3
+    batch_size: 10
+    log_scores: false
+
+    # LLM reranking (separate from main LLM)
+    llm:
+      model_name: "gpt-3.5-turbo" # Fast, cheap scoring model
+      temperature: 0.0
+      max_tokens: 10
+
+    # Cohere reranking (fast, purpose-built)
+    cohere:
+      model: "rerank-english-v3"
+      api_key_env: "COHERE_API_KEY"
+
+    # Cross-encoder reranking (local, no API)
+    cross_encoder:
+      model_name: "cross-encoder/ms-marco-MiniLM-L-12-v2"
+```
+
+### Usage
+
+**Automatic Integration:**
+
+When `retriever.reranker.enabled: true`, the Ragdoll class automatically wraps retrievers:
+
+```python
+from ragdoll import Ragdoll
+
+# Reranker is automatically applied if enabled in config
+ragdoll = Ragdoll()
+
+# All query methods benefit from reranking
+result = ragdoll.query("What are the main components?", k=5)
+# -> Retrieves 10 docs, reranks, returns top 5
+
+result = ragdoll.query_hybrid("Complex multi-hop question", k=5)
+# -> Hybrid retrieval + reranking
+
+result = ragdoll.query_pagerank("Graph-based query", k=5)
+# -> PageRank retrieval + reranking
+```
+
+**Manual Usage:**
+
+```python
+from ragdoll.retrieval import RerankerRetriever, HybridRetriever
+
+# Wrap any retriever
+base_retriever = HybridRetriever(
+    vector_store=vs,
+    graph_store=gs,
+    mode="concat"
+)
+
+reranker = RerankerRetriever(
+    base_retriever=base_retriever,
+    provider="llm",
+    top_k=5,
+    over_retrieve_multiplier=2,
+    reranker_llm=my_cheap_llm  # Optional: provide LLM explicitly
+)
+
+# Use like any retriever
+docs = reranker.get_relevant_documents("query", top_k=5)
+# -> Base retriever fetches 10, reranker scores and returns top 5
+```
+
+### Provider Comparison
+
+| Provider          | Speed            | Cost   | Quality            | Requires              |
+| ----------------- | ---------------- | ------ | ------------------ | --------------------- |
+| **LLM**           | Slow (API calls) | Medium | High (semantic)    | OpenAI/Anthropic API  |
+| **Cohere**        | Fast (optimized) | Low    | High (specialized) | Cohere API key        |
+| **Cross-encoder** | Fast (local)     | Free   | Good               | sentence-transformers |
+
+**Recommendations:**
+
+- **Development**: Use `cross-encoder` (free, fast, no API)
+- **Production (high volume)**: Use `cross-encoder` or `cohere`
+- **Production (best quality)**: Use `llm` with gpt-3.5-turbo
+- **Multi-language**: Use `cohere` (supports 100+ languages)
+
+### Strategy: Over-Retrieve and Rerank
+
+The reranker uses a proven information retrieval pattern:
+
+1. **Over-retrieve**: Fetch 2-3x more documents than needed (e.g., retrieve 10 for top_k=5)
+2. **Score**: Rate each document's relevance to the query (0-10 scale)
+3. **Filter**: Drop documents below `score_threshold`
+4. **Return**: Return top_k highest scoring documents
+
+**Benefits:**
+
+- Catches high-quality documents that ranked lower in initial retrieval
+- Filters noise from graph/hybrid retrievers
+- Reduces context window usage with better document selection
+
+**Example:**
+
+```python
+# Without reranking (vector retrieval)
+docs = vector_retriever.get_relevant_documents("query", k=5)
+# Returns: [0.92, 0.88, 0.71, 0.69, 0.65] cosine similarity
+# Result: 2 highly relevant, 3 marginally relevant
+
+# With reranking
+docs = reranker.get_relevant_documents("query", top_k=5)
+# Retrieves: 10 documents with similarity [0.92, 0.88, 0.85, 0.82, 0.78, 0.71, 0.69, 0.65, 0.62, 0.60]
+# LLM Scores: [9, 8, 3, 7, 2, 6, 8, 4, 1, 2] (semantic relevance)
+# Returns: Top 5 by LLM score: [9, 8, 8, 7, 6]
+# Result: 5 highly relevant documents, noise filtered
+```
+
+### Monitoring Reranking
+
+Enable score logging for debugging:
+
+```yaml
+retriever:
+  reranker:
+    enabled: true
+    log_scores: true # Log each document's rerank score
+```
+
+```python
+# Output logs:
+# DEBUG: Rerank score 0.92 for doc: "The main components include..."
+# DEBUG: Rerank score 0.78 for doc: "Components are defined as..."
+# DEBUG: Rerank score 0.35 for doc: "In other contexts..." (filtered out)
+```
+
+Access scores in document metadata:
+
+```python
+docs = reranker.get_relevant_documents("query")
+
+for doc in docs:
+    print(f"Score: {doc.metadata['rerank_score']:.2f}")
+    print(f"Content: {doc.page_content[:100]}")
+```
+
 ## See Also
 
 - [Entity Extraction](entity_extraction.md) - Building knowledge graphs
