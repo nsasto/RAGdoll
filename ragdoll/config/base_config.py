@@ -106,7 +106,7 @@ class LLMConfig(BaseConfig):
     """Configuration for language models."""
 
     model_name: str = Field(
-        default="gpt-3.5-turbo",
+        default="gpt-4o-mini",
         description="Name of the language model to use.",
     )
     temperature: float = Field(

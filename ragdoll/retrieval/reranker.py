@@ -170,13 +170,48 @@ Relevance (0-10):"""
             prompt = prompt_template.format(query=query, document=content)
 
             try:
-                # Try to call LLM (supports both LLMCaller and direct LLM)
-                if hasattr(self._reranker_llm, "invoke"):
+                # Import LangChainLLMCaller for proper type checking
+                try:
+                    from ragdoll.llms.callers import LangChainLLMCaller, call_llm_sync
+
+                    has_llm_caller = True
+                except ImportError:
+                    has_llm_caller = False
+                    LangChainLLMCaller = None
+
+                # Handle different LLM interfaces
+                if has_llm_caller and isinstance(
+                    self._reranker_llm, LangChainLLMCaller
+                ):
+                    # Use the sync wrapper for LangChainLLMCaller
+                    response = call_llm_sync(self._reranker_llm, prompt)
+                elif hasattr(self._reranker_llm, "invoke"):
+                    # Direct LangChain LLM with invoke method
                     response = self._reranker_llm.invoke(prompt)
+                elif hasattr(self._reranker_llm, "call"):
+                    # Async caller in sync context
+                    import asyncio
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # Already in async context, can't use asyncio.run
+                            response = "5"
+                            logger.warning(
+                                "Cannot call async LLM from running event loop"
+                            )
+                        else:
+                            response = asyncio.run(self._reranker_llm.call(prompt))
+                    except RuntimeError:
+                        # Fallback if no event loop
+                        response = asyncio.run(self._reranker_llm.call(prompt))
                 elif callable(self._reranker_llm):
                     response = self._reranker_llm(prompt)
                 else:
-                    logger.warning(f"Unknown LLM interface: {type(self._reranker_llm)}")
+                    if self.log_scores:
+                        logger.warning(
+                            f"Unknown LLM interface: {type(self._reranker_llm)}"
+                        )
                     response = "5"
 
                 # Extract numeric score
@@ -188,9 +223,10 @@ Relevance (0-10):"""
                 if match:
                     score = float(match.group(1))
                 else:
-                    logger.warning(
-                        f"Could not extract score from response: {score_str}"
-                    )
+                    if self.log_scores:
+                        logger.warning(
+                            f"Could not extract score from response: {score_str}"
+                        )
                     score = 5.0
 
                 # Normalize to 0-1 range
@@ -206,7 +242,8 @@ Relevance (0-10):"""
                     )
 
             except Exception as e:
-                logger.warning(f"Failed to score document: {e}")
+                if self.log_scores:
+                    logger.warning(f"Failed to score document: {e}")
                 # Default mid-score on error
                 doc.metadata["rerank_score"] = 0.5
                 scored.append((doc, 0.5))
@@ -353,7 +390,7 @@ Relevance (0-10):"""
             from ragdoll.llms import get_llm_caller
 
             return get_llm_caller(
-                model_name_or_config="gpt-3.5-turbo",
+                model_name_or_config="gpt-4o-mini",
                 config_manager=self.config_manager,
                 app_config=self.app_config,
             )
