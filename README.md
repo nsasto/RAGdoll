@@ -5,18 +5,31 @@
 [![Stable](https://badge.fury.io/py/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-# RAGdoll: A Reliable, Application-Embedded RAG SDK
+# RAGdoll: From RAG Project to Reliable Application
 
-RAGdoll keeps local RAG development small while providing durable ingestion,
-versioned corpus publication, tenant-safe retrieval, and deployment adapters for
-larger applications. The SDK owns the RAG semantics; queues and databases remain
-replaceable infrastructure.
+RAGdoll is a production-minded RAG SDK for teams that have outgrown a notebook pipeline but do not need a fully managed retrieval platform.
 
-# 🧭 Project Overview
+Start locally with a small setup. As the application grows, add durable ingestion, versioned corpora, tenant-safe retrieval, rollback, and shared infrastructure without rewriting its RAG workflow.
 
-RAGdoll 3 is an application-embedded SDK for reliable Retrieval-Augmented Generation. It provides one interface for ingestion, corpus publication, retrieval, answer generation, and optional graph enrichment.
+> **Best fit:** the middle ground between a prototype-oriented RAG library and a complete RAG platform.
 
-Local projects can run inline with file-backed state and Chroma. Larger deployments can use Celery, PostgreSQL, Qdrant, and Neo4j without rewriting application-level ingestion or query logic.
+## Where RAGdoll fits
+
+Basic RAG libraries are good at assembling loaders, splitters, embeddings, vector stores, and retrievers. RAGdoll keeps that flexibility while adding the operational semantics needed to run those pieces as an application.
+
+| Approach | What it provides | Typical trade-off |
+| --- | --- | --- |
+| Prototype library | Building blocks for a RAG pipeline | Your application owns retries, isolation, publication, and recovery |
+| **RAGdoll** | An embedded SDK with durable jobs, scoped corpora, rollback, failure contracts, and replaceable adapters | Your team still operates the application and infrastructure |
+| Managed platform | Hosted retrieval, operations, and scaling | More platform dependency, cost, and prescribed architecture |
+
+RAGdoll is not a hosted service or an all-in-one enterprise platform. It is a foundation for moving from a useful RAG project to a reliable local or moderate-scale application.
+
+## 🧭 Project Overview
+
+RAGdoll 3 provides one application-embedded interface for ingestion, corpus publication, retrieval, answer generation, and optional graph enrichment.
+
+Local projects can run inline with file-backed state and Chroma. Growing deployments can adopt Celery, PostgreSQL, Qdrant, and Neo4j without rewriting application-level ingestion or query logic.
 
 RAGdoll 3 is a major API release. The scoped `query` interface is asynchronous; applications upgrading from 2.x should follow the [production SDK migration note](docs/production_sdk.md).
 
