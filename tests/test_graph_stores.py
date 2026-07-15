@@ -135,3 +135,27 @@ def test_networkx_graph_store(sample_graph, tmp_path):
         assert "output_file" in mock_create.call_args[0][0]
 
 
+def test_json_graph_store_writes_unicode_as_utf8(tmp_path, monkeypatch):
+    output_file = tmp_path / "graph.json"
+    graph = Graph(
+        nodes=[GraphNode(id="flow", name="ingest → retrieve", type="PROCESS")],
+        edges=[],
+    )
+    store = GraphStoreWrapper(
+        "json",
+        {"data": None, "graph": None},
+        {"output_file": str(output_file)},
+    )
+    real_open = open
+
+    def windows_default_open(file, mode="r", *args, **kwargs):
+        if "b" not in mode and "encoding" not in kwargs:
+            kwargs["encoding"] = "cp1252"
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", windows_default_open)
+
+    assert store.save_graph(graph) is True
+    assert "ingest → retrieve" in output_file.read_text(encoding="utf-8")
+
+

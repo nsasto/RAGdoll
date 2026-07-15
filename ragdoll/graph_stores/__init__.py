@@ -214,7 +214,7 @@ def _create_json_graph_store(
                 output_dir = os.path.dirname(output_path)
                 if output_dir:
                     os.makedirs(output_dir, exist_ok=True)
-                with open(output_path, "w") as f:
+                with open(output_path, "w", encoding="utf-8") as f:
                     f.write(graph_json)
                 logger.info(f"Graph saved as JSON to {output_path}")
 
@@ -226,7 +226,7 @@ def _create_json_graph_store(
             # Load from file if specified
             input_file = config.get("input_file")
             if input_file and os.path.exists(input_file):
-                with open(input_file, "r") as f:
+                with open(input_file, "r", encoding="utf-8") as f:
                     json_data = f.read()
                     json_store["data"] = json_data
 
@@ -403,7 +403,7 @@ class GraphStoreWrapper:
                 output_dir = os.path.dirname(output_path)
                 if output_dir:
                     os.makedirs(output_dir, exist_ok=True)
-                with open(output_path, "w") as f:
+                with open(output_path, "w", encoding="utf-8") as f:
                     f.write(graph_json)
                 logger.info(f"Graph saved as JSON to {output_path}")
 
@@ -518,6 +518,62 @@ class GraphStoreWrapper:
             logger.error(f"Error loading from NetworkX: {e}")
             return None
 
+    @staticmethod
+    def _json_node_data(node: GraphNode) -> Dict[str, Any]:
+        data: Dict[str, Any] = {
+            "name": node.name,
+            "type": node.type,
+            "metadata": node.metadata or {},
+        }
+        if node.label:
+            data["label"] = node.label
+        if node.properties:
+            data["properties"] = node.properties
+        return data
+
+    @staticmethod
+    def _json_edge_data(edge: GraphEdge) -> Dict[str, Any]:
+        data: Dict[str, Any] = {
+            "id": edge.id,
+            "type": edge.type,
+            "source_document_id": edge.source_document_id,
+        }
+        data.update(edge.metadata or {})
+        return data
+
+    def get_all_nodes(self) -> Dict[str, Dict[str, Any]]:
+        """Return node attributes through a store-independent read interface."""
+        if self.store_type == "networkx" and hasattr(self.store, "nodes"):
+            return {
+                node_id: dict(data) for node_id, data in self.store.nodes(data=True)
+            }
+        if self.store_type == "json":
+            graph = self.load_graph()
+            if graph is not None:
+                return {node.id: self._json_node_data(node) for node in graph.nodes}
+        return {}
+
+    def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
+        """Return one node's attributes, if it exists."""
+        return self.get_all_nodes().get(node_id)
+
+    def get_neighbors(self, node_id: str) -> List[tuple[str, Dict[str, Any]]]:
+        """Return outgoing neighbors paired with edge attributes."""
+        if self.store_type == "networkx" and hasattr(self.store, "neighbors"):
+            return [
+                (neighbor_id, self.store.get_edge_data(node_id, neighbor_id) or {})
+                for neighbor_id in self.store.neighbors(node_id)
+            ]
+        if self.store_type == "json":
+            graph = self.load_graph()
+            if graph is not None:
+                return [
+                    (edge.target, self._json_edge_data(edge))
+                    for edge in graph.edges
+                    if edge.source == node_id
+                ]
+        return []
+
     def nodes(self, data=False):
         """
         Delegate to underlying NetworkX graph's nodes() method.
@@ -530,6 +586,9 @@ class GraphStoreWrapper:
         """
         if self.store_type == "networkx" and hasattr(self.store, "nodes"):
             return self.store.nodes(data=data)
+        elif self.store_type == "json":
+            nodes = self.get_all_nodes()
+            return list(nodes.items()) if data else list(nodes)
         else:
             raise NotImplementedError(f"nodes() not available for {self.store_type}")
 
@@ -545,6 +604,8 @@ class GraphStoreWrapper:
         """
         if self.store_type == "networkx" and hasattr(self.store, "neighbors"):
             return self.store.neighbors(node_id)
+        elif self.store_type == "json":
+            return iter(neighbor_id for neighbor_id, _ in self.get_neighbors(node_id))
         else:
             raise NotImplementedError(
                 f"neighbors() not available for {self.store_type}"
@@ -563,6 +624,11 @@ class GraphStoreWrapper:
         """
         if self.store_type == "networkx" and hasattr(self.store, "get_edge_data"):
             return self.store.get_edge_data(source, target)
+        elif self.store_type == "json":
+            for neighbor_id, edge_data in self.get_neighbors(source):
+                if neighbor_id == target:
+                    return edge_data
+            return None
         else:
             raise NotImplementedError(
                 f"get_edge_data() not available for {self.store_type}"
@@ -577,6 +643,9 @@ class GraphStoreWrapper:
         """
         if self.store_type == "networkx" and hasattr(self.store, "number_of_edges"):
             return self.store.number_of_edges()
+        elif self.store_type == "json":
+            graph = self.load_graph()
+            return len(graph.edges) if graph is not None else 0
         else:
             raise NotImplementedError(
                 f"number_of_edges() not available for {self.store_type}"
@@ -594,6 +663,8 @@ class GraphStoreWrapper:
         """
         if self.store_type == "networkx":
             return node_id in self.store
+        elif self.store_type == "json":
+            return node_id in self.get_all_nodes()
         else:
             raise NotImplementedError(
                 f"__contains__ not available for {self.store_type}"

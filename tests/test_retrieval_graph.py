@@ -6,7 +6,43 @@ import pytest
 from unittest.mock import Mock, MagicMock
 from langchain_core.documents import Document
 
+from ragdoll.entity_extraction.models import Graph, GraphEdge, GraphNode
+from ragdoll.graph_stores import GraphStoreWrapper
 from ragdoll.retrieval import GraphRetriever
+
+
+def test_retriever_traverses_json_graph_store() -> None:
+    graph = Graph(
+        nodes=[
+            GraphNode(id="alice", name="Alice", type="PERSON"),
+            GraphNode(id="acme", name="Acme", type="ORGANIZATION"),
+        ],
+        edges=[
+            GraphEdge(
+                id="works-for",
+                source="alice",
+                target="acme",
+                type="WORKS_FOR",
+            )
+        ],
+    )
+    graph_store = GraphStoreWrapper(
+        "json",
+        {"data": graph.model_dump_json(), "graph": graph},
+        {},
+    )
+
+    documents = GraphRetriever(
+        graph_store=graph_store,
+        vector_store=object(),
+        embedding_model=object(),
+        top_k=1,
+        max_hops=1,
+        log_fallback_warnings=False,
+    ).get_relevant_documents("Alice")
+
+    assert documents
+    assert documents[0].metadata["entity_name"] == "Alice"
 
 
 class TestGraphRetriever:

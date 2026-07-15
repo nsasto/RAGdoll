@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -9,8 +10,10 @@ from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from langchain_core.documents import Document
+from starlette.concurrency import run_in_threadpool
 
 from ragdoll import Ragdoll
+from ragdoll.errors import GraphWriteError
 from ragdoll.pipeline import IngestionOptions
 
 from .state import get_app_state
@@ -24,26 +27,19 @@ from .config_state import (
 )
 from ragdoll.ingestion import DocumentLoaderService
 
-# Add project root to Python path and load .env from root
-import sys
-from pathlib import Path
-import os
-
-project_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
-k = os.getenv("OPENAI_API_KEY")
-if k:
-    print("Key len:", len(k), "prefix:", k[:12], "suffix:", k[-6:])
-else:
-    print("No OPEN_API_KEY found.")
+load_dotenv()
 # Add logger configuration
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RAGdoll Demo")
 templates = Jinja2Templates(directory="demo_app/templates")
+_ragdoll_init_lock = asyncio.Lock()
+
+
+class DemoRuntimeUnavailable(RuntimeError):
+    """The provider-backed demo runtime could not be initialized."""
 
 
 def summarize_documents(docs: Sequence[Document], *, limit: int = 5) -> List[Dict]:
@@ -124,46 +120,51 @@ def _build_loader_items(
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the global AppConfig and Ragdoll instance on application startup."""
+    """Initialize configuration without contacting external providers."""
     initialize_app_config()
     logger.info("Global AppConfig initialized")
+
+
+async def _get_or_create_ragdoll() -> Ragdoll:
+    """Build the provider-backed runtime only when a demo action needs it."""
     app_state = get_app_state()
-    if not app_state.ragdoll:
-        logger.info("Initializing Ragdoll instance...")
-        app_state.ragdoll = Ragdoll(app_config=get_app_config())
-        logger.info("Ragdoll instance initialized and stored in AppState.")
+    if app_state.ragdoll is not None:
+        return app_state.ragdoll
 
-        # Load any existing vector store and graph from disk
-        from ragdoll.embeddings import get_embedding_model
-        from ragdoll.vector_stores.base_vector_store import BaseVectorStore
+    async with _ragdoll_init_lock:
+        if app_state.ragdoll is not None:
+            return app_state.ragdoll
 
-        embedding_model = get_embedding_model()
+        try:
+            ragdoll = await run_in_threadpool(Ragdoll, app_config=get_app_config())
+        except Exception as exc:
+            logger.exception("Could not initialize the Ragdoll demo runtime")
+            raise DemoRuntimeUnavailable from exc
 
-        # Load vector store if it exists
-        loaded_vs = state.load_vector_store(embedding_model)
-        if loaded_vs:
-            logger.info("Loaded existing vector store from disk")
-            wrapped = BaseVectorStore(loaded_vs)
-            app_state.ragdoll.vector_store = wrapped
-            app_state.vector_store = wrapped
+        if app_state.vector_store is not None:
+            ragdoll.vector_store = app_state.vector_store
+        else:
             try:
-                if hasattr(loaded_vs, "docstore"):
-                    count = len(loaded_vs.docstore._dict)
-                    logger.info(f"Vector store contains {count} documents")
-            except Exception as e:
-                logger.warning(f"Could not get document count: {e}")
-
-        # Load graph if it exists
-        loaded_graph = state.load_graph()
-        if loaded_graph:
-            logger.info("Loaded existing graph from disk")
-            app_state.graph = loaded_graph
-            try:
-                logger.info(
-                    f"Graph contains {len(loaded_graph.nodes)} nodes and {len(loaded_graph.edges)} edges"
+                loaded_store = await run_in_threadpool(
+                    state.load_vector_store, ragdoll.embedding_model
                 )
-            except Exception as e:
-                logger.warning(f"Could not get graph stats: {e}")
+                if loaded_store is not None:
+                    from ragdoll.vector_stores.base_vector_store import BaseVectorStore
+
+                    app_state.vector_store = BaseVectorStore(loaded_store)
+                    ragdoll.vector_store = app_state.vector_store
+                    logger.info("Loaded the persisted demo vector store")
+            except Exception as exc:
+                logger.warning("Could not load the persisted vector store: %s", exc)
+
+        if app_state.graph is None:
+            try:
+                app_state.graph = state.load_graph()
+            except Exception as exc:
+                logger.warning("Could not load the persisted graph: %s", exc)
+
+        app_state.ragdoll = ragdoll
+        return ragdoll
 
 
 def _config_context(
@@ -190,16 +191,13 @@ def _config_context(
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     # Clear staged files and uploads on app refresh
-    print("=== Index page loaded, clearing all staged files and uploads ===")
     staged_entries = state.staged_file_entries()
-    print(f"Staged entries: {len(staged_entries)}")
+    logger.info("Index page loaded; clearing %d staged entries", len(staged_entries))
 
     # Clear the manifest
     try:
         state.clear_staged_manifest(delete_files=False)
-        print("Cleared staged manifest")
     except Exception as e:
-        print(f"Could not clear manifest: {e}")
         logger.warning(f"Could not clear manifest: {e}")
 
     # Clear ALL files in uploads directory (not just staged ones)
@@ -213,14 +211,12 @@ async def index(request: Request) -> HTMLResponse:
                     file_path.unlink()
                     deleted_count += 1
                 except (OSError, PermissionError) as e:
-                    print(f"Could not delete {file_path.name}: {e}")
+                    logger.warning("Could not delete upload %s: %s", file_path.name, e)
                     failed_count += 1
 
         if deleted_count > 0:
-            print(f"Deleted {deleted_count} file(s) from uploads directory")
             logger.info(f"Deleted {deleted_count} file(s) from uploads directory")
         if failed_count > 0:
-            print(f"Failed to delete {failed_count} file(s) (may be locked)")
             logger.warning(f"Failed to delete {failed_count} file(s) (may be locked)")
 
     return templates.TemplateResponse("index.html", _config_context(request))
@@ -242,6 +238,10 @@ async def update_config(request: Request, config_yaml: str = Form(...)) -> HTMLR
             context,
             status_code=400,
         )
+
+    app_state = get_app_state()
+    app_state.ragdoll = None
+    app_state.vector_store = None
 
     context = _config_context(
         request,
@@ -289,17 +289,39 @@ async def ingest(request: Request) -> HTMLResponse:
 
     success = False
     try:
-        app_state = get_app_state()
-        ragdoll = app_state.ragdoll
-        if not ragdoll:
-            raise ValueError("Ragdoll instance not initialized.")
+        ragdoll = await _get_or_create_ragdoll()
 
         # Use the shared Ragdoll instance for ingestion
-        payload = ragdoll.ingest_with_graph_sync(
+        payload = await ragdoll.ingest_with_graph(
             sources=combined_sources + manual_docs,
             options=IngestionOptions(augment=augment),
         )
         success = True
+    except DemoRuntimeUnavailable:
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {
+                "request": request,
+                "message": (
+                    "Ragdoll could not initialize. Check the demo configuration "
+                    "and provider credentials, then try again."
+                ),
+            },
+            status_code=503,
+        )
+    except GraphWriteError:
+        logger.exception("Unable to persist the graph produced during ingestion")
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {
+                "request": request,
+                "message": (
+                    "Unable to persist the extracted graph. Check the graph store "
+                    "path and permissions, then try again."
+                ),
+            },
+            status_code=500,
+        )
     except ValueError as exc:
         # Preserve staged files on error so the user can retry.
         message = (
@@ -319,14 +341,12 @@ async def ingest(request: Request) -> HTMLResponse:
                 try:
                     Path(path).unlink(missing_ok=True)
                 except (OSError, PermissionError) as e:
-                    print(f"Could not delete {path}: {e}")
                     logger.warning(f"Could not delete {path}: {e}")
 
             # Clear staged manifest and attempt to delete files
             try:
                 state.clear_staged_manifest(delete_files=True)
             except (OSError, PermissionError) as e:
-                print(f"Could not clear staged files (may still be locked): {e}")
                 logger.warning(f"Could not clear staged files: {e}")
                 # At least clear the manifest even if files are locked
                 try:
@@ -523,8 +543,6 @@ async def populate_vector(request: Request) -> HTMLResponse:
         # Get embeddings and create EMPTY vector store first
         start_time = time.time()
         embedding_model = get_embedding_model()
-        vector_dimension = len(embedding_model.embed_query("test"))
-
         # Configure vector store (create empty, don't use from_documents)
         vector_config = VectorStoreConfig(enabled=True, store_type="faiss", params={})
         from ragdoll.vector_stores import create_vector_store
@@ -532,6 +550,7 @@ async def populate_vector(request: Request) -> HTMLResponse:
         vector_store = create_vector_store(
             vector_config.store_type, embedding=embedding_model
         )
+        vector_dimension = vector_store.store.index.d
 
         # Add documents in parallel and CAPTURE vector IDs
         max_concurrent = app_config.config.embeddings_config.max_concurrent_embeddings
@@ -572,7 +591,8 @@ async def populate_vector(request: Request) -> HTMLResponse:
         state.save_vector_store(vector_store)
         app_state = get_app_state()
         app_state.vector_store = vector_store
-        app_state.ragdoll.vector_store = vector_store
+        if app_state.ragdoll is not None:
+            app_state.ragdoll.vector_store = vector_store
         logger.info("Vector store saved to disk and updated in global state")
 
         duration = time.time() - start_time
@@ -763,11 +783,7 @@ async def chat(
 ) -> HTMLResponse:
     try:
         app_state = get_app_state()
-        ragdoll = app_state.ragdoll
-        if not ragdoll:
-            raise ValueError(
-                "Ragdoll instance not initialized. Please ingest data first."
-            )
+        ragdoll = await _get_or_create_ragdoll()
 
         # Ensure ragdoll has access to global state's vector store and graph
         if app_state.vector_store and not ragdoll.vector_store:
@@ -825,11 +841,28 @@ async def chat(
             logger.info("Rebuilt HybridRetriever with both vector and graph retrievers")
 
         # Execute query
-        result = ragdoll.query(question, retriever_mode=retriever, k=5)
+        result = await run_in_threadpool(
+            ragdoll.query_sync,
+            question,
+            retriever_mode=retriever,
+            k=5,
+        )
         logger.info(
             f"Query completed: {len(result.get('documents', []))} documents retrieved using {result.get('retriever_used')} retriever"
         )
 
+    except DemoRuntimeUnavailable:
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {
+                "request": request,
+                "message": (
+                    "Ragdoll could not initialize. Check the demo configuration "
+                    "and provider credentials, then try again."
+                ),
+            },
+            status_code=503,
+        )
     except ValueError as exc:
         return templates.TemplateResponse(
             "partials/error.html",
@@ -837,9 +870,7 @@ async def chat(
             status_code=400,
         )
     except Exception as exc:
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Chat request failed")
         return templates.TemplateResponse(
             "partials/error.html",
             {"request": request, "message": f"Unexpected error: {exc}"},
@@ -862,14 +893,12 @@ async def stage_files(files: List[UploadFile] = Form(default=[])) -> JSONRespons
     logger.info(f"Number of files received: {len(files)}")
 
     for upload in files:
-        print(f"  - {upload.filename}")
-        logger.info(f"  - {upload.filename}")
+        logger.info("Staging upload: %s", upload.filename)
 
     if not files:
         # This is called by JavaScript on page load to check for existing staged files
         existing = state.staged_file_entries()
         if existing:
-            print(f"Returning {len(existing)} existing staged file(s)")
             logger.info(f"Returning {len(existing)} existing staged file(s)")
         # No log needed when empty - this is normal on fresh page load
         return JSONResponse({"staged_files": existing}, status_code=200)
@@ -942,9 +971,6 @@ async def load_docs(request: Request) -> HTMLResponse:
     urls = form.get("urls", "") or ""
     text_input = form.get("text_input", "") or ""
 
-    print(f"urls: '{urls}'")
-    print(f"text_input: '{text_input[:100] if text_input else 'None'}'")
-
     url_list = [line.strip() for line in urls.splitlines() if line.strip()]
 
     manual_docs: List[Document] = []
@@ -960,10 +986,12 @@ async def load_docs(request: Request) -> HTMLResponse:
     staged_paths = [str(path) for path in state.staged_file_paths()]
     combined_sources = staged_paths + url_list
 
-    print(f"staged_paths: {staged_paths}")
-    print(f"url_list: {url_list}")
-    print(f"combined_sources: {combined_sources}")
-    print(f"manual_docs count: {len(manual_docs)}")
+    logger.info(
+        "Loading sources (staged=%d, urls=%d, text=%s)",
+        len(staged_paths),
+        len(url_list),
+        bool(manual_docs),
+    )
 
     # Build filename mapping from staged manifest
     source_filename_map = {}
@@ -973,15 +1001,15 @@ async def load_docs(request: Request) -> HTMLResponse:
         file_path = str((upload_dir / entry["filename"]).resolve())
         original_name = entry.get("original_name", entry["filename"])
         source_filename_map[file_path] = original_name
-    print(f"Filename mapping: {source_filename_map}")
-
     # Simplified loader-only flow using DocumentLoaderService directly
     try:
         app_config = get_app_config()
         loader = DocumentLoaderService(
             app_config=app_config, use_cache=False, collect_metrics=False
         )
-        raw_documents = loader.ingest_documents(combined_sources)
+        raw_documents = (
+            loader.ingest_documents(combined_sources) if combined_sources else []
+        )
 
         # Normalize to langchain Document objects if needed
         def normalize_documents(raw_docs):
