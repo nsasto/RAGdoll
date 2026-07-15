@@ -128,7 +128,7 @@ class QueryEngine:
                 self._execute(tenant, corpus, question, selected, started),
                 timeout=selected.timeout_seconds,
             )
-        except TimeoutError as exc:
+        except asyncio.TimeoutError as exc:
             self.events.emit(
                 "query.timed_out",
                 {

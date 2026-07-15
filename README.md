@@ -14,33 +14,34 @@ replaceable infrastructure.
 
 # 🧭 Project Overview
 
-RAGdoll 2 is an extensible framework for building Retrieval-Augmented Generation (RAG) applications. It provides a modular architecture that allows you to easily integrate various data sources, chunking strategies, embedding models, vector stores, large language models (LLMs), and graph stores. RAGdoll is designed to be flexible and fast while relying solely on open-source third-party libraries (LangChain, Chroma, spaCy, etc.). It's also designed to accomodate a broad array of file types without any initial dependency on third party hosted services using [langchain-markitdown](https://github.com/nsasto/langchain-markitdown). The loaders can easily be swapped out with any compatible lanchain loader when ready for production.
+RAGdoll 3 is an application-embedded SDK for reliable Retrieval-Augmented Generation. It provides one interface for ingestion, corpus publication, retrieval, answer generation, and optional graph enrichment.
 
-Note that RAGdoll 2 is a complete overhaul of the initial RAGdoll project and is not backwards compatible in any respect.
+Local projects can run inline with file-backed state and Chroma. Larger deployments can use Celery, PostgreSQL, Qdrant, and Neo4j without rewriting application-level ingestion or query logic.
+
+RAGdoll 3 is a major API release. The scoped `query` interface is asynchronous; applications upgrading from 2.x should follow the [production SDK migration note](docs/production_sdk.md).
 
 ## How RAGdoll compares to GraphRAG-style tools
 
-RAGdoll started as a learning project and has grown into a modular orchestrator. I've tried to focus the detail below on what is actually shipped in this repo (no performance claims or benchmarks are published yet) to help position RAGdoll in the broader landscape.
+RAGdoll began as a learning project and grew into a compact SDK that owns RAG reliability semantics. It complements graph-forward systems by covering the complete application journey.
 
-- **Scope:** RAGdoll orchestrates loaders, chunkers, embeddings, vector stores, LLMs, and an optional graph layer. The GraphRAG family (GraphRAG, NanoGraphRAG, Fast GraphRAG) is primarily graph-forward; RAGdoll adds the rest of the RAG plumbing and a demo UI.
+- **Scope:** Loaders, chunking, embeddings, versioned vector storage, optional graphs, query planning, citations, and operational traces.
 - **Graph building:** Entities come from spaCy NER; relations come from prompt-based LLM extraction per chunk (configurable via YAML prompts/parsers). It stores a flat graph (JSON/NetworkX/Neo4j) and exposes a retriever—there is no community detection or hierarchical summarization step.
-- **Retrieval:** The default `query` path is vector-only. When you call `ingest_with_graph`, you can also obtain a graph retriever (simple in-memory or Neo4j) and combine it with vector search yourself for hybrid flows; no automatic community summaries are generated. A lightweight hybrid retriever (`query(..., use_hybrid=True)` or `query_hybrid`) now merges vector hits with graph nodes for a fast graph-aware context path.
-- **Config and runtime:** Everything is wired through YAML and LangChain abstractions. Defaults point at OpenAI models, but you can swap in local embeddings/LLMs and different stores (Chroma/FAISS/Neo4j) without code changes. Caching and monitoring are built in but optional.
-- **Benchmarks:** Cost/speed/quality numbers depend entirely on the models and stores you pick; we have not published comparisons against GraphRAG variants, so avoid quoting figures until you run your own measurements.
+- **Retrieval:** Scoped vector, graph, and hybrid strategies run through one async query engine with deduplication, reranking, context budgets, and fallback behavior.
+- **Deployment:** YAML and dependency injection select inline or queued execution and local or shared storage adapters.
+- **Benchmarks:** Quality, latency, and cost depend on the selected models and stores. No comparative GraphRAG benchmark is currently published.
 
 ## What's New
 
-### Enhanced Features in RAGdoll 2.1
+### RAGdoll 3.0
 
-This version of RAGdoll introduces significant performance and architectural improvements:
+RAGdoll 3 turns the existing toolkit into a deployment-neutral SDK with explicit reliability guarantees:
 
-- **Parallel Execution (NEW in 2.1):** Concurrent processing for embeddings and entity extraction with configurable rate limiting. Achieves 5-8x faster pipeline execution for typical workloads.
-- **Embedding-based Graph Retrieval (NEW in 2.1):** GraphRetriever now supports embedding-based seed node selection using vector store integration, dramatically improving retrieval accuracy over fuzzy text matching.
-- **Vector ID Linkage (NEW in 2.1):** Proper linking between graph nodes and vector embeddings ensures seamless hybrid retrieval without orphaned nodes.
-- **Modular Retrieval Architecture (NEW in 2.1):** Clean separation between VectorRetriever, GraphRetriever, and HybridRetriever with multiple combination strategies.
-- **Caching:** Store and reuse results from previous operations to avoid redundant computations.
-- **Auto Loader Selection:** Includes loaders for multiple file types with Langchain-Markitdown as default, configurable to any LangChain-compatible loader.
-- **Monitoring:** Track and understand the performance and behavior of your RAG applications over time.
+- **Durable ingestion:** Idempotent jobs, worker leases, checkpoints, cancellation, quarantine, and per-document outcomes.
+- **Versioned corpora:** Immutable generations, atomic promotion, rollback, stable logical IDs, and generation-scoped vector IDs.
+- **Predictable queries:** Tenant-safe vector, graph, and hybrid retrieval with deadlines, citations, context budgets, and traces.
+- **Deployment profiles:** Inline execution or Celery workers with file, PostgreSQL, Chroma, Qdrant, and Neo4j adapters.
+- **Failure contracts:** Partial writes raise typed errors and unpublished generations remain invisible to queries.
+- **Compatibility:** LangChain loaders, embeddings, vector stores, LLMs, and retrievers remain injectable.
 
 ```yaml
 # Enable monitoring in config
@@ -105,11 +106,11 @@ The demo uses FastAPI for the backend, HTMX and Alpine.js for dynamic interactio
 
 ## Performance & Parallel Execution
 
-RAGdoll 2.1+ includes comprehensive parallel execution optimizations for significantly faster ingestion and entity extraction:
+RAGdoll supports bounded parallel execution for ingestion, embeddings, and entity extraction. Concurrency and request-rate limits help applications respect provider and storage limits.
 
 ### Parallel Embeddings (Vector Store Layer)
 
-**BREAKING CHANGE in 2.1:** Parallel embedding logic moved from `IngestionPipeline` to `BaseVectorStore` for better separation of concerns and reusability.
+Parallel embedding writes live in `BaseVectorStore`, keeping provider backpressure and batch failure handling behind the vector-store interface.
 
 - **Concurrent batch processing**: Processes multiple embedding batches simultaneously via `add_documents_parallel()`
 - **Configuration**: Set `max_concurrent_embeddings` in `EmbeddingsConfig` (YAML: `embeddings.max_concurrent_embeddings`, default: 3)
@@ -183,7 +184,7 @@ result = await ragdoll.ingest_with_graph(sources, options=options)
 
 ## Modular Retrieval Architecture
 
-RAGdoll 2.1+ features a completely refactored retrieval system with clean separation between graph building and graph querying. The new architecture provides three composable retrievers:
+RAGdoll provides three composable retrievers. RAGdoll 3 also exposes them through `QueryEngine`, which applies tenant scope, deadlines, deduplication, context budgets, citations, and fallback policy.
 
 ### VectorRetriever
 
@@ -407,7 +408,7 @@ Ragdoll keeps both storage backends under the same orchestration surface:
 
 **Building Graphs from Existing Vector Stores:**
 
-RAGdoll 2.1+ introduces `EntityExtractionService.extract_from_vector_store()` and the corresponding `ingest_from_vector_store()` pipeline function. This allows you to:
+`EntityExtractionService.extract_from_vector_store()` and the corresponding `ingest_from_vector_store()` pipeline function can add graph capabilities to an existing vector index. They allow you to:
 
 - Extract documents directly from an existing vector store (Chroma, FAISS, or any LangChain vector store)
 - Build a knowledge graph that references the **same vector IDs** as the vector store
@@ -517,7 +518,7 @@ RAGdoll provides default implementations for most components, allowing you to qu
 
 ## Key Design Decisions
 
-RAGdoll 2.0 embraces LangChain's ecosystem for maximum flexibility and maintainability:
+RAGdoll 3 keeps LangChain interoperability while adding explicit contracts for durability, corpus visibility, and tenant-safe retrieval.
 
 ### Embeddings: LangChain Embeddings Objects
 

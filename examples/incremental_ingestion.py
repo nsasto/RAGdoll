@@ -207,7 +207,7 @@ async def manual_incremental_example():
     # New pre-chunked documents
     new_chunks = [
         Document(
-            page_content="RAGdoll 2.1 introduces parallel embedding.",
+            page_content="RAGdoll 3 supports durable, bounded parallel ingestion.",
             metadata={"source": "changelog.md", "chunk_id": 0},
         ),
         Document(
