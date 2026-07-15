@@ -78,7 +78,7 @@ def test_ragdoll_end_to_end_ingest_and_query(base_documents):
     assert vector_store.added == base_documents
     assert loader.calls == [("alpha.txt", "beta.txt")]
 
-    result = ragdoll.query("What is Alpha?")
+    result = ragdoll.query_sync("What is Alpha?")
     assert result["answer"] == "final answer"
     assert vector_store.last_query == ("What is Alpha?", 4)
     assert llm_caller.prompts, "LLM caller should receive the composed prompt"

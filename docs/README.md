@@ -1,5 +1,7 @@
 # RAGdoll Documentation
 
+- [Production SDK and deployment profiles](production_sdk.md)
+
 Welcome to the RAGdoll documentation set. This folder contains topic‑focused guides that mirror the code structure so both humans and automation agents can quickly locate the right information.
 
 ## Navigating the Docs

@@ -61,7 +61,7 @@ def test_ragdoll_query_uses_llm_caller():
         llm_caller=fake_llm,
     )
 
-    result = ragdoll.query("What is Alpha?")
+    result = ragdoll.query_sync("What is Alpha?")
 
     assert result["answer"] == "final answer"
     assert result["documents"] == documents

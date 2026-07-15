@@ -1,0 +1,19 @@
+execution:
+  adapter: inline
+
+job_store:
+  adapter: file
+  path: .ragdoll/jobs
+
+corpus_index:
+  adapter: vector
+  state_adapter: file
+  state_path: .ragdoll/corpora.json
+
+vector_store:
+  enabled: true
+  store_type: chroma
+  params:
+    collection_name: ragdoll_documents
+    persist_directory: .ragdoll/chroma
+

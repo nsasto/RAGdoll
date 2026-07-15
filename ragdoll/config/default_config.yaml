@@ -147,6 +147,8 @@ entity_extraction:
     "works with": "AFFILIATED_WITH"
   gleaning_enabled: true
   max_gleaning_steps: 2
+  max_concurrent_llm_calls: 8
+  llm_requests_per_second: null
   entity_linking_enabled: true
   entity_linking_method: "string_similarity"
   entity_linking_threshold: 0.8
@@ -305,3 +307,23 @@ vector_stores:
       api_key: "os.environ/PINECONE_API_KEY"
       environment: "os.environ/PINECONE_ENVIRONMENT"
       index_name: "ragdoll-index"
+execution:
+  adapter: inline
+  max_concurrent_jobs: 2
+
+job_store:
+  adapter: file
+  path: .ragdoll/jobs
+
+corpus_index:
+  adapter: vector
+  state_adapter: file
+  state_path: .ragdoll/corpora.json
+
+quarantine:
+  adapter: file
+  path: .ragdoll/quarantine.json
+
+query:
+  timeout_seconds: 30
+  max_context_tokens: 2000

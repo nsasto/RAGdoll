@@ -1,13 +1,16 @@
 ![Ragdoll](img/github-header-image.png)
 
 [![CI](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml/badge.svg)](https://github.com/nsasto/RAGdoll/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)](https://github.com/nsasto/RAGdoll/releases)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/nsasto/RAGdoll/releases)
 [![Stable](https://badge.fury.io/py/python-ragdoll.svg)](https://pypi.org/project/python-ragdoll/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-# RAGdoll: A Flexible and Extensible RAG Framework
+# RAGdoll: A Reliable, Application-Embedded RAG SDK
 
-Welcome to RAGdoll 2.2! This release continues the evolution of the RAGdoll project with enhanced flexibility, extensibility, and maintainability. We've refactored the core architecture to make it easier than ever to adapt RAGdoll to your specific needs and integrate it with the broader LangChain ecosystem. Version 2.2 introduces advanced entity extraction controls, improved graph retrieval with embedding-based seed search, and comprehensive configuration options for fine-tuning your RAG pipeline.
+RAGdoll keeps local RAG development small while providing durable ingestion,
+versioned corpus publication, tenant-safe retrieval, and deployment adapters for
+larger applications. The SDK owns the RAG semantics; queues and databases remain
+replaceable infrastructure.
 
 # 🧭 Project Overview
 
@@ -47,27 +50,32 @@ monitor:
 
 ## Quick Start Guide
 
-Here's a quick example of how to get started with RAGdoll using the new LLM caller abstraction:
+The same interface runs inline locally or through configured production adapters:
 
 ```python
-from ragdoll.ragdoll import Ragdoll
-from ragdoll.llms import get_llm_caller
+import asyncio
+from ragdoll import Ragdoll
 
-# Resolve whichever model is marked as default in config (or pass a model name).
-llm_caller = get_llm_caller()
+async def main():
+    rag = Ragdoll.from_config("examples/deployment_local.yaml")
+    job = await rag.ingest(
+        corpus="product-docs",
+        sources=["path/to/document.md", "path/to/notes.pdf"],
+    )
+    await job.wait()
 
-# Spin up the orchestrator with sensible defaults.
-ragdoll = Ragdoll(llm_caller=llm_caller)
+    result = await rag.query(
+        corpus="product-docs",
+        question="How does authentication work?",
+    )
+    print(result["answer"])
 
-# Ingest a few local files (vector store + caches handled automatically).
-ragdoll.ingest_data(["path/to/document.md", "path/to/notes.pdf"])
-
-# Run a retrieval + answer round trip.
-result = ragdoll.query("What is the capital of France?")
-print(result["answer"])
+asyncio.run(main())
 ```
 
-Need finer control over loaders or paths? Use `settings.get_app()` (or `bootstrap_app` with overrides) to obtain the shared `AppConfig`, tweak its `config`, and pass component overrides into `Ragdoll`.
+For a synchronous script or notebook, use `rag.query_sync(...)`. See the
+[production SDK guide](docs/production_sdk.md) for local, application, and scaled
+profiles.
 
 ## Demo Application
 

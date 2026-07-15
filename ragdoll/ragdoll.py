@@ -12,13 +12,43 @@ from langchain_core.language_models import BaseChatModel, BaseLanguageModel
 from ragdoll import settings
 from ragdoll.app_config import AppConfig, bootstrap_app
 from ragdoll.embeddings import get_embedding_model
+from ragdoll.chunkers import get_text_splitter
+from ragdoll.contracts import IngestionSpec
+from ragdoll.corpus import CorpusIndex, VectorCorpusIndex
+from ragdoll.corpus import InMemoryCorpusIndex
+from ragdoll.generation_state import (
+    FileGenerationStateStore,
+    MemoryGenerationStateStore,
+    PostgresGenerationStateStore,
+)
+from ragdoll.graph_index import VersionedGraphIndex
 from ragdoll.entity_extraction.models import Graph
 from ragdoll.ingestion import DocumentLoaderService
+from ragdoll.ingestion.jobs import (
+    DocumentPreparer,
+    DurableIngestion,
+    CeleryExecutionAdapter,
+    ExecutionAdapter,
+    FileJobStore,
+    IngestionJob,
+    JobStore,
+    MemoryJobStore,
+    PostgresJobStore,
+    PrepareDocuments,
+)
 from ragdoll.llms import get_llm_caller
 import threading
 
 from ragdoll.llms.callers import BaseLLMCaller, call_llm_sync
 from ragdoll.pipeline import IngestionOptions, IngestionPipeline
+from ragdoll.query import QueryEngine, QueryOptions
+from ragdoll.observability import EventSink, NullEventSink
+from ragdoll.quarantine import (
+    FileQuarantineStore,
+    MemoryQuarantineStore,
+    PostgresQuarantineStore,
+    QuarantineStore,
+)
 from ragdoll.retrieval import (
     VectorRetriever,
     GraphRetriever,
@@ -26,17 +56,17 @@ from ragdoll.retrieval import (
     PageRankGraphRetriever,
 )
 from ragdoll.vector_stores import BaseVectorStore, vector_store_from_config
+from ragdoll.utils.env import resolve_env_reference
 
 logger = logging.getLogger(__name__)
 
 
 class Ragdoll:
     """
-    Thin orchestration layer that wires together ingestion, embeddings,
-    vector storage, and optional LLM answering.
+    Stable SDK entry point for durable ingestion and scoped RAG queries.
 
-    The goal is to provide a stable public entry point that relies only on the
-    modules that actually exist in RAGdoll 2.x.
+    Local and scaled deployments share this interface; execution, state,
+    vector, graph, and observability infrastructure are replaceable adapters.
     """
 
     def __init__(
@@ -49,6 +79,14 @@ class Ragdoll:
         embedding_model: Optional[Embeddings] = None,
         llm: Optional[Any] = None,
         llm_caller: Optional[BaseLLMCaller] = None,
+        corpus_index: Optional[CorpusIndex] = None,
+        job_store: Optional[JobStore] = None,
+        execution_adapter: Optional[ExecutionAdapter] = None,
+        document_preparer: Optional[PrepareDocuments] = None,
+        event_sink: Optional[EventSink] = None,
+        quarantine_store: Optional[QuarantineStore] = None,
+        graph_builder: Optional[Any] = None,
+        graph_index: Optional[VersionedGraphIndex] = None,
     ) -> None:
         if config_path and app_config:
             raise ValueError("Provide either config_path or app_config, not both.")
@@ -88,12 +126,117 @@ class Ragdoll:
             if llm is not None and not isinstance(llm, BaseLLMCaller)
             else getattr(self.llm_caller, "llm", None)
         )
+        index_store = self.vector_store
+        if not hasattr(index_store, "aadd_documents"):
+            index_store = BaseVectorStore(index_store)
+        corpus_runtime = self.config_manager.corpus_index_runtime_config
+        self.corpus_index = corpus_index or (
+            InMemoryCorpusIndex()
+            if corpus_runtime.adapter == "memory"
+            else VectorCorpusIndex(
+                index_store,
+                state_store=self._build_generation_state_store(corpus_runtime),
+            )
+        )
+        if document_preparer is None:
+            splitter = get_text_splitter(
+                config_manager=self.config_manager, app_config=self.app_config
+            )
+            document_preparer = DocumentPreparer(
+                self.ingestion_service,
+                splitter,
+                batch_size=self.config_manager.ingestion_config.batch_size,
+            )
+        runtime_job_store = job_store or self._build_job_store()
+        runtime_execution = execution_adapter or self._build_execution_adapter()
+        self.event_sink = event_sink or NullEventSink()
+        self.durable_ingestion = DurableIngestion(
+            index=self.corpus_index,
+            prepare=document_preparer,
+            store=runtime_job_store,
+            execution=runtime_execution,
+            events=self.event_sink,
+            quarantine=quarantine_store or self._build_quarantine_store(),
+            graph_builder=graph_builder,
+            graph_index=graph_index,
+            max_concurrent_jobs=(
+                self.config_manager.execution_config.max_concurrent_jobs
+            ),
+        )
+        self.query_engine = QueryEngine(
+            index=self.corpus_index,
+            llm_caller=self.llm_caller,
+            events=self.event_sink,
+            input_cost_per_million=(
+                self.config_manager.query_runtime_config.input_cost_per_million
+            ),
+            output_cost_per_million=(
+                self.config_manager.query_runtime_config.output_cost_per_million
+            ),
+            graph_retriever=(graph_index.query if graph_index else None),
+        )
         self.graph_retriever: Optional[GraphRetriever] = None
         self.pagerank_retriever: Optional[PageRankGraphRetriever] = None
         self.hybrid_retriever: Optional[HybridRetriever] = None
         self.last_graph: Optional[Graph] = None
         self.graph_ingestion_stats: Optional[Dict[str, Any]] = None
         self.graph_store: Optional[Any] = None
+
+    def _build_job_store(self) -> JobStore:
+        config = self.config_manager.job_store_runtime_config
+        if config.adapter == "memory":
+            return MemoryJobStore()
+        if config.adapter == "file":
+            return FileJobStore(config.path)
+        dsn = resolve_env_reference(config.dsn, label="job_store.dsn")
+        if not dsn:
+            raise ValueError("Postgres job store requires job_store.dsn")
+        return PostgresJobStore(str(dsn))
+
+    @staticmethod
+    def _build_generation_state_store(config: Any):
+        if config.state_adapter == "memory":
+            return MemoryGenerationStateStore()
+        if config.state_adapter == "file":
+            return FileGenerationStateStore(config.state_path)
+        dsn = resolve_env_reference(config.dsn, label="corpus_index.dsn")
+        if not dsn:
+            raise ValueError(
+                "Postgres corpus generation state requires corpus_index.dsn"
+            )
+        return PostgresGenerationStateStore(str(dsn))
+
+    def _build_execution_adapter(self) -> ExecutionAdapter:
+        config = self.config_manager.execution_config
+        if config.adapter == "inline":
+            from ragdoll.ingestion.jobs import InlineExecutionAdapter
+
+            return InlineExecutionAdapter()
+        try:
+            from celery import Celery
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError(
+                "Celery execution requires `pip install python-ragdoll[scaled]`"
+            ) from exc
+        broker = resolve_env_reference(config.broker_url, label="execution.broker_url")
+        backend = resolve_env_reference(
+            config.result_backend, label="execution.result_backend"
+        )
+        if not broker:
+            raise ValueError("Celery execution requires execution.broker_url")
+        app = Celery("ragdoll", broker=broker, backend=backend)
+        return CeleryExecutionAdapter(app, task_name=config.task_name)
+
+    def _build_quarantine_store(self) -> QuarantineStore:
+        config = self.config_manager.quarantine_runtime_config
+        if config.adapter == "memory":
+            return MemoryQuarantineStore()
+        if config.adapter == "file":
+            return FileQuarantineStore(config.path)
+        dsn = resolve_env_reference(config.dsn, label="quarantine.dsn")
+        if not dsn:
+            raise ValueError("Postgres quarantine requires quarantine.dsn")
+        return PostgresQuarantineStore(str(dsn))
 
     def ingest_data(self, sources: Sequence[str]) -> List[Document]:
         """
@@ -105,7 +248,108 @@ class Ragdoll:
             self.vector_store.add_documents(documents)
         return documents
 
-    def query(
+    @classmethod
+    def from_config(cls, config_path: str, **overrides: Any) -> "Ragdoll":
+        """Build the same SDK interface from a deployment configuration file."""
+        return cls(config_path=config_path, **overrides)
+
+    async def ingest(
+        self,
+        *,
+        corpus: str,
+        sources: Sequence[Union[str, Document]],
+        tenant: str = "default",
+        idempotency_key: str | None = None,
+    ) -> IngestionJob:
+        """Submit durable ingestion without exposing execution infrastructure."""
+        return await self.durable_ingestion.submit(
+            IngestionSpec(
+                tenant=tenant,
+                corpus=corpus,
+                sources=sources,
+                idempotency_key=idempotency_key,
+            )
+        )
+
+    async def query(
+        self,
+        question: str,
+        *,
+        corpus: str,
+        tenant: str = "default",
+        options: QueryOptions | None = None,
+        k: int | None = None,
+        filters: Optional[Dict[str, object]] = None,
+        timeout_seconds: float | None = None,
+    ) -> dict:
+        """Run scoped retrieval and generation through the async query engine."""
+        selected = options or QueryOptions(
+            k=k or 4,
+            filters=filters or {},
+            timeout_seconds=(
+                timeout_seconds
+                or self.config_manager.query_runtime_config.timeout_seconds
+            ),
+            max_context_tokens=(
+                self.config_manager.query_runtime_config.max_context_tokens
+            ),
+        )
+        result = await self.query_engine.query(
+            tenant=tenant,
+            corpus=corpus,
+            question=question,
+            options=selected,
+        )
+        return result.as_dict()
+
+    async def rollback_corpus(self, *, corpus: str, tenant: str = "default") -> str:
+        """Atomically restore the previously active corpus generation."""
+        return str(await self.corpus_index.rollback(tenant, corpus))
+
+    async def delete_corpus(self, *, corpus: str, tenant: str = "default") -> None:
+        """Delete every generation belonging to exactly one tenant corpus."""
+        await self.corpus_index.delete(tenant, corpus)
+        if self.durable_ingestion.graph_index is not None:
+            await self.durable_ingestion.graph_index.delete(tenant, corpus)
+
+    def query_sync(
+        self,
+        question: str,
+        *,
+        corpus: str | None = None,
+        tenant: str = "default",
+        options: QueryOptions | None = None,
+        k: int = 4,
+        filters: Optional[Dict[str, object]] = None,
+        timeout_seconds: float | None = None,
+        use_hybrid: bool = False,
+        retriever_mode: str = "vector",
+    ) -> dict:
+        """Notebook/script helper; omit corpus to use the legacy vector path."""
+        if corpus is None:
+            return self._query_legacy(
+                question,
+                k=k,
+                use_hybrid=use_hybrid,
+                retriever_mode=retriever_mode,
+            )
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.query(
+                    question,
+                    corpus=corpus,
+                    tenant=tenant,
+                    options=options,
+                    k=k,
+                    filters=filters,
+                    timeout_seconds=timeout_seconds,
+                )
+            )
+        raise RuntimeError("An event loop is running; await `query` instead")
+
+    def _query_legacy(
         self,
         question: str,
         *,
@@ -160,7 +404,7 @@ class Ragdoll:
         """
         if not self.hybrid_retriever:
             # Fallback to vector-only path if hybrid retriever is unavailable.
-            return self.query(question, k=k, use_hybrid=False)
+            return self._query_legacy(question, k=k, use_hybrid=False)
 
         logger.info("query_hybrid:start question=%s k=%s", question, k)
         hits = self.hybrid_retriever.get_relevant_documents(question, top_k=k)
@@ -195,9 +439,9 @@ class Ragdoll:
         """
         if not self.pagerank_retriever:
             # Fallback to vector-only retrieval
-            return self.query(question, k=k, retriever_mode="vector")
+            return self._query_legacy(question, k=k, retriever_mode="vector")
 
-        return self.query(question, k=k, retriever_mode="pagerank")
+        return self._query_legacy(question, k=k, retriever_mode="pagerank")
 
     @staticmethod
     def _to_documents(documents: Iterable[Any]) -> List[Document]:

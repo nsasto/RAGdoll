@@ -1,7 +1,7 @@
 """
 LLM ingestion service for RAGdoll
 
-This module provides utilities for extracting data from various file formats 
+This module provides utilities for extracting data from various file formats
 and building a structured data pipeline for data ingestion into graph and vector db.
 """
 
@@ -61,7 +61,10 @@ def clear_loader_registry() -> None:
 
     _loader_registry.clear()
 
-__all__.extend(["register_loader", "get_loader", "list_loaders", "clear_loader_registry"])
+
+__all__.extend(
+    ["register_loader", "get_loader", "list_loaders", "clear_loader_registry"]
+)
 
 
 # --- bootstrap: register default-config loaders if possible -------------------
@@ -73,10 +76,17 @@ def _bootstrap_register_default_loaders() -> None:
     normalized short names (strip leading '.' and lowercase).
     """
     try:
-        cfg_path = Path(__file__).resolve().parents[1] / "config" / "default_config.yaml"
+        cfg_path = (
+            Path(__file__).resolve().parents[1] / "config" / "default_config.yaml"
+        )
         if not cfg_path.exists():
             # try one level up if layout differs
-            cfg_path = Path(__file__).resolve().parents[2] / "ragdoll" / "config" / "default_config.yaml"
+            cfg_path = (
+                Path(__file__).resolve().parents[2]
+                / "ragdoll"
+                / "config"
+                / "default_config.yaml"
+            )
         if not cfg_path.exists():
             logger.debug("No default_config.yaml found at %s", cfg_path)
             return
@@ -106,7 +116,7 @@ def _bootstrap_register_default_loaders() -> None:
         try:
             # support "pkg.module:Class" and "pkg.module.Class"
             ref = loader_ref.replace(":", ".")
-            module_path, _, class_name = ref.rpartition('.')
+            module_path, _, class_name = ref.rpartition(".")
             if not module_path or not class_name:
                 raise ImportError(f"Malformed loader import string '{loader_ref}'")
             module = __import__(module_path, fromlist=[class_name])
@@ -114,7 +124,9 @@ def _bootstrap_register_default_loaders() -> None:
             register_loader_class(name, cls)
             logger.debug("Registered loader '%s' -> %s", name, loader_ref)
         except Exception as e:
-            logger.debug("Skipping registration for loader '%s' (%s): %s", name, loader_ref, e)
+            logger.debug(
+                "Skipping registration for loader '%s' (%s): %s", name, loader_ref, e
+            )
 
 
 try:
@@ -122,3 +134,39 @@ try:
 except Exception as _e:
     logger.debug("Loader bootstrap failed: %s", _e)
 # ---------------------------------------------------------------------------
+
+from .jobs import (
+    DurableIngestion,
+    DocumentPreparer,
+    FileJobStore,
+    CeleryExecutionAdapter,
+    ExecutionAdapter,
+    InlineExecutionAdapter,
+    IngestionJob,
+    IngestionResult,
+    JobProgress,
+    JobRecord,
+    JobStatus,
+    JobStore,
+    MemoryJobStore,
+    PostgresJobStore,
+    PreparationResult,
+)
+
+__all__ = [
+    "DurableIngestion",
+    "DocumentPreparer",
+    "FileJobStore",
+    "CeleryExecutionAdapter",
+    "ExecutionAdapter",
+    "InlineExecutionAdapter",
+    "IngestionJob",
+    "IngestionResult",
+    "JobProgress",
+    "JobRecord",
+    "JobStatus",
+    "JobStore",
+    "MemoryJobStore",
+    "PostgresJobStore",
+    "PreparationResult",
+]

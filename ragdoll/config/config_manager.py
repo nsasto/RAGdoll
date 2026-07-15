@@ -10,12 +10,17 @@ import yaml
 from ragdoll.config.base_config import (
     CacheConfig,
     EmbeddingsConfig,
+    ExecutionConfig,
     EntityExtractionConfig,
     GraphDatabaseConfig,
     IngestionConfig,
+    JobStoreRuntimeConfig,
     LLMPromptsConfig,
     LoadersConfig,
     MonitorConfig,
+    CorpusIndexRuntimeConfig,
+    QuarantineRuntimeConfig,
+    QueryRuntimeConfig,
     VectorStoreConfig,
 )
 from ragdoll.prompts import get_prompt, list_prompts
@@ -287,6 +292,30 @@ class ConfigManager:
         """Typed embeddings configuration."""
 
         return EmbeddingsConfig.model_validate(self._config.get("embeddings", {}))
+
+    @property
+    def execution_config(self) -> ExecutionConfig:
+        return ExecutionConfig.model_validate(self._config.get("execution", {}))
+
+    @property
+    def job_store_runtime_config(self) -> JobStoreRuntimeConfig:
+        return JobStoreRuntimeConfig.model_validate(self._config.get("job_store", {}))
+
+    @property
+    def corpus_index_runtime_config(self) -> CorpusIndexRuntimeConfig:
+        return CorpusIndexRuntimeConfig.model_validate(
+            self._config.get("corpus_index", {})
+        )
+
+    @property
+    def quarantine_runtime_config(self) -> QuarantineRuntimeConfig:
+        return QuarantineRuntimeConfig.model_validate(
+            self._config.get("quarantine", {})
+        )
+
+    @property
+    def query_runtime_config(self) -> QueryRuntimeConfig:
+        return QueryRuntimeConfig.model_validate(self._config.get("query", {}))
 
     @property
     def cache_config(self) -> CacheConfig:

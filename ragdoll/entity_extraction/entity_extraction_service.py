@@ -20,7 +20,8 @@ from ragdoll.chunkers import get_text_splitter, split_documents
 from ragdoll.llms import get_llm
 from ragdoll.llms.callers import BaseLLMCaller, LangChainLLMCaller
 from ragdoll.prompts import get_prompt
-from .models import Graph, GraphEdge, GraphNode, RelationshipList
+from ragdoll.rate_limit import AsyncRateLimiter
+
 from .base import BaseEntityExtractor
 from .graph_persistence import GraphPersistenceService
 from .models import Graph, GraphEdge, GraphNode, RelationshipList
@@ -68,6 +69,7 @@ class EntityExtractionService(BaseEntityExtractor):
         self.chunk_documents = chunk_documents
         self.text_splitter = text_splitter
         self.max_concurrent_llm_calls = merged_config.get("max_concurrent_llm_calls", 8)
+        self.llm_requests_per_second = merged_config.get("llm_requests_per_second")
         llm_instance = llm or get_llm(
             config_manager=config_manager, app_config=self.app_config
         )
@@ -180,8 +182,12 @@ class EntityExtractionService(BaseEntityExtractor):
         )
 
         # Determine concurrency limit (default 8, can be configured)
-        max_concurrent = getattr(self.config, "max_concurrent_llm_calls", 8)
-        semaphore = asyncio.Semaphore(max_concurrent)
+        semaphore = asyncio.Semaphore(self.max_concurrent_llm_calls)
+        rate_limiter = (
+            AsyncRateLimiter(self.llm_requests_per_second)
+            if self.llm_requests_per_second
+            else None
+        )
 
         llm_runner = self._resolve_llm_caller(llm_override)
 
@@ -194,6 +200,8 @@ class EntityExtractionService(BaseEntityExtractor):
                 # Run spaCy synchronously (it's CPU-bound)
                 nodes = await asyncio.to_thread(self._run_spacy, doc)
                 # Run LLM async with rate limiting
+                if rate_limiter is not None:
+                    await rate_limiter.acquire()
                 edges = await self._run_relationship_llm(doc, nodes, llm_runner)
                 return nodes, edges
 

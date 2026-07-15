@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,6 +11,46 @@ class BaseConfig(BaseModel):
     enabled: bool = Field(
         default=True, description="Whether this component is enabled."
     )
+
+
+class ExecutionConfig(BaseConfig):
+    """Select where durable ingestion jobs execute."""
+
+    adapter: Literal["inline", "celery"] = "inline"
+    broker_url: Optional[str] = None
+    result_backend: Optional[str] = None
+    task_name: str = "ragdoll.execute_ingestion"
+    max_concurrent_jobs: int = Field(default=2, ge=1)
+
+
+class JobStoreRuntimeConfig(BaseConfig):
+    """Select where durable job state is stored."""
+
+    adapter: Literal["memory", "file", "postgres"] = "file"
+    path: str = ".ragdoll/jobs"
+    dsn: Optional[str] = None
+
+
+class CorpusIndexRuntimeConfig(BaseConfig):
+    """Version visibility metadata layered over the configured vector store."""
+
+    adapter: Literal["vector", "memory"] = "vector"
+    state_adapter: Literal["memory", "file", "postgres"] = "file"
+    state_path: str = ".ragdoll/corpora.json"
+    dsn: Optional[str] = None
+
+
+class QuarantineRuntimeConfig(BaseConfig):
+    adapter: Literal["memory", "file", "postgres"] = "file"
+    path: str = ".ragdoll/quarantine.json"
+    dsn: Optional[str] = None
+
+
+class QueryRuntimeConfig(BaseConfig):
+    timeout_seconds: float = Field(default=30.0, gt=0)
+    max_context_tokens: int = Field(default=2000, gt=0)
+    input_cost_per_million: Optional[float] = Field(default=None, ge=0)
+    output_cost_per_million: Optional[float] = Field(default=None, ge=0)
 
 
 class LoaderConfig(BaseConfig):
@@ -66,6 +106,11 @@ class EmbeddingsConfig(BaseConfig):
     max_concurrent_embeddings: int = Field(
         default=3,
         description="Maximum number of concurrent embedding batches to process in parallel. Higher values improve throughput with remote embedding services.",
+    )
+    requests_per_second: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description="Optional embedding batch request-rate limit.",
     )
     models: Dict[str, Dict[str, Any]] = Field(
         default_factory=dict,
@@ -272,6 +317,8 @@ class EntityExtractionConfig(BaseModel):
     )
     gleaning_enabled: bool = Field(default=True)
     max_gleaning_steps: int = Field(default=2)
+    max_concurrent_llm_calls: int = Field(default=8, ge=1)
+    llm_requests_per_second: Optional[float] = Field(default=None, gt=0)
     entity_linking_enabled: bool = Field(default=True)
     entity_linking_method: str = Field(default="string_similarity")
     entity_linking_threshold: float = Field(default=0.8)

@@ -53,3 +53,33 @@ vector_stores:
     assert vector_config.store_type == "chroma"
     assert vector_config.params["collection_name"] == "demo"
     assert vector_config.params["persist_directory"] == "./data/chroma"
+
+
+def test_scaled_runtime_configuration_is_typed(tmp_path):
+    config_path = _write_config(
+        tmp_path,
+        """
+execution:
+  adapter: celery
+  broker_url: os.environ/CELERY_BROKER_URL
+job_store:
+  adapter: postgres
+  dsn: os.environ/RAGDOLL_POSTGRES_DSN
+corpus_index:
+  adapter: vector
+  state_adapter: postgres
+  dsn: os.environ/RAGDOLL_POSTGRES_DSN
+vector_store:
+  enabled: true
+  store_type: qdrant
+  params:
+    collection_name: docs
+""",
+    )
+
+    manager = ConfigManager(str(config_path))
+
+    assert manager.execution_config.adapter == "celery"
+    assert manager.job_store_runtime_config.adapter == "postgres"
+    assert manager.corpus_index_runtime_config.state_adapter == "postgres"
+    assert manager.vector_store_config.store_type == "qdrant"

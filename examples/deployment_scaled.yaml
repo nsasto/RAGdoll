@@ -1,0 +1,26 @@
+execution:
+  adapter: celery
+  broker_url: os.environ/CELERY_BROKER_URL
+  task_name: ragdoll.execute_ingestion
+
+job_store:
+  adapter: postgres
+  dsn: os.environ/RAGDOLL_POSTGRES_DSN
+
+corpus_index:
+  adapter: vector
+  state_adapter: postgres
+  dsn: os.environ/RAGDOLL_POSTGRES_DSN
+
+quarantine:
+  adapter: postgres
+  dsn: os.environ/RAGDOLL_POSTGRES_DSN
+
+vector_store:
+  enabled: true
+  store_type: qdrant
+  params:
+    url: os.environ/QDRANT_URL
+    api_key: os.environ/QDRANT_API_KEY
+    collection_name: ragdoll_documents
+    prefer_grpc: true

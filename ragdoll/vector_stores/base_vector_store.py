@@ -6,6 +6,9 @@ from langchain_core.documents import Document
 from langchain.embeddings.base import Embeddings
 from langchain_core.vectorstores import VectorStore
 
+from ragdoll.errors import BatchWriteError
+from ragdoll.rate_limit import AsyncRateLimiter
+
 VectorStoreT = TypeVar("VectorStoreT", bound=VectorStore)
 
 
@@ -21,7 +24,10 @@ class BaseVectorStore:
         return self._store
 
     def add_documents(
-        self, documents: Sequence[Document], batch_size: int | None = None
+        self,
+        documents: Sequence[Document],
+        batch_size: int | None = None,
+        **kwargs: Any,
     ) -> List[str]:
         """Add documents, splitting into batches if the backend advertises a limit."""
         docs = list(documents)
@@ -30,15 +36,24 @@ class BaseVectorStore:
 
         limit = batch_size or self._detect_batch_limit()
         if not limit or limit <= 0 or len(docs) <= limit:
-            return self._store.add_documents(docs)
+            return self._store.add_documents(docs, **kwargs)
 
         ids: List[str] = []
+        requested_ids = kwargs.pop("ids", None)
         for start in range(0, len(docs), limit):
-            ids.extend(self._store.add_documents(docs[start : start + limit]))
+            batch_kwargs = dict(kwargs)
+            if requested_ids is not None:
+                batch_kwargs["ids"] = list(requested_ids[start : start + limit])
+            ids.extend(
+                self._store.add_documents(docs[start : start + limit], **batch_kwargs)
+            )
         return ids
 
     async def aadd_documents(
-        self, documents: Sequence[Document], batch_size: int | None = None
+        self,
+        documents: Sequence[Document],
+        batch_size: int | None = None,
+        **kwargs: Any,
     ) -> List[str]:
         """Async wrapper for add_documents (standard LangChain pattern).
 
@@ -55,7 +70,9 @@ class BaseVectorStore:
         """
         import asyncio
 
-        return await asyncio.to_thread(self.add_documents, documents, batch_size)
+        return await asyncio.to_thread(
+            self.add_documents, documents, batch_size, **kwargs
+        )
 
     async def add_documents_parallel(
         self,
@@ -64,6 +81,7 @@ class BaseVectorStore:
         batch_size: int | None = None,
         max_concurrent: int = 3,
         retry_failed: bool = True,
+        requests_per_second: float | None = None,
     ) -> List[str]:
         """Add documents with parallel embedding generation for better performance.
 
@@ -113,6 +131,14 @@ class BaseVectorStore:
             docs[i : i + effective_batch_size]
             for i in range(0, len(docs), effective_batch_size)
         ]
+        rate_limiter = (
+            AsyncRateLimiter(requests_per_second) if requests_per_second else None
+        )
+
+        async def _write(batch: Sequence[Document]) -> List[str]:
+            if rate_limiter is not None:
+                await rate_limiter.acquire()
+            return await asyncio.to_thread(self._store.add_documents, batch)
 
         logger.info(
             f"Adding {len(docs)} documents in {len(batches)} batches "
@@ -121,15 +147,14 @@ class BaseVectorStore:
 
         # Process batches in parallel with concurrency limit
         all_ids: List[str] = []
+        failed_count = 0
+        failures: List[Exception] = []
 
         for i in range(0, len(batches), max_concurrent):
             batch_group = batches[i : i + max_concurrent]
 
             # Create tasks for concurrent batch processing
-            tasks = [
-                asyncio.to_thread(self._store.add_documents, batch)
-                for batch in batch_group
-            ]
+            tasks = [_write(batch) for batch in batch_group]
 
             # Execute concurrently
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -145,35 +170,61 @@ class BaseVectorStore:
                     if retry_failed:
                         logger.info(f"Retrying batch {batch_idx + 1} sequentially...")
                         try:
-                            retry_ids = self._store.add_documents(batch_group[idx])
+                            if rate_limiter is not None:
+                                await rate_limiter.acquire()
+                            retry_ids = await asyncio.to_thread(
+                                self._store.add_documents, batch_group[idx]
+                            )
                             all_ids.extend(retry_ids)
                             logger.info(f"Batch {batch_idx + 1} retry successful")
                         except Exception as retry_error:
                             logger.error(
                                 f"Batch {batch_idx + 1} retry failed: {retry_error}"
                             )
-                            # Add empty IDs to maintain alignment with input documents
-                            all_ids.extend(["" for _ in batch_group[idx]])
+                            failed_count += len(batch_group[idx])
+                            failures.append(retry_error)
                     else:
-                        # Add empty IDs to maintain alignment
-                        all_ids.extend(["" for _ in batch_group[idx]])
+                        failed_count += len(batch_group[idx])
+                        failures.append(result)
                 else:
                     all_ids.extend(result)
 
-        logger.info(
-            f"Successfully added {len([id for id in all_ids if id])} documents "
-            f"to vector store (total slots: {len(all_ids)})"
-        )
+        if failed_count:
+            detail = "; ".join(str(error) for error in failures)
+            raise BatchWriteError(
+                f"Failed to persist {failed_count}/{len(docs)} documents: {detail}",
+                failed_count=failed_count,
+                succeeded_ids=all_ids,
+            )
+
+        if len(all_ids) != len(docs) or any(not item_id for item_id in all_ids):
+            raise BatchWriteError(
+                "Vector store returned an incomplete set of document IDs",
+                failed_count=len(docs)
+                - len([item_id for item_id in all_ids if item_id]),
+                succeeded_ids=[item_id for item_id in all_ids if item_id],
+            )
+
+        logger.info("Successfully added %s documents to vector store", len(all_ids))
 
         return all_ids
 
-    def similarity_search(self, query: str, k: int = 4) -> List[Document]:
+    def similarity_search(
+        self, query: str, k: int = 4, **kwargs: Any
+    ) -> List[Document]:
         """Return the top-k similar documents from the wrapped store."""
-        return self._store.similarity_search(query, k=k)
+        return self._store.similarity_search(query, k=k, **kwargs)
 
-    async def asimilarity_search(self, query: str, k: int = 4) -> List[Document]:
+    async def asimilarity_search(
+        self, query: str, k: int = 4, **kwargs: Any
+    ) -> List[Document]:
         """Async version of similarity_search."""
-        return await self._store.asimilarity_search(query, k=k)
+        async_method = getattr(self._store, "asimilarity_search", None)
+        if callable(async_method):
+            return await async_method(query, k=k, **kwargs)
+        import asyncio
+
+        return await asyncio.to_thread(self.similarity_search, query, k, **kwargs)
 
     def max_marginal_relevance_search(
         self, query: str, k: int = 4, fetch_k: int = 20, **kwargs: Any

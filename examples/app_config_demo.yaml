@@ -147,6 +147,8 @@ entity_extraction:
     "works with": "AFFILIATED_WITH"
   gleaning_enabled: true
   max_gleaning_steps: 2
+  max_concurrent_llm_calls: 8
+  llm_requests_per_second: null
   entity_linking_enabled: true
   entity_linking_method: "string_similarity"
   entity_linking_threshold: 0.8

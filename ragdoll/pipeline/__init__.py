@@ -17,6 +17,7 @@ from ragdoll.graph_stores import get_graph_store
 from ragdoll.ingestion import DocumentLoaderService
 from ragdoll.llms import get_llm_caller
 from ragdoll.llms.callers import BaseLLMCaller
+from ragdoll.errors import GraphWriteError
 from langchain_core.language_models import BaseLanguageModel
 
 logger = logging.getLogger("ragdoll.pipeline")
@@ -219,8 +220,11 @@ class IngestionPipeline:
                 chunks,
                 batch_size=self.options.batch_size,
                 max_concurrent=max_concurrent,
+                requests_per_second=(
+                    self.config_manager.embeddings_config.requests_per_second
+                ),
             )
-            self.stats["vector_entries_added"] = len(chunks)
+            self.stats["vector_entries_added"] = len(vector_ids)
 
             # Store vector IDs and timestamp back into chunk metadata
             from datetime import datetime, timezone
@@ -257,8 +261,11 @@ class IngestionPipeline:
                 chunks,
                 batch_size=self.options.batch_size,
                 max_concurrent=max_concurrent,
+                requests_per_second=(
+                    self.config_manager.embeddings_config.requests_per_second
+                ),
             )
-            self.stats["vector_entries_added"] = len(chunks)
+            self.stats["vector_entries_added"] = len(vector_ids)
 
             from datetime import datetime, timezone
 
@@ -371,16 +378,24 @@ class IngestionPipeline:
         save_fn = getattr(self.graph_store, "save_graph", None)
         try:
             if callable(save_fn):
-                save_fn(graph)
+                result = save_fn(graph)
+                if result is False:
+                    raise GraphWriteError("Graph store rejected the graph write")
             elif hasattr(self.graph_store, "save"):
-                self.graph_store.save(graph)
+                result = self.graph_store.save(graph)
+                if result is False:
+                    raise GraphWriteError("Graph store rejected the graph write")
             else:
                 logger.debug(
                     "Graph store %s has no save_graph/save method; skipping persistence",
                     type(self.graph_store).__name__,
                 )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Unable to persist graph to graph store: %s", exc)
+        except GraphWriteError:
+            raise
+        except Exception as exc:
+            raise GraphWriteError(
+                f"Unable to persist graph to graph store: {exc}"
+            ) from exc
 
     def _resolve_llm_caller(
         self,

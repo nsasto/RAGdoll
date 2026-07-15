@@ -61,6 +61,9 @@ Thumbs.db
 
 # Environment variables
 .venv
+.codex-venv/
+.test-tmp/
+.ragdoll/
 .vscode/launch.json
 .vscode/settings.json
 

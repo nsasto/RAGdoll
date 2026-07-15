@@ -17,6 +17,7 @@ from langchain_community.embeddings.fake import FakeEmbeddings
 from langchain_community.vectorstores import FAISS
 
 from ragdoll.vector_stores.base_vector_store import BaseVectorStore
+from ragdoll.errors import BatchWriteError
 
 
 @pytest.fixture
@@ -71,6 +72,18 @@ class TestAAddDocuments:
         # Verify documents were actually added
         results = vector_store.similarity_search("Test document", k=10)
         assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_aadd_documents_preserves_requested_ids_across_batches(
+        self, vector_store, sample_documents
+    ):
+        requested = [f"stable-{index}" for index in range(6)]
+
+        ids = await vector_store.aadd_documents(
+            sample_documents[:6], batch_size=2, ids=requested
+        )
+
+        assert ids == requested
 
 
 class TestAddDocumentsParallel:
@@ -194,13 +207,12 @@ class TestErrorHandling:
             Document(page_content=f"Test {i}", metadata={"id": i}) for i in range(5)
         ]
 
-        # Should fail and return empty IDs
-        ids = await vector_store.add_documents_parallel(
-            docs, batch_size=5, max_concurrent=1, retry_failed=False
-        )
+        with pytest.raises(BatchWriteError) as exc_info:
+            await vector_store.add_documents_parallel(
+                docs, batch_size=5, max_concurrent=1, retry_failed=False
+            )
 
-        assert len(ids) == 5
-        assert all(id == "" for id in ids)
+        assert exc_info.value.failed_count == 5
 
     @pytest.mark.asyncio
     async def test_parallel_with_permanent_failure(self, fake_embedding):
@@ -214,13 +226,12 @@ class TestErrorHandling:
             Document(page_content=f"Test {i}", metadata={"id": i}) for i in range(3)
         ]
 
-        # Should retry and still fail, returning empty IDs
-        ids = await vector_store.add_documents_parallel(
-            docs, batch_size=3, max_concurrent=1, retry_failed=True
-        )
+        with pytest.raises(BatchWriteError) as exc_info:
+            await vector_store.add_documents_parallel(
+                docs, batch_size=3, max_concurrent=1, retry_failed=True
+            )
 
-        assert len(ids) == 3
-        assert all(id == "" for id in ids)
+        assert exc_info.value.failed_count == 3
         # Should have been called twice (initial + retry)
         assert mock_store.add_documents.call_count == 2
 
@@ -304,6 +315,31 @@ class TestConcurrency:
 
         # Max concurrent should not exceed 3
         assert concurrent_calls["max"] <= 3
+
+    @pytest.mark.asyncio
+    async def test_parallel_respects_request_rate_limit(self):
+        import time
+
+        calls = []
+        store = Mock()
+
+        def add_documents(docs):
+            calls.append(time.monotonic())
+            return [f"id-{len(calls)}"]
+
+        store.add_documents = add_documents
+        vector_store = BaseVectorStore(store)
+        docs = [Document(page_content=str(index)) for index in range(3)]
+
+        await vector_store.add_documents_parallel(
+            docs,
+            batch_size=1,
+            max_concurrent=3,
+            requests_per_second=20,
+        )
+
+        assert calls[1] - calls[0] >= 0.04
+        assert calls[2] - calls[1] >= 0.04
 
 
 class TestIntegrationWithRealStores:

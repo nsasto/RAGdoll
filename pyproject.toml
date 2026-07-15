@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-ragdoll"
-version = "2.3.0"
-description = "A set of helper classes that abstract some of the more common tasks of a typical RAG process including document loading/web scraping."
+version = "3.0.0"
+description = "An application-embedded SDK for durable ingestion, versioned corpora, and predictable RAG retrieval."
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
     {name = "Nathan Sasto"},
 ]
@@ -18,8 +18,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Text Processing :: Markup :: Markdown",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -70,8 +68,14 @@ graph = [
     "neo4j>=5.11.0",
     "rdflib",
 ]
+scaled = [
+    "celery>=5.4.0",
+    "psycopg[binary]>=3.2.0",
+    "qdrant-client>=1.12.0",
+    "langchain-qdrant>=0.2.0",
+]
 all = [
-    "python-ragdoll[dev,entity,graph]",
+    "python-ragdoll[dev,entity,graph,scaled]",
 ]
 
 [tool.setuptools.packages.find]

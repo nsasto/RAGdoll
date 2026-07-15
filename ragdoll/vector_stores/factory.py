@@ -11,6 +11,7 @@ from langchain.embeddings.base import Embeddings
 from langchain_core.vectorstores import VectorStore
 
 from ragdoll.config.base_config import VectorStoreConfig
+from ragdoll.utils.env import resolve_env_reference
 
 from .base_vector_store import BaseVectorStore
 
@@ -18,6 +19,7 @@ _VECTOR_STORE_REGISTRY: Dict[str, str] = {
     "chroma": "langchain_chroma.Chroma",
     "faiss": "langchain_community.vectorstores.FAISS",
     "docarrayinmemory": "langchain_community.vectorstores.DocArrayInMemorySearch",
+    "qdrant": "langchain_qdrant.QdrantVectorStore",
 }
 
 
@@ -63,7 +65,9 @@ def create_vector_store(
     kwargs = dict(store_kwargs)
 
     # FAISS requires a special case for creating an empty index.
-    if store_type.lower() == "faiss" and not kwargs.get("index"):
+    if store_type.lower() == "qdrant":
+        store = _create_qdrant_store(store_cls, embedding, kwargs)
+    elif store_type.lower() == "faiss" and not kwargs.get("index"):
         if not embedding:
             raise ValueError(
                 "FAISS requires an embedding model to create an empty index."
@@ -93,6 +97,62 @@ def create_vector_store(
         store = store_cls(**kwargs)
 
     return BaseVectorStore(store)
+
+
+def _create_qdrant_store(
+    store_cls: Type[VectorStore],
+    embedding: Embeddings | None,
+    kwargs: Dict[str, Any],
+) -> VectorStore:
+    if embedding is None:
+        raise ValueError("Qdrant requires an embedding model")
+    try:
+        from qdrant_client import QdrantClient, models
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "Qdrant requires `pip install python-ragdoll[scaled]`"
+        ) from exc
+
+    collection_name = kwargs.pop("collection_name", None)
+    if not collection_name:
+        raise ValueError("Qdrant requires params.collection_name")
+    client = kwargs.pop("client", None)
+    client_keys = {
+        "location",
+        "url",
+        "port",
+        "grpc_port",
+        "prefer_grpc",
+        "https",
+        "api_key",
+        "prefix",
+        "timeout",
+        "host",
+        "path",
+    }
+    client_kwargs = {
+        key: resolve_env_reference(kwargs.pop(key))
+        for key in tuple(kwargs)
+        if key in client_keys
+    }
+    client = client or QdrantClient(**client_kwargs)
+    if not client.collection_exists(collection_name):
+        dimension = len(embedding.embed_query("ragdoll dimension probe"))
+        distance_name = str(kwargs.pop("distance", "cosine")).upper()
+        try:
+            distance = getattr(models.Distance, distance_name)
+        except AttributeError as exc:
+            raise ValueError(f"Unsupported Qdrant distance: {distance_name}") from exc
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config=models.VectorParams(size=dimension, distance=distance),
+        )
+    return store_cls(
+        client=client,
+        collection_name=collection_name,
+        embedding=embedding,
+        **kwargs,
+    )
 
 
 def create_vector_store_from_documents(
