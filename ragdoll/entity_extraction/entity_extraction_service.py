@@ -70,9 +70,11 @@ class EntityExtractionService(BaseEntityExtractor):
         self.text_splitter = text_splitter
         self.max_concurrent_llm_calls = merged_config.get("max_concurrent_llm_calls", 8)
         self.llm_requests_per_second = merged_config.get("llm_requests_per_second")
-        llm_instance = llm or get_llm(
-            config_manager=config_manager, app_config=self.app_config
-        )
+        llm_instance = llm
+        if llm_instance is None and llm_caller is None:
+            llm_instance = get_llm(
+                config_manager=config_manager, app_config=self.app_config
+            )
         if llm_caller is not None:
             self.llm_caller = llm_caller
         elif llm_instance is not None:

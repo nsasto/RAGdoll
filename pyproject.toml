@@ -80,3 +80,8 @@ all = [
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["ragdoll*", "demo_app*"]
+
+[tool.setuptools.package-data]
+ragdoll = ["config/*.yaml", "prompts/*.md"]
+demo_app = ["templates/*.html", "templates/partials/*.html"]
